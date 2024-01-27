@@ -21,11 +21,11 @@ with open(version_h, 'r') as file:
                 version_string = match.group(2)
                 version_string = version_string.replace('"', '')
 
-print(f"get current version: {version_string} from {version_h}")
-
 if sys.argv[1] == "getversion":
+    # print current full version directly
     print(version_string)
 else:
+    print(f"get current version: {version_string} from {version_h}")
     # get the current buildnumber if file exists
     try:
         # Attempt to open and read the file
