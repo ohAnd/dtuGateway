@@ -23,12 +23,11 @@ jobs:
       - name: Build PlatformIO Project
         run: pio run
 
-      - name: Download a Build Artifact
-        uses: actions/download-artifact@v4.1.1
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
         with:
-          # Name of the artifact to download. If unspecified, all artifacts for the run are downloaded.
-          name: dtuGatway.bin # optional
-          # Destination path. Supports basic tilde expansion. Defaults to $GITHUB_WORKSPACE
-          path: .pio/build/esp12e/firmware.bin # optional
+          name: dtuGatewayFirmware.bin
+          path: .pio/build/esp12e/firmware.bin
+
                 
                 
