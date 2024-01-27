@@ -46,7 +46,17 @@ jobs:
           asset_name: dtuGateway_snapshot.bin
           tag: devRelease
           overwrite: true
+
+      - name: Update nightly release 2
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: include/version.json
+          asset_name: snapshot.json
+          tag: devRelease
+          overwrite: true
           body: "dev release based on direct pushes"
+      
 
       # - name: Create Dev Release
       #   id: create_release
