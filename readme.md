@@ -12,4 +12,7 @@
 - https://github.com/henkwiedig/Hoymiles-DTU-Proto
 - https://github.com/suaveolent/hoymiles-wifi/tree/main
 - https://github.com/tbnobody/OpenDTU/discussions/1430
-- 
+
+
+## hints for workflow
+- creating dev release (https://blog.derlin.ch/how-to-create-nightly-releases-with-github-actions)
