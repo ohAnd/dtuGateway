@@ -5,8 +5,6 @@ from datetime import datetime
 from datetime import date
 import sys
 
-print(sys.argv)
-
 version_h = os.getcwd() + '/include/version.h'
 version_json = os.getcwd() + '/include/version.json'
 buildnumber_txt = os.getcwd() + '/include/buildnumber.txt'
