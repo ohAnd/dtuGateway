@@ -4,8 +4,8 @@ import os
 from datetime import datetime
 from datetime import date
 
-version_h = os.getcwd() + 'include/version.h'
-version_json = os.getcwd() + 'include/version.json'
+version_h = os.getcwd() + '/include/version.h'
+version_json = os.getcwd() + '/include/version.json'
 
 version_string = ""
 
