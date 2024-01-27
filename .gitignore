@@ -1,4 +1,4 @@
-secrets.h
+secrets.h.local
 
 .pio
 .vscode/.browse.c_cpp.db*
