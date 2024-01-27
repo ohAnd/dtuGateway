@@ -20,14 +20,46 @@ jobs:
       - name: Install PlatformIO Core
         run: pip install --upgrade platformio
 
+      # - name: write temp file with build number and set to env variable
+      #   run: |
+      #     touch ${{ github.workspace }}/include/buildnumber.txt
+      #     printf -v BUILDNUMBER "%04ddev" ${{github.run_number}}
+      #     echo $BUILDNUMBER >> ${{ github.workspace }}/hooks/buildnumber.txt
+      #     echo "cat ../buildnumber.txt"
+      #     cat ${{ github.workspace }}/hooks/buildnumber.txt
+      #     echo "CURRENT_BUILDNUMBER=$BUILDNUMBER" >> $GITHUB_ENV
+
       - name: Build PlatformIO Project
         run: pio run
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
         with:
-          name: dtuGatewayFirmware_$BUILDNUMBER.bin
+          name: dtuGatewayFirmware_${{github.run_number}}.bin
           path: .pio/build/esp12e/firmware.bin
+
+      - name: Create Dev Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: devRelease
+          release_name: devRelease
+          body: |
+            dev release based on direct pushes
+          draft: true
+          prerelease: false
+      - name: Upload Release Asset
+        id: upload-release-asset 
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps 
+          asset_path: .pio/build/esp12e/firmware.bin
+          asset_name: dtuGatewayFirmware_${{github.run_number}}.bin
+          asset_content_type: application/x-binary
 
                 
                 
