@@ -38,6 +38,11 @@ jobs:
           name: dtuGatewayFirmware_${{github.run_number}}.bin
           path: .pio/build/esp12e/firmware.bin
 
+      - name: remove existing snapshot
+        uses: liudonghua123/delete-release-action@v1
+        with:
+          release_name: devRelease
+
       - name: Update nightly release
         uses: svenstaro/upload-release-action@v2
         with:
