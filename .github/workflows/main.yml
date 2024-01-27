@@ -38,28 +38,37 @@ jobs:
           name: dtuGatewayFirmware_${{github.run_number}}.bin
           path: .pio/build/esp12e/firmware.bin
 
-      - name: Create Dev Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: pyTooling/Actions/releaser@r0
         with:
-          tag_name: devRelease
-          release_name: dev drop 
-          body: |
-            dev release based on direct pushes
-          draft: true
-          prerelease: false
-      - name: Upload Release Asset
-        id: upload-release-asset 
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps 
-          asset_path: .pio/build/esp12e/firmware.bin
-          asset_name: dtuGatewayFirmware_${{github.run_number}}.bin
-          asset_content_type: application/x-binary
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag: devRelease
+          files: |
+            .pio/build/esp12e/firmware.bin
+            include/version.json
+
+      # - name: Create Dev Release
+      #   id: create_release
+      #   uses: actions/create-release@v1
+      #   env:
+      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      #   with:
+      #     tag_name: devRelease
+      #     release_name: dev drop 
+      #     body: |
+      #       dev release based on direct pushes
+      #     draft: true
+      #     prerelease: false
+
+      # - name: Upload Release Asset
+      #   id: upload-release-asset 
+      #   uses: actions/upload-release-asset@v1
+      #   env:
+      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      #   with:
+      #     upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps 
+      #     asset_path: .pio/build/esp12e/firmware.bin
+      #     asset_name: dtuGatewayFirmware_${{github.run_number}}.bin
+      #     asset_content_type: application/x-binary
 
                 
                 
