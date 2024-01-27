@@ -32,7 +32,9 @@ else:
         with open(buildnumber_txt, 'r') as file:
             for line in file:
                 build_string = line
-                print(f"got buildnumber : {build_string}")
+                print(f"got buildnumber read: ->{build_string}<-")
+                build_string = build_string.replace("\n","")
+                print(f"got buildnumber use: ->{build_string}<-")
     except FileNotFoundError:
         print('buildnumber file not found')
         
@@ -40,6 +42,7 @@ else:
     
     # Increment to the new version string
     # patch += 1
+    version_string_new = f"{major}.{minor}.{patch}.{build_string}"
     version_string_new = f"{major}.{minor}.{patch}.{build_string}"
     
     print(f"calc new version: {version_string_new}")
