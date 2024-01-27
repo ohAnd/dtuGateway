@@ -41,9 +41,9 @@ jobs:
       - uses: "marvinpinto/action-automatic-releases@latest"
         with:
           repo_token: "${{ secrets.GITHUB_TOKEN }}"
-          automatic_release_tag: "latest"
+          automatic_release_tag: "snapshot"
           prerelease: true
-          title: "Development Build"
+          title: "Latest snapshot"
           files: |
             .pio/build/esp12e/firmware.bin
             include/version.json
