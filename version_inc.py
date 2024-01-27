@@ -25,7 +25,7 @@ print(f"get current version: {version_string} from {version_h}")
 
 if sys.argv[1] == "getversion":
     print(version_string)
-else
+else:
     # get the current buildnumber if file exists
     try:
         # Attempt to open and read the file
