@@ -34,8 +34,8 @@ jobs:
 
       - name: changing firmware name after building
         run: |
-            VERSIONNUMBER=$((version_inc.py getverision) 2> &1)
-            echo "got versionnumber" $VERSIONNUMBER
+            VERSIONNUMBER=$(python ${{ github.workspace }}/version_inc.py getversion)
+            echo "got versionnumber: " $VERSIONNUMBER
             echo "CURRENT_VERSIONNUMBER=$VERSIONNUMBER" >> $GUTHUB_ENV
             mv .pio/build/esp12e/firmware.bin .pio/build/esp12e/dtuGateway_snapshot_$VERSIONNUMBER.bin
 
