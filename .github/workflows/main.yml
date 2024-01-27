@@ -23,7 +23,7 @@ jobs:
       - name: write temp file with build number and set to env variable
         run: |
           touch ${{ github.workspace }}/include/buildnumber.txt
-          printf -v BUILDNUMBER "%04ddev" ${{github.run_number}}
+          printf -v BUILDNUMBER "%04d" ${{github.run_number}}
           echo $BUILDNUMBER >> ${{ github.workspace }}/include/buildnumber.txt
           echo "cat ../buildnumber.txt"
           cat ${{ github.workspace }}/include/buildnumber.txt
