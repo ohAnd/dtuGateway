@@ -34,7 +34,10 @@ jobs:
 
       - name: changing firmware name after building
         run: |
-            mv .pio/build/esp12e/firmware.bin .pio/build/esp12e/dtuGateway_snapshot_${{github.run_number}}.bin
+            VERSIONNUMBER=$((version_inc.py getverision) 2> &1)
+            echo "got versionnumber" $VERSIONNUMBER
+            echo "CURRENT_VERSIONNUMBER=$VERSIONNUMBER" >> $GUTHUB_ENV
+            mv .pio/build/esp12e/firmware.bin .pio/build/esp12e/dtuGateway_snapshot_$VERSIONNUMBER.bin
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
@@ -48,7 +51,7 @@ jobs:
           prerelease: true
           title: "Latest snapshot"
           files: |
-            .pio/build/esp12e/dtuGateway_snapshot_${{github.run_number}}.bin
+            .pio/build/esp12e/dtuGateway_snapshot_${{ env.CURRENT_VERSIONNUMBER }}.bin
             include/version.json
 
 
