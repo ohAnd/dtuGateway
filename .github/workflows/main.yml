@@ -26,7 +26,7 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
         with:
-          name: dtuGatewayFirmware.bin
+          name: dtuGatewayFirmware_$BUILDNUMBER.bin
           path: .pio/build/esp12e/firmware.bin
 
                 
