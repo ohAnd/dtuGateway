@@ -39,13 +39,11 @@ jobs:
           path: .pio/build/esp12e/firmware.bin
 
       - name: Update nightly release
-        uses: eine/tip@master
+        uses: AButler/upload-release-assets@v3.0
         with:
-          tag: nightly
-          rm: true
-          token: ${{ secrets.GITHUB_TOKEN }}
-          files: |
-            .pio/build/esp12e/firmware.bin
+          release-tag: "devRelease"
+          files: ".pio/build/esp12e/firmware.bin"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       # - name: Create Dev Release
       #   id: create_release
