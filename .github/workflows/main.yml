@@ -20,8 +20,9 @@ jobs:
       - name: Install PlatformIO Core
         run: pip install --upgrade platformio
 
-      # - name: write temp file with build number and set to env variable
-      #   run: |
+      - name: write temp file with build number and set to env variable
+        run: |
+            mv .pio/build/esp12e/firmware.bin .pio/build/esp12e/dtuGateway_snapshot_${{github.run_number}}.bin
       #     touch ${{ github.workspace }}/include/buildnumber.txt
       #     printf -v BUILDNUMBER "%04ddev" ${{github.run_number}}
       #     echo $BUILDNUMBER >> ${{ github.workspace }}/hooks/buildnumber.txt
@@ -35,8 +36,7 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
         with:
-          name: dtuGatewayFirmware_${{github.run_number}}.bin
-          path: .pio/build/esp12e/firmware.bin
+          path: .pio/build/esp12e/dtuGateway_snapshot_${{github.run_number}}.bin
 
       - uses: "marvinpinto/action-automatic-releases@latest"
         with:
@@ -45,7 +45,7 @@ jobs:
           prerelease: true
           title: "Latest snapshot"
           files: |
-            .pio/build/esp12e/firmware.bin
+            .pio/build/esp12e/dtuGateway_snapshot_${{github.run_number}}.bin
             include/version.json
 
 #      - name: Update nightly release
