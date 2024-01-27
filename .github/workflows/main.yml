@@ -44,7 +44,6 @@ jobs:
           tag: devRelease
           files: |
             .pio/build/esp12e/firmware.bin
-            include/version.json
 
       # - name: Create Dev Release
       #   id: create_release
