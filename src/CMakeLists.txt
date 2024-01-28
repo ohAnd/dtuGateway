@@ -1,3 +1,3 @@
 idf_component_register(
         SRCS
-        dtuGateway.cpp)
+        dtuGateway.ino)
