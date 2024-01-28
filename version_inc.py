@@ -30,9 +30,8 @@ else:
         with open(buildnumber_txt, 'r') as file:
             for line in file:
                 build_string = line
-                print(f"got buildnumber read: ->{build_string}<-")
                 build_string = build_string.replace("\n","")
-                print(f"got buildnumber use: ->{build_string}<-")
+                print(f"got buildnumber to use: ->{build_string}<-")
     except FileNotFoundError:
         print('buildnumber file not found')
         
@@ -40,10 +39,10 @@ else:
     
     # Increment to the new version string
     # patch += 1
-    version_string_new = f"{major}.{minor}.{patch}.{build_string}"
-    version_string_new = f"{major}.{minor}.{patch}.{build_string}"
+    # version_string_new = f"{major}.{minor}.{patch}.{build_string}"
+    version_string_new = f"{major}.{minor}.{build_string}"
     
-    print(f"calc new version: {version_string_new}")
+    print(f"set new version: {version_string_new}")
     
     # datetime_now = datetime.now().strftime("%b %d %Y - %H:%M:%S
     datetime_now = datetime.now().strftime("%d.%m.%Y - %H:%M:%S")
@@ -60,6 +59,7 @@ else:
     
     json_data['version'] = version_string_new
     json_data['versiondate'] = datetime_now
+    json_data['link'] = "https://github.com/ohAnd/dtuGatewayTest/releases/download/snapshot/dtuGateway_snapshot_" + version_string_new + ".bin"
     
     # Save the updated JSON data back to the file
     with open(version_json, 'w', encoding='ascii') as file:

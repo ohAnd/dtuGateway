@@ -25,14 +25,14 @@ jobs:
           touch ${{ github.workspace }}/include/buildnumber.txt
           printf -v BUILDNUMBER "%04d" ${{github.run_number}}
           echo $BUILDNUMBER >> ${{ github.workspace }}/include/buildnumber.txt
-          echo "cat ../buildnumber.txt"
+          echo "got current buildnumber and saved: "
           cat ${{ github.workspace }}/include/buildnumber.txt
           echo "CURRENT_BUILDNUMBER=$BUILDNUMBER" >> $GITHUB_ENV
 
       - name: Build PlatformIO Project
         run: pio run
 
-      - name: changing firmware name after building
+      - name: got current version and changing firmware name after building
         run: |
             VERSIONNUMBER=$(python ${{ github.workspace }}/version_inc.py getversion 2>&1)
             echo "got versionnumber: " $VERSIONNUMBER
@@ -42,7 +42,7 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
         with:
-          path: .pio/build/esp12e/dtuGateway_snapshot_${{github.run_number}}.bin
+          path: .pio/build/esp12e/dtuGateway_snapshot_${{ env.CURRENT_VERSIONNUMBER }}.bin
 
       - uses: "marvinpinto/action-automatic-releases@latest"
         with:
