@@ -9,6 +9,6 @@ const char *local_ssid_password = "myWifiPass";
 
 const char *local_openhab_ip = "192.168.1.1";
 
-const char *local_updateInfoWebPath = "https://raw.githubusercontent.com/ohAnd/dtuGateway/main/include/version.json?token=GHSAT0AAAAAACJFYF7FW4CYXU4R6R6FH2TEZNVEA7Q";
+const char *local_updateInfoWebPath = "https://github.com/ohAnd/dtuGatewayTest/releases/download/snapshot/version.json";
 
 #endif
