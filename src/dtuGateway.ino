@@ -586,12 +586,12 @@ boolean getUpdateInfo()
     if (httpCode > 0)
     {
       // HTTP header has been send and Server response header has been handled
-      Serial.printf("\n[HTTPS] GET... code: %d\n", httpCode);
+      // Serial.printf("\n[HTTPS] GET... code: %d\n", httpCode);
       // file found at server
       if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY)
       {
         String payload = https.getString();
-        Serial.println(payload);
+        // Serial.println(payload);
 
         // Parse JSON using ArduinoJson library
         DynamicJsonDocument doc(1024);
@@ -616,15 +616,15 @@ boolean getUpdateInfo()
           server.send(200, "application/json", "{\"updateRequest\": \"done\"}");
 
           // Access JSON data here
-          const char *value = doc["version"];
-          const char *value2 = doc["versiondate"];
-          const char *value3 = doc["link"];
-          Serial.print("Value from JSON: ");
-          Serial.println(value);
-          Serial.print("Value2 from JSON: ");
-          Serial.println(value2);
-          Serial.print("Value3 from JSON: ");
-          Serial.println(value3);
+          // const char *value = doc["version"];
+          // const char *value2 = doc["versiondate"];
+          // const char *value3 = doc["link"];
+          // Serial.print("Value from JSON: ");
+          // Serial.println(value);
+          // Serial.print("Value2 from JSON: ");
+          // Serial.println(value2);
+          // Serial.print("Value3 from JSON: ");
+          // Serial.println(value3);
         }
       }
     }
