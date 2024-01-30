@@ -194,6 +194,7 @@ body {
     border-style: solid;
     border-radius: 10px;
     z-index: 20;
+    overflow: scroll;
 }
 
 #popup2:after {

@@ -3,6 +3,8 @@
 #include <ESP8266_ISR_Timer.h>
 #include <ESP8266WiFi.h>
 #include <ESP8266HTTPClient.h>
+#include <WiFiClientSecureBearSSL.h>
+
 #include <ESP8266WebServer.h>
 
 #include <ESP8266HTTPUpdateServer.h>
@@ -14,6 +16,8 @@
 
 #include <ArduinoJson.h>
 
+#include <EEPROM.h>
+
 #include "pb_encode.h"
 #include "pb_decode.h"
 #include "AppGetHistPower.pb.h"
@@ -23,38 +27,49 @@
 #include "CRC16.h"
 
 #include "index_html.h"
+#include "jquery_min_js.h"
 #include "style_css.h"
 
-#include "secrets.h"
 #include "version.h"
 
 CRC16 crc;
 
 // DTU connect
 const uint16_t dtuPort = 10081;
-// const char *dtuHost = "10.10.100.254";
-const char *dtuHost = "192.168.1.28";
 
-// wireless secrets
-const char *dtuSsid = dtu_ssid_name; // e.g. DTUBI-12345678
-const char *dtuPassword = dtu_ssid_password;
+// first start AP name
+const char *apNameStart = "hoymilesGW"; // + chipid
 
-const char *ssid = local_ssid_name;
-const char *password = local_ssid_password;
+// config
+const int MAX_STRING_LENGTH = 64; // maximum length, will be truncated befroe writing to eeprom
+struct UserConfig
+{
+  char dtuSsid[32];
+  char dtuPassword[32];
+  char wifiSsid[32];
+  char wifiPassword[32];
+  char dtuHostIp[16];
+  char openhabHostIp[16];
+  int cloudPauseTime;
+  boolean wifiAPstart;
+  byte eepromInitialized; // specific pattern to determine floating state in EEPROM from Factory
+};
+
+#define EEPROM_INIT_PATTERN 0xAA
+
+UserConfig userConfig;
 
 // OTA
 ESP8266HTTPUpdateServer httpUpdater;
 // { "version": "0.0.1", "versiondate": "01.01.2024 - 01:00:00", "link": "http://<domain>/path/to/firmware/<file>.<bin>" }
-String updateInfoWebPath = local_updateInfoWebPath;
+String updateInfoWebPath = "https://github.com/ohAnd/dtuGatewayTest/releases/download/snapshot/version.json";
+
 String versionServer = "checking";
 String versiondateServer = "...";
 String updateURL = ""; // will be read by getting -> updateInfoWebPath
 boolean updateAvailable = false;
 float updateProgress = 0;
 String updateState = "waiting";
-
-// openhab connect
-String openhabHost = "http://" + String(local_openhab_ip) + ":8080/rest/items/";
 
 #define DTU_TIME_OFFSET 28800
 #define DTU_CLOUD_UPLOAD_SECONDS 40
@@ -158,71 +173,51 @@ struct inverterData
 
 inverterData globalData;
 
-void setup()
+void saveConfigToEEPROM()
 {
-  // switch off SCK LED
-  pinMode(14, OUTPUT);
-  digitalWrite(14, LOW);
-
-  // initialize digital pin LED_BUILTIN as an output.
-  pinMode(LED_BUILTIN, OUTPUT);
-  digitalWrite(LED_BUILTIN, LOW); // turn the LED off by making the voltage LOW
-
-  Serial.begin(250000);
-  Serial.println(F("Booting"));
-
-  WiFi.mode(WIFI_STA);
-
-  // CRC
-  crc.setInitial(CRC16_MODBUS_INITIAL);
-  crc.setPolynome(CRC16_MODBUS_POLYNOME);
-  crc.setReverseIn(CRC16_MODBUS_REV_IN);
-  crc.setReverseOut(CRC16_MODBUS_REV_OUT);
-  crc.setXorOut(CRC16_MODBUS_XOR_OUT);
-  crc.restart();
-
-  // Interval in microsecs
-  if (ITimer.setInterval(TIMER_INTERVAL_MS * 1000, timer1000MilliSeconds))
-  {
-    unsigned long lastMillis = millis();
-    Serial.print(F("Starting  ITimer OK, millis() = "));
-    Serial.println(lastMillis);
-  }
-  else
-    Serial.println(F("Can't set ITimer correctly. Select another freq. or interval"));
+  EEPROM.put(0, userConfig);
+  EEPROM.commit();
+  delay(1000);
 }
 
-void startServices()
+void loadConfigFromEEPROM()
 {
-  if (WiFi.waitForConnectResult() == WL_CONNECTED)
+  EEPROM.get(0, userConfig);
+}
+
+void initializeEEPROM()
+{
+  // EEPROM initialize
+  EEPROM.begin(256); // emulate 512 Byte pf EEPROM
+
+  // Check if EEPROM has been initialized before
+  EEPROM.get(0, userConfig);
+  Serial.print("\nchecking for factory mode (");
+  Serial.print(userConfig.eepromInitialized, HEX);
+  Serial.print(")");
+
+  if (userConfig.eepromInitialized != EEPROM_INIT_PATTERN)
   {
-    Serial.println("");
-    Serial.print(F("Connected! IP address: "));
-    Serial.println(WiFi.localIP());
-    Serial.print(F("IP address of gateway: "));
-    Serial.println(WiFi.gatewayIP());
-    host = "hoymilesGW_" + String(chipID);
-    MDNS.begin(host);
+    Serial.println(" -> not initialized - writing factory defaults");
+    // EEPROM not initialized, set default values
+    strcpy(userConfig.dtuSsid, "DTUBI-12345678");
+    strcpy(userConfig.dtuPassword, "dtubiPassword");
+    strcpy(userConfig.wifiSsid, "mySSID");
+    strcpy(userConfig.wifiPassword, "myPassword");
+    strcpy(userConfig.dtuHostIp, "192.168.0.254");
+    strcpy(userConfig.openhabHostIp, "192.168.0.254");
+    userConfig.cloudPauseTime = 40;
+    userConfig.wifiAPstart = true;
 
-    httpUpdater.setup(&server);
+    // Mark EEPROM as initialized
+    userConfig.eepromInitialized = EEPROM_INIT_PATTERN;
 
-    MDNS.addService("http", "tcp", 80);
-    Serial.println("Ready! Open http://" + String(host) + ".local in your browser");
-
-    // ntp time - offset in summertime 7200 else 3600
-    timeClient.begin();
-    timeClient.setTimeOffset(CLIENT_TIME_OFFSET);
-    // get first time
-    timeClient.update();
-    starttime = timeClient.getEpochTime();
-    Serial.print(F("got time from time server: "));
-    Serial.println(String(starttime));
-
-    initializeWebServer();
+    // Save the default values to EEPROM
+    saveConfigToEEPROM();
   }
   else
   {
-    Serial.println(F("WiFi Failed"));
+    Serial.println(" -> already configured");
   }
 }
 
@@ -249,10 +244,10 @@ boolean checkWifiTask()
     }
 
     // try to connect with current values
-    Serial.println("No Wifi connection! Connecting... try to connect to wifi: '" + String(ssid) + "' with pass: '" + password + "'");
+    Serial.println("No Wifi connection! Connecting... try to connect to wifi: '" + String(userConfig.wifiSsid) + "' with pass: '" + userConfig.wifiPassword + "'");
 
     WiFi.disconnect();
-    WiFi.begin(ssid, password);
+    WiFi.begin(userConfig.wifiSsid, userConfig.wifiPassword);
     wifi_connecting = true;
     blinkCode = BLINK_TRY_CONNECT_DTU;
 
@@ -301,28 +296,38 @@ boolean checkWifiTask()
   }
 }
 
-boolean scanNetworks()
+// scan network for first settings or change
+int networkCount = 0;
+String foundNetworks = "[{\"name\":\"empty\",\"wifi\":0,\"chan\":0}]";
+boolean scanNetworksResult(int networksFound)
 {
   // print out Wi-Fi network scan result upon completion
-  int n = WiFi.scanNetworks();
-  // int n = WiFi.scanComplete();
-  if (n >= 0)
+  if (networksFound > 0)
   {
-    for (int i = 0; i < n; i++)
+    Serial.print(F("\nscan for wifi networks done: "));
+    Serial.println(String(networksFound) + " wifi's found\n");
+    networkCount = networksFound;
+    foundNetworks = "[";
+    for (int i = 0; i < networksFound; i++)
     {
       int wifiPercent = 2 * (WiFi.RSSI(i) + 100);
       if (wifiPercent > 100)
       {
         wifiPercent = 100;
       }
-      Serial.printf("%d: %s, Ch:%d (%ddBm, %d) %s\n", i + 1, WiFi.SSID(i).c_str(), WiFi.channel(i), WiFi.RSSI(i), wifiPercent, WiFi.encryptionType(i) == ENC_TYPE_NONE ? "open" : "");
+      // Serial.printf("%d: %s, Ch:%d (%ddBm, %d) %s\n", i + 1, WiFi.SSID(i).c_str(), WiFi.channel(i), WiFi.RSSI(i), wifiPercent, WiFi.encryptionType(i) == ENC_TYPE_NONE ? "open" : "");
+      foundNetworks = foundNetworks + "{\"name\":\"" + WiFi.SSID(i).c_str() + "\",\"wifi\":" + wifiPercent + ",\"rssi\":" + WiFi.RSSI(i) + ",\"chan\":" + WiFi.channel(i) + "}";
+      if (i < networksFound - 1)
+      {
+        foundNetworks = foundNetworks + ",";
+      }
     }
-    WiFi.scanDelete();
-    // Serial.println();
+    foundNetworks = foundNetworks + "]";
+    // WiFi.scanDelete();
   }
   else
   {
-    Serial.println("no networks found!");
+    Serial.println("no networks found after scanning!");
   }
   return true;
 }
@@ -335,13 +340,9 @@ void handleRoot()
   server.send(200, "text/html", INDEX_HTML);
 }
 // serve json as api
-void handleAPIjson()
+void handleDataJson()
 {
   String JSON = "{";
-  // JSON = JSON + "\"apiLinks\": \" <a href='http://" + String(host) + ".local/api/summary'>/api/summary </a><br>" + "<a href='http://" + String(host) + ".local/api/debug'>/api/debug </a><br>" + "\",";
-  JSON = JSON + "\"chipid\": " + String(chipID) + ",";
-  JSON = JSON + "\"host\": \"" + String(host) + "\",";
-
   JSON = JSON + "\"localtime\": " + String(localTimeSecond) + ",";
   JSON = JSON + "\"ntpStamp\": " + String(timeClient.getEpochTime() - CLIENT_TIME_OFFSET) + ",";
 
@@ -350,9 +351,6 @@ void handleAPIjson()
   JSON = JSON + "\"dtuErrorState\": " + globalControls.dtuErrorState + ",";
 
   JSON = JSON + "\"starttime\": " + String(starttime - CLIENT_TIME_OFFSET) + ",";
-
-  JSON = JSON + "\"wifiGW\": " + globalData.wifi_rssi_gateway + ",";
-  JSON = JSON + "\"wifiDtu\": " + globalData.wifi_rssi + ",";
 
   JSON = JSON + "\"inverter\": {";
   JSON = JSON + "\"pLim\": " + String(globalData.powerLimit) + ",";
@@ -383,7 +381,25 @@ void handleAPIjson()
   JSON = JSON + "\"p\": " + String(globalData.pv1.power) + ",";
   JSON = JSON + "\"dE\": " + String(globalData.pv1.dailyEnergy, 3) + ",";
   JSON = JSON + "\"tE\": " + String(globalData.pv1.totalEnergy, 3);
-  JSON = JSON + "},";
+  JSON = JSON + "}";
+  JSON = JSON + "}";
+
+  server.send(200, "application/json; charset=utf-8", JSON);
+}
+
+void handleInfojson()
+{
+  String JSON = "{";
+  JSON = JSON + "\"chipid\": " + String(chipID) + ",";
+  JSON = JSON + "\"host\": \"" + String(host) + "\",";
+  JSON = JSON + "\"initMode\": " + userConfig.wifiAPstart + ",";
+
+  JSON = JSON + "\"wifiGW\": " + globalData.wifi_rssi_gateway + ",";
+  JSON = JSON + "\"wifiDtu\": " + globalData.wifi_rssi + ",";
+
+  JSON = JSON + "\"networkCount\": " + networkCount + ",";
+  JSON = JSON + "\"foundNetworks\":" + foundNetworks + ",";
+  JSON = JSON + "\"ssid\": \"" + String(userConfig.wifiSsid) + "\",";
 
   JSON = JSON + "\"version\": \"" + String(VERSION) + "\",";
   JSON = JSON + "\"versiondate\": \"" + String(BUILDTIME) + "\",";
@@ -394,18 +410,63 @@ void handleAPIjson()
 
   server.send(200, "application/json; charset=utf-8", JSON);
 }
+
+void handleupdateSettings()
+{
+  String wifiSSIDUser = server.arg("wifiSSIDsend"); // retrieve message from webserver
+  String wifiPassUser = server.arg("wifiPASSsend"); // retrieve message from webserver
+  Serial.println("\nhandleupdateSettings - got WifiSSID: " + wifiSSIDUser + " - got WifiPass: " + wifiPassUser);
+
+  wifiSSIDUser.toCharArray(userConfig.wifiSsid, sizeof(userConfig.wifiSsid));
+  wifiPassUser.toCharArray(userConfig.wifiPassword, sizeof(userConfig.wifiSsid));
+  // userConfig.wifiSsid = wifiSSIDUser;
+  // userConfig.wifiPassword = wifiPassUser;
+
+  Serial.println("handleupdateSettings - set WifiSSID: " + wifiSSIDUser + " - set WifiPass: " + wifiPassUser);
+
+  // after saving from user entry - no more in init state
+  userConfig.wifiAPstart = false;
+  saveConfigToEEPROM();
+  delay(500);
+
+  // handleRoot();
+  String JSON = "{";
+  JSON = JSON + "\"wifiSSIDUser\": \"" + userConfig.wifiSsid + "\",";
+  JSON = JSON + "\"wifiPassUser\": \"" + userConfig.wifiPassword + "\",";
+  JSON = JSON + "}";
+
+  server.send(200, "application/json", JSON);
+
+  delay(2000); // give time for the json response
+
+  // reconnect with new values
+  WiFi.disconnect();
+  WiFi.mode(WIFI_STA);
+  checkWifiTask();
+
+  Serial.println("handleupdateSettings - send JSON: " + String(JSON));
+}
+
 // webserver port 80
 void initializeWebServer()
 {
   server.on("/", HTTP_GET, handleRoot);
+
+  server.on("/jquery.min.js", HTTP_GET, []()
+            {
+    server.sendHeader("Connection", "close");
+    server.send(200, "text/html", JQUERY_MIN_JS); });
 
   server.on("/style.css", HTTP_GET, []()
             {
     server.sendHeader("Connection", "close");
     server.send(200, "text/html", STYLE_CSS); });
 
+  server.on("/updateSettings", handleupdateSettings);
+
   // api GETs
-  server.on("/api/summary", handleAPIjson);
+  server.on("/api/data", handleDataJson);
+  server.on("/api/info", handleInfojson);
 
   // OTA update
   server.on("/updateGetInfo", getUpdateInfo);
@@ -459,7 +520,7 @@ void handleUpdateRequest()
   Serial.println("[update] Update routine done - ReturnCode: " + String(ret));
 }
 // get the info about update from remote
-boolean getUpdateInfo()
+boolean getUpdateInfoInsecure()
 {
   WiFiClient client;
   HTTPClient http;
@@ -470,37 +531,118 @@ boolean getUpdateInfo()
     String payload = http.getString();
     if (httpCode != HTTP_CODE_OK)
     {
-      Serial.println("get uodate info failed");
-    }
-    http.end();
-
-    StaticJsonDocument<200> doc;
-    DeserializationError error = deserializeJson(doc, payload);
-    // Test if parsing succeeds.
-    if (error)
-    {
-      Serial.print(F("deserializeJson() failed: "));
-      Serial.println(error.f_str());
-      return false;
+      Serial.println("\ngetUpdateInfo - failed (httpCode: " + String(httpCode) + ")");
     }
     else
     {
-      versionServer = String(doc["version"]);
-      versiondateServer = String(doc["versiondate"]);
-      updateURL = String(doc["link"]);
-      updateAvailable = checkVersion(String(VERSION), versionServer);
+      StaticJsonDocument<200> doc;
+      DeserializationError error = deserializeJson(doc, payload);
+      // Test if parsing succeeds.
+      if (error)
+      {
+        Serial.print(F("deserializeJson() failed: "));
+        Serial.println(error.f_str());
+        server.sendHeader("Connection", "close");
+        server.send(200, "application/json", "{\"updateRequest\": \"" + String(error.f_str()) + "\"}");
+        return false;
+      }
+      else
+      {
+        versionServer = String(doc["version"]);
+        versiondateServer = String(doc["versiondate"]);
+        updateURL = String(doc["link"]);
+        updateAvailable = checkVersion(String(VERSION), versionServer);
+        server.sendHeader("Connection", "close");
+        server.send(200, "application/json", "{\"updateRequest\": \"done\"}");
+      }
     }
-    server.sendHeader("Connection", "close");
-    server.send(200, "application/json", "{\"updateReuest\": \"done\"}");
+    http.end();
+
     return true;
   }
   else
   {
     server.sendHeader("Connection", "close");
-    server.send(200, "application/json", "{\"updateReuest\": \"error\"}");
+    server.send(200, "application/json", "{\"updateRequest\": \"get error\"}");
     return false;
   }
 }
+
+boolean getUpdateInfo()
+{
+  std::unique_ptr<BearSSL::WiFiClientSecure> secClient(new BearSSL::WiFiClientSecure);
+  secClient->setInsecure();
+
+  // create an HTTPClient instance
+  HTTPClient https;
+
+  // Initializing an HTTPS communication using the secure client
+  if (https.begin(*secClient, updateInfoWebPath))
+  {                                 // HTTPS
+    https.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS); // Enable automatic following of redirects
+    int httpCode = https.GET();
+
+    // httpCode will be negative on error
+    if (httpCode > 0)
+    {
+      // HTTP header has been send and Server response header has been handled
+      Serial.printf("\n[HTTPS] GET... code: %d\n", httpCode);
+      // file found at server
+      if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY)
+      {
+        String payload = https.getString();
+        Serial.println(payload);
+
+        // Parse JSON using ArduinoJson library
+        DynamicJsonDocument doc(1024);
+        DeserializationError error = deserializeJson(doc, payload);
+
+        // Test if parsing succeeds.
+        if (error)
+        {
+          Serial.print(F("deserializeJson() failed: "));
+          Serial.println(error.f_str());
+          server.sendHeader("Connection", "close");
+          server.send(200, "application/json", "{\"updateRequest\": \"" + String(error.f_str()) + "\"}");
+          return false;
+        }
+        else
+        {
+          versionServer = String(doc["version"]);
+          versiondateServer = String(doc["versiondate"]);
+          updateURL = String(doc["link"]);
+          updateAvailable = checkVersion(String(VERSION), versionServer);
+          server.sendHeader("Connection", "close");
+          server.send(200, "application/json", "{\"updateRequest\": \"done\"}");
+
+          // Access JSON data here
+          const char *value = doc["version"];
+          const char *value2 = doc["versiondate"];
+          const char *value3 = doc["link"];
+          Serial.print("Value from JSON: ");
+          Serial.println(value);
+          Serial.print("Value2 from JSON: ");
+          Serial.println(value2);
+          Serial.print("Value3 from JSON: ");
+          Serial.println(value3);
+        }
+      }
+    }
+    else
+    {
+      Serial.printf("[HTTPS] GET... failed, error: %s\n", https.errorToString(httpCode).c_str());
+    }
+
+    https.end();
+  }
+  else
+  {
+    Serial.println("\ngetUpdateInfo - [HTTPS] Unable to connect to server");
+  }
+
+  return true;
+}
+
 // check version local with remote
 boolean checkVersion(String v1, String v2)
 {
@@ -584,6 +726,7 @@ boolean postMessageToOpenhab(String key, String value)
 {
   WiFiClient client;
   HTTPClient http;
+  String openhabHost = "http://" + String(userConfig.openhabHostIp) + ":8080/rest/items/";
   // if (http.begin(openhabHost + key))
   if (http.begin(client, openhabHost + key))
   {
@@ -606,6 +749,7 @@ String getMessageFromOpenhab(String key)
 {
   WiFiClient client;
   HTTPClient http;
+  String openhabHost = "http://" + String(userConfig.openhabHostIp) + ":8080/rest/items/";
   if (http.begin(client, openhabHost + key + "/state"))
   {
     String payload = "";
@@ -658,6 +802,138 @@ boolean updateValueToOpenhab()
   postMessageToOpenhab("inverter_WifiRSSI", (String)globalData.wifi_rssi);
 
   return true;
+}
+
+void setup()
+{
+  // switch off SCK LED
+  pinMode(14, OUTPUT);
+  digitalWrite(14, LOW);
+
+  // initialize digital pin LED_BUILTIN as an output.
+  pinMode(LED_BUILTIN, OUTPUT);
+  digitalWrite(LED_BUILTIN, LOW); // turn the LED off by making the voltage LOW
+
+  Serial.begin(115200);
+  Serial.println(F("Booting"));
+
+  // Initialize EEPROM
+  initializeEEPROM();
+
+  // Load configuration from EEPROM
+  loadConfigFromEEPROM();
+
+  Serial.print("startup state - normal=0, config=1  (hex): ");
+  Serial.print(userConfig.wifiAPstart, HEX);
+  Serial.print("\n");
+
+  if (userConfig.eepromInitialized == EEPROM_INIT_PATTERN)
+  {
+    // Configuration has been written before
+    Serial.print("\n--------------------------------------\n");
+    Serial.println("Configuration loaded from EEPROM:");
+    Serial.print("init phase: \t");
+    Serial.println(userConfig.wifiAPstart);
+
+    Serial.print("wifi ssid: \t");
+    Serial.println(userConfig.wifiSsid);
+    Serial.print("wifi pass: \t");
+    Serial.println(userConfig.wifiPassword);
+
+    Serial.print("openhab host: \t");
+    Serial.println(userConfig.openhabHostIp);
+
+    Serial.print("cloud pause: \t");
+    Serial.println(userConfig.cloudPauseTime);
+
+    Serial.print("dtu host: \t");
+    Serial.println(userConfig.dtuHostIp);
+    Serial.print("dtu ssid: \t");
+    Serial.println(userConfig.dtuSsid);
+    Serial.print("dtu pass: \t");
+    Serial.println(userConfig.dtuPassword);
+    Serial.print("--------------------------------------\n");
+  }
+
+  if (userConfig.wifiAPstart)
+  {
+    Serial.println(F("\n+++ device in 'first start' mode - have to be initialized over own served wifi +++\n"));
+    // first scan of networks - synchronous
+    scanNetworksResult(WiFi.scanNetworks());
+
+    // Connect to Wi-Fi as AP
+    WiFi.mode(WIFI_AP);
+    String apSSID = String(apNameStart) + "_" + chipID;
+    WiFi.softAP(apSSID);
+    Serial.println("\n +++ serving access point with SSID: '" + apSSID + "' +++\n");
+
+    // IP Address of the ESP8266 on the AP network
+    IPAddress apIP = WiFi.softAPIP();
+    Serial.print("AP IP address: ");
+    Serial.println(apIP);
+
+    MDNS.begin("hoymilesGW");
+    MDNS.addService("http", "tcp", 80);
+    Serial.println("Ready! Open http://hoymilesGW.local in your browser");
+
+    initializeWebServer();
+  }
+  else
+  {
+    WiFi.mode(WIFI_STA);
+  }
+
+  // CRC
+  crc.setInitial(CRC16_MODBUS_INITIAL);
+  crc.setPolynome(CRC16_MODBUS_POLYNOME);
+  crc.setReverseIn(CRC16_MODBUS_REV_IN);
+  crc.setReverseOut(CRC16_MODBUS_REV_OUT);
+  crc.setXorOut(CRC16_MODBUS_XOR_OUT);
+  crc.restart();
+
+  // Interval in microsecs
+  if (ITimer.setInterval(TIMER_INTERVAL_MS * 1000, timer1000MilliSeconds))
+  {
+    unsigned long lastMillis = millis();
+    Serial.print(F("Starting  ITimer OK, millis() = "));
+    Serial.println(lastMillis);
+  }
+  else
+    Serial.println(F("Can't set ITimer correctly. Select another freq. or interval"));
+}
+// after startup or reconnect with wifi
+void startServices()
+{
+  if (WiFi.waitForConnectResult() == WL_CONNECTED)
+  {
+    Serial.println("");
+    Serial.print(F("Connected! IP address: "));
+    Serial.println(WiFi.localIP());
+    Serial.print(F("IP address of gateway: "));
+    Serial.println(WiFi.gatewayIP());
+    host = "hoymilesGW_" + String(chipID);
+    MDNS.begin(host);
+
+    httpUpdater.setup(&server);
+
+    MDNS.addService("http", "tcp", 80);
+    Serial.println("Ready! Open http://" + String(host) + ".local in your browser");
+
+    // ntp time - offset in summertime 7200 else 3600
+    timeClient.begin();
+    timeClient.setTimeOffset(CLIENT_TIME_OFFSET);
+    // get first time
+    timeClient.update();
+    starttime = timeClient.getEpochTime();
+    Serial.print(F("got time from time server: "));
+    Serial.println(String(starttime));
+
+    initializeWebServer();
+  }
+  else
+  {
+    Serial.println(F("WiFi Failed"));
+  }
 }
 
 // protobuf functions
@@ -1416,6 +1692,27 @@ void getSerialCommand(String cmd, String value)
       Serial.print(" 'OFF' ");
     }
   }
+  else if (cmd == "resetToFactory")
+  {
+    Serial.print("'resetToFactory' to ");
+    if (val == 1)
+    {
+      userConfig.eepromInitialized = 0x00;
+      saveConfigToEEPROM();
+      delay(1500);
+      Serial.print(" reinitialize EEPROM data and reboot ... ");
+      ESP.restart();
+    }
+  }
+  else if (cmd == "rebootDevice")
+  {
+    Serial.print(" rebootDevice ");
+    if (val == 1)
+    {
+      Serial.print(" ... rebooting ... ");
+      ESP.restart();
+    }
+  }
   else
   {
     Serial.print("Cmd not recognized\n");
@@ -1463,9 +1760,8 @@ void loop()
       preventCloudErrorTask();
     // else
     //   globalControls.dtuActiveOffToCloudUpdate = true;
-    
 
-    if (globalControls.wifiSwitch)
+    if (globalControls.wifiSwitch && !userConfig.wifiAPstart)
       checkWifiTask();
     else
     {
@@ -1544,7 +1840,7 @@ void loop()
       if (!client.connected() && !globalControls.dtuActiveOffToCloudUpdate)
       {
         Serial.print("\n>>> Client not connected with DTU! - try to connect ... ");
-        if (!client.connect(dtuHost, dtuPort))
+        if (!client.connect(userConfig.dtuHostIp, dtuPort))
         {
           Serial.print("Connection to DTU failed.\n");
           globalControls.dtuConnectState = DTU_STATE_OFFLINE;
@@ -1583,7 +1879,6 @@ void loop()
           globalControls.dtuErrorState = DTU_ERROR_TIME_DIFF;
           globalControls.dtuConnectState = DTU_STATE_TRY_RECONNECT;
           client.stop(); // stopping connection to DTU when response time error - try with reconnect
-
         }
         globalData.lastRespTimestamp = globalData.respTimestamp;
       }
@@ -1698,15 +1993,8 @@ void loop()
 
     previousMillisLong = currentMillis;
     // -------->
-    if (WiFi.status() == WL_CONNECTED)
-    {
-      // Serial.print(F("connection state - Client IP address: "));
-      // Serial.println(WiFi.localIP());
-    }
-    else
-    {
-      Serial.print(F("scan for wifi networks:\n"));
-      scanNetworks();
-    }
+    // start async scan for wifi'S
+    // WiFi.scanNetworksAsync(scanNetworksResult);
+    scanNetworksResult(WiFi.scanNetworks());
   }
 }

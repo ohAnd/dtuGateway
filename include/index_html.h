@@ -8,22 +8,49 @@ const char INDEX_HTML[] PROGMEM = R"=====(
     <meta name="viewport"
         content="user-scalable=no, initial-scale=1, maximum-scale=1, minimum-scale=1, width=device-width">
     <link rel="stylesheet" type="text/css" href="style.css">
-    <!-- <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css"> -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+    <script src="jquery.min.js"></script>
 </head>
 
 <body>
     <div style="width: 100%;float:left;">
-        <div class="bar" id="updateTime"
-            style="width: 100%;">
+        <div class="bar" id="updateTime" style="width: 100%;">
         </div>
+    </div>
+    <div class="popup" id="changeSettings">
+        <!-- <form method="POST" action="/updateStorage" enctype="multipart/form-data" id="upload_form"></form> -->
+        <!-- <form method="POST" action="#" enctype="multipart/form-data" id="upload_form"> -->
+        <h2 id="settingsTitle">settings</h2>
+        <div style="padding-bottom: 10px;">
+            <p>available wifi's (<b id="networkCount">0</b>) - currently connected: <b id="wifiSSID"></b>
+            </p>
+            <div id="networks">
+
+            </div>
+        </div>
+        <div>
+            connect to wifi:
+        </div>
+        <div>
+            <input type="text" id="wifiSSIDsend" value="please choose above or type in" required maxlength="32">
+        </div>
+        <div>
+            wifi password (<i id="passcheck" value="invisible">show</i>):
+        </div>
+        <div>
+            <input type="password" id="wifiPASSsend" value="admin12345" required maxlength="32">
+        </div>
+        <div style="text-align: center;">
+            <b onclick="changeWifiData()" id="btnSaveWifiSettings" class="form-button btn">save</b>
+            <b onclick="hide('#changeSettings')" id="btnSettingsClose" class="form-button btn">close</b>
+        </div>
+        <!-- </form> -->
     </div>
     <div class="popup" id="updateMenu">
         <h2>Update</h2>
         <hr>
         <div style="padding-bottom: 10px;">
-            <p id="updateState">Aktuell kein Update verf&uuml;gbar</p>
+            <p id="updateState">currently no update available</p>
         </div>
         <div>
             <table>
@@ -45,15 +72,15 @@ const char INDEX_HTML[] PROGMEM = R"=====(
         <hr>
         <div style="text-align: center;">
             <!-- <input id="btnUpdateStart" class="btn" type="submit" name="doUpdate" value="Update starten"> -->
-            <b onclick="" id="btnUpdateStart" class="form-button btn">Update starten</b>
+            <b onclick="" id="btnUpdateStart" class="form-button btn">start update</b>
         </div>
         <hr>
         <div style="text-align: center;">
-            <b onclick="hide('#updateMenu')" class="form-button btn">Schliessen</b>
+            <b onclick="hide('#updateMenu')" class="form-button btn">close</b>
         </div>
         <hr>
         <div>
-            <small style="text-align:center;"><a href="/update">Manuelles Update</a></small>
+            <small style="text-align:center;"><a href="/update">manual update</a></small>
         </div>
     </div>
     <div class="popup" id="updateProgress">
@@ -236,8 +263,12 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             </div>
             <div id="footer_right">
                 <div class="menuButton notification">
-                    <i class="fa fa-cloud-download" onclick="show('#updateMenu')" alt="update"></i>
+                    <i class="fa fa-cloud-download" onclick="show('#updateMenu')" alt="update" id="updateBtn"></i>
                     <span class="badge" id="updateBadge" style="display: none;"></span>
+                </div>
+                <div class="menuButton notification">
+                    <i class="fa fa-sliders" onclick="show('#changeSettings')" alt="settings" id="settingsBtn"></i>
+                    <!-- <span class="badge">0</span> -->
                 </div>
             </div>
         </div>
@@ -247,17 +278,24 @@ const char INDEX_HTML[] PROGMEM = R"=====(
         let timerRemainingProgess = 0;
         const waitTime = 31000;
         let remainingTime = waitTime;
-        let cacheJSONtemp = {};
+        let cacheInfoData = {};
 
         $(document).ready(function () {
             console.log("document loading done");
             initValueChanges();
             // first data refresh
-            getBaseDataFromLocal();
+            getDataValues();
+            getInfoValues();
             requestVersionData();
+
             window.setInterval(function () {
-                getBaseDataFromLocal();
+                getDataValues();
             }, 5000);
+
+            window.setInterval(function () {
+                getInfoValues();
+            }, 7500);
+
             // check every minute (62,5s) for an available update
             window.setInterval(function () {
                 requestVersionData();
@@ -271,7 +309,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
         var show = function (id) {
             console.log("show " + id)
             $(id).show(200);
-            if (id == '#changeWifiSettings') {
+            if (id == '#changeSettings') {
                 getWIFIdata();
             }
         }
@@ -281,6 +319,18 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             $(id).hide(200);
         }
 
+        function checkInitToSettings(data) {
+            // if not configured then start directly with settings dialogue
+            if (data.initMode == 1) {
+                show("#changeSettings");
+                remainingTime = 0.1; // no countdown on top of the site
+                $('#settingsTitle').html("settings - in startup config mode");
+                // disable close button
+                $('#btnSettingsClose').css('opacity', '0.3');
+                $('#btnSettingsClose').attr('onclick', "")
+            }
+        }
+
         function remainingResponse() {
             if (remainingTime > 0) {
                 var remainingTime_width = (remainingTime / waitTime) * 100;
@@ -288,16 +338,11 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             }
             remainingTime = remainingTime - 100;
             if (remainingTime < 0) {
-                remainingTime = -1;
+                remainingTime = -0.1;
             }
         }
 
         function refreshData(data) {
-
-            var wifiGWPercent = Math.round(data.wifiGW);
-            $('#rssitext_local').html(wifiGWPercent + '%');
-            var wifiDTUPercent = Math.round(data.wifiDtu);
-            $('#rssitext_dtu').html(wifiDTUPercent + '%');
 
             $('#gwtime').html(getTime(data.localtime));
             $('#gwtime2').html(getTime(data.localtime, "date"));
@@ -378,39 +423,115 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                     dtuState = "no info";
             }
             checkValueUpdate('#dtu_error_state', dtuState);
-            $('#firmware').html("fw version: " + data.version);
-
-            // temp data
             return true;
         }
 
-        function getBaseDataFromLocal() {
-            $.ajax({
-                url: '/api/summary',
-                //url: 'http://192.168.1.90/api/summary',
-                //url: 'test.json',
+        function refreshInfo(data) {
 
-                type: 'GET',
-                contentType: false,
-                processData: false,
-                timeout: 1000,
-                success: function (data) {
-                    cacheJSONtemp = data;
-                    refreshData(data);
-                    getVersionData();
-                },
-                error: function () {
-                    console.log("timeout getting data in local network");
-                }
+            var wifiGWPercent = Math.round(data.wifiGW);
+            $('#rssitext_local').html(wifiGWPercent + '%');
+            var wifiDTUPercent = Math.round(data.wifiDtu);
+            $('#rssitext_dtu').html(wifiDTUPercent + '%');
+
+            $('#firmware').html("fw version: " + data.version);
+
+            return true;
+        }
+
+        function getWIFIdata() {
+            // 
+            $('#btnSaveWifiSettings').css('opacity', '1.0');
+            $('#btnSaveWifiSettings').attr('onclick', "changeWifiData();")
+
+            cacheJSON = cacheInfoData;
+            // get networkdata
+            $('#wifiSSID').html(cacheInfoData.ssid);
+            $('#networkCount').html(cacheInfoData.networkCount);
+            $('#networks').empty();
+            cacheInfoData.foundNetworks.sort(compare);
+            for (let index = 0; index < cacheInfoData.networkCount; index++) {
+                var selected = "";
+                if($('#wifiSSIDsend').val() == cacheInfoData.foundNetworks[index].name) selected = "checked"; 
+                $('#networks').append('<label><input type="radio" id="wifi' + index + '" name="wifiselect" value="wifi' + index + '" style="width: auto; height: auto; display:inline" ' + selected + '> ' + cacheInfoData.foundNetworks[index].wifi + ' % - ch: ' + cacheInfoData.foundNetworks[index].chan + ' - ' + cacheInfoData.foundNetworks[index].name + '</label><br>');
+            }
+
+            $('input[type=radio][name=wifiselect]').change(function () {
+                console.log("select: " + this.value + " - " + (this.value).split("wifi")[1]);
+                $('#wifiSSIDsend').val(cacheInfoData.foundNetworks[(this.value).split("wifi")[1]].name);
             });
         }
 
-        function getVersionData() {
-            $('#firmwareVersion').html(cacheJSONtemp.version);
-            $('#builddateVersion').html(cacheJSONtemp.versiondate);
-            $('#firmwareVersionServer').html(cacheJSONtemp.versionServer);
-            $('#builddateVersionServer').html(cacheJSONtemp.versiondateServer);
-            if (cacheJSONtemp.updateAvailable == 1) {
+        $('#passcheck').click(function () {
+            console.log("passcheck stat: " + $(this).attr("value"))
+            if ($(this).attr("value") == 'invisible') {
+                $('#wifiPASSsend').attr('type', 'text');
+                $('#passcheck').attr('value', 'visibile');
+                $('#passcheck').html("hide");
+            } else {
+                $('#wifiPASSsend').attr('type', 'password');
+                $('#passcheck').attr('value', 'invisible');
+                $('#passcheck').html("show");
+            }
+        });
+
+        function changeWifiData() {
+            var ssid = $('#wifiSSIDsend').val();
+            var pwd = $('#wifiPASSsend').val();
+            var data = {};
+            data["wifiSSIDsend"] = ssid;
+            data["wifiPASSsend"] = pwd;
+
+            console.log("send to server: wifi: " + ssid + " - pass: " + pwd);
+
+            const urlEncodedDataPairs = [];
+
+            // Turn the data object into an array of URL-encoded key/value pairs.
+            for (const [name, value] of Object.entries(data)) {
+                urlEncodedDataPairs.push(
+                    `${encodeURIComponent(name)}=${encodeURIComponent(value)}`,
+                );
+                console.log("push: " + name);
+            }
+
+            // Combine the pairs into a single string and replace all %-encoded spaces to
+            // the '+' character; matches the behavior of browser form submissions.
+            const urlEncodedData = urlEncodedDataPairs.join("&").replace(/%20/g, "+");
+
+
+            var xmlHttp = new XMLHttpRequest();
+            xmlHttp.open("POST", "/updateSettings", false); // false for synchronous request
+            xmlHttp.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+
+            // Finally, send our data.
+            xmlHttp.send(urlEncodedData);
+
+            strResult = xmlHttp.responseText;
+            console.log("got from server: " + strResult);
+            alert("Wifi access data changed - please connect to the choosen wifi and access with the new ip inside your network (maybe look inside your wifi router)");
+
+            $('#btnSaveWifiSettings').css('opacity', '0.3');
+            $('#btnSaveWifiSettings').attr('onclick', "")
+
+            hide('#changeWifiSettings');
+            return;
+        }
+
+        function compare(a, b) {
+            if (a.wifi > b.wifi) {
+                return -1;
+            }
+            if (a.wifi < b.wifi) {
+                return 1;
+            }
+            return 0;
+        }
+
+        function getVersionData(data) {
+            $('#firmwareVersion').html(data.version);
+            $('#builddateVersion').html(data.versiondate);
+            $('#firmwareVersionServer').html(data.versionServer);
+            $('#builddateVersionServer').html(data.versiondateServer);
+            if (data.updateAvailable == 1) {
                 $('#updateState').html("new update available");
                 $('#btnUpdateStart').css('opacity', '1.0');
                 $('#updateBadge').show();
@@ -442,7 +563,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
         function startUpdate() {
             hide('#updateMenu');
             show('#updateProgress');
-            $('#newVersionProgress').html(cacheJSONtemp.versionServer);
+            $('#newVersionProgress').html(cacheInfoData.versionServer);
 
             var timeoutStart = 50.0;
             var timeout = timeoutStart;
@@ -466,7 +587,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
 
                 console.log("check OTA progress - " + timeout);
                 timeout = timeout - 0.25;
-                if (timeout < 0 || cacheJSONtemp.updateAvailable == 0) {
+                if (timeout < 0 || cacheInfoData.updateAvailable == 0) {
                     clearInterval(timerTO);
                     window.location.href = "/";
                 }
@@ -476,7 +597,6 @@ const char INDEX_HTML[] PROGMEM = R"=====(
 
             return;
         }
-
 
         function checkValueUpdate(elemId, value, unit = "") {
             if ($(elemId).html() != value + " " + unit) {
@@ -525,9 +645,67 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             }
         }
 
+        // alternative if fontAwsome is not reachable
+        document.addEventListener('DOMContentLoaded', function () {
+            // Check if Font Awesome styles are applied to an element
+            var iconElement = document.createElement('i');
+            iconElement.className = 'fa';
+            document.body.appendChild(iconElement);
+            // Check if the 'fa' class is applied, indicating successful loading
+            if (window.getComputedStyle(iconElement).fontFamily !== 'FontAwesome') {
+                handleFontAwesomeError();
+            }
+            // Remove the temporary element
+            document.body.removeChild(iconElement);
+        });
+
+        function handleFontAwesomeError() {
+            var iconElement = document.getElementById('settingsBtn');
+            if (iconElement) iconElement.innerHTML = '<span style="font-size: 4vmin;">Set</span>';
+            var iconElement = document.getElementById('updateBtn');
+            if (iconElement) iconElement.innerHTML = '<span style="font-size: 4vmin;">Upd</span>';
+        }
+
+        function getDataValues() {
+            $.ajax({
+                url: 'api/data',
+                //url: 'data.json',
+
+                type: 'GET',
+                contentType: false,
+                processData: false,
+                timeout: 1000,
+                success: function (data) {
+                    refreshData(data);
+                },
+                error: function () {
+                    console.log("timeout getting data in local network");
+                }
+            });
+        }
+
+        function getInfoValues() {
+            $.ajax({
+                url: 'api/info',
+                //url: 'info.json',
+
+                type: 'GET',
+                contentType: false,
+                processData: false,
+                timeout: 1000,
+                success: function (info) {
+                    cacheInfoData = info;
+                    checkInitToSettings(info);
+                    refreshInfo(info);
+                    getVersionData(info);
+                },
+                error: function () {
+                    console.log("timeout getting data in local network");
+                }
+            });
+        }
+
     </script>
-
-
 
 </body>
 
