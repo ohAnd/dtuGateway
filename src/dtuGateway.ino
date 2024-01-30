@@ -479,8 +479,19 @@ void initializeWebServer()
 // ---> /updateRequest
 void handleUpdateRequest()
 {
-  std::unique_ptr<BearSSL::WiFiClientSecure> secClient(new BearSSL::WiFiClientSecure);
-  secClient->setInsecure();
+  BearSSL::WiFiClientSecure updateclient;
+  updateclient.setInsecure();
+
+  int doubleSlashPos = updateURL.indexOf("//");
+  int firstSlashPos = updateURL.indexOf('/', doubleSlashPos + 2);
+  String host = updateURL.substring(doubleSlashPos + 2, firstSlashPos);
+  String url = updateURL.substring(firstSlashPos);
+
+  Serial.print("connecting to ");
+  Serial.println(host);
+  Serial.print("with url: ");
+  Serial.println(url);
+
   if (updateURL == "" || updateAvailable != true)
   {
     Serial.println("[update] no url given or no update available");
@@ -503,8 +514,8 @@ void handleUpdateRequest()
   ESPhttpUpdate.closeConnectionsOnUpdate(false);
 
   // // ESPhttpUpdate.rebootOnUpdate(false); // remove automatic update
-
-  t_httpUpdate_return ret = ESPhttpUpdate.update(secClient, updateURL);
+  ESPhttpUpdate.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
+  t_httpUpdate_return ret = ESPhttpUpdate.update(updateclient, updateURL);
 
   switch (ret)
   {
@@ -532,7 +543,7 @@ boolean getUpdateInfo()
 
   // Initializing an HTTPS communication using the secure client
   if (https.begin(*secClient, updateInfoWebPath))
-  {                                 // HTTPS
+  {                                                          // HTTPS
     https.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS); // Enable automatic following of redirects
     int httpCode = https.GET();
 

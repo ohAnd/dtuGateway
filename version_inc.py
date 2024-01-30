@@ -34,13 +34,16 @@ else:
                 print(f"got buildnumber to use: ->{build_string}<-")
     except FileNotFoundError:
         print('buildnumber file not found')
-        
+
     major, minor, patch = map(int, version_string.split('.'))
-    
-    # Increment to the new version string
-    # patch += 1
-    # version_string_new = f"{major}.{minor}.{patch}.{build_string}"
-    version_string_new = f"{major}.{minor}.{build_string}"
+
+    if build_string != "localDev":        
+        # using thze build number github action
+        version_string_new = f"{major}.{minor}.{build_string}"
+    else:
+        # Increment to the new version string
+        patch += 1
+        version_string_new = f"{major}.{minor}.{patch}"
     
     print(f"set new version: {version_string_new}")
     
