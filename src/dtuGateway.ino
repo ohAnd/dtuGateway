@@ -479,6 +479,8 @@ void initializeWebServer()
 // ---> /updateRequest
 void handleUpdateRequest()
 {
+  std::unique_ptr<BearSSL::WiFiClientSecure> secClient(new BearSSL::WiFiClientSecure);
+  secClient->setInsecure();
   if (updateURL == "" || updateAvailable != true)
   {
     Serial.println("[update] no url given or no update available");
@@ -502,7 +504,7 @@ void handleUpdateRequest()
 
   // // ESPhttpUpdate.rebootOnUpdate(false); // remove automatic update
 
-  t_httpUpdate_return ret = ESPhttpUpdate.update(client, updateURL);
+  t_httpUpdate_return ret = ESPhttpUpdate.update(secClient, updateURL);
 
   switch (ret)
   {
@@ -520,54 +522,6 @@ void handleUpdateRequest()
   Serial.println("[update] Update routine done - ReturnCode: " + String(ret));
 }
 // get the info about update from remote
-boolean getUpdateInfoInsecure()
-{
-  WiFiClient client;
-  HTTPClient http;
-  // Send request
-  if (http.begin(client, updateInfoWebPath))
-  {
-    int httpCode = http.GET();
-    String payload = http.getString();
-    if (httpCode != HTTP_CODE_OK)
-    {
-      Serial.println("\ngetUpdateInfo - failed (httpCode: " + String(httpCode) + ")");
-    }
-    else
-    {
-      StaticJsonDocument<200> doc;
-      DeserializationError error = deserializeJson(doc, payload);
-      // Test if parsing succeeds.
-      if (error)
-      {
-        Serial.print(F("deserializeJson() failed: "));
-        Serial.println(error.f_str());
-        server.sendHeader("Connection", "close");
-        server.send(200, "application/json", "{\"updateRequest\": \"" + String(error.f_str()) + "\"}");
-        return false;
-      }
-      else
-      {
-        versionServer = String(doc["version"]);
-        versiondateServer = String(doc["versiondate"]);
-        updateURL = String(doc["link"]);
-        updateAvailable = checkVersion(String(VERSION), versionServer);
-        server.sendHeader("Connection", "close");
-        server.send(200, "application/json", "{\"updateRequest\": \"done\"}");
-      }
-    }
-    http.end();
-
-    return true;
-  }
-  else
-  {
-    server.sendHeader("Connection", "close");
-    server.send(200, "application/json", "{\"updateRequest\": \"get error\"}");
-    return false;
-  }
-}
-
 boolean getUpdateInfo()
 {
   std::unique_ptr<BearSSL::WiFiClientSecure> secClient(new BearSSL::WiFiClientSecure);
@@ -646,7 +600,7 @@ boolean getUpdateInfo()
 // check version local with remote
 boolean checkVersion(String v1, String v2)
 {
-  Serial.println("start compare: " + String(v1) + " - " + String(v2));
+  Serial.println("\nstart compare: " + String(v1) + " - " + String(v2));
   // Method to compare two versions.
   // Returns 1 if v2 is smaller, -1
   // if v1 is smaller, 0 if equal
