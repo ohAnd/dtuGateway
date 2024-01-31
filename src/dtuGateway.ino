@@ -52,6 +52,7 @@ struct UserConfig
   char openhabHostIp[16];
   int cloudPauseTime;
   boolean wifiAPstart;
+  int selectedUpdateChannel;  // 0 - release 1 - snapshot
   byte eepromInitialized; // specific pattern to determine floating state in EEPROM from Factory
 };
 
@@ -61,12 +62,16 @@ UserConfig userConfig;
 
 // OTA
 ESP8266HTTPUpdateServer httpUpdater;
-// { "version": "0.0.1", "versiondate": "01.01.2024 - 01:00:00", "link": "http://<domain>/path/to/firmware/<file>.<bin>" }
+// built json during compile to announce the latest greatest on snapshot or release channel
+// { "version": "0.0.1", "versiondate": "01.01.2024 - 01:00:00", "linksnapshot": "https://<domain>/path/to/firmware/<file>.<bin>", "link": "https://<domain>/path/to/firmware/<file>.<bin>" }
 String updateInfoWebPath = "https://github.com/ohAnd/dtuGatewayTest/releases/download/snapshot/version.json";
 
 String versionServer = "checking";
 String versiondateServer = "...";
 String updateURL = ""; // will be read by getting -> updateInfoWebPath
+String versionServerRelease = "checking";
+String versiondateServerRelease = "...";
+String updateURLRelease = ""; // will be read by getting -> updateInfoWebPath
 boolean updateAvailable = false;
 float updateProgress = 0;
 String updateState = "waiting";
@@ -206,6 +211,7 @@ void initializeEEPROM()
     strcpy(userConfig.wifiPassword, "myPassword");
     strcpy(userConfig.dtuHostIp, "192.168.0.254");
     strcpy(userConfig.openhabHostIp, "192.168.0.254");
+    userConfig.selectedUpdateChannel = 0; // default - release channel
     userConfig.cloudPauseTime = 40;
     userConfig.wifiAPstart = true;
 
@@ -405,6 +411,9 @@ void handleInfojson()
   JSON = JSON + "\"versiondate\": \"" + String(BUILDTIME) + "\",";
   JSON = JSON + "\"versionServer\": \"" + String(versionServer) + "\",";
   JSON = JSON + "\"versiondateServer\": \"" + String(versiondateServer) + "\",";
+  JSON = JSON + "\"versionServerRelease\": \"" + String(versionServerRelease) + "\",";
+  JSON = JSON + "\"versiondateServerRelease\": \"" + String(versiondateServerRelease) + "\",";
+  JSON = JSON + "\"selectedUpdateChannel\": \"" + String(userConfig.selectedUpdateChannel) + "\",";
   JSON = JSON + "\"updateAvailable\": " + updateAvailable;
   JSON = JSON + "}";
 
@@ -579,17 +588,6 @@ boolean getUpdateInfo()
           updateAvailable = checkVersion(String(VERSION), versionServer);
           server.sendHeader("Connection", "close");
           server.send(200, "application/json", "{\"updateRequest\": \"done\"}");
-
-          // Access JSON data here
-          // const char *value = doc["version"];
-          // const char *value2 = doc["versiondate"];
-          // const char *value3 = doc["link"];
-          // Serial.print("Value from JSON: ");
-          // Serial.println(value);
-          // Serial.print("Value2 from JSON: ");
-          // Serial.println(value2);
-          // Serial.print("Value3 from JSON: ");
-          // Serial.println(value3);
         }
       }
     }
@@ -810,6 +808,9 @@ void setup()
 
     Serial.print("cloud pause: \t");
     Serial.println(userConfig.cloudPauseTime);
+
+    Serial.print("update channel: \t");
+    Serial.println(userConfig.selectedUpdateChannel);
 
     Serial.print("dtu host: \t");
     Serial.println(userConfig.dtuHostIp);
