@@ -1,4 +1,6 @@
 buildnumber.txt
+include/version.json
+include/version.h
 
 .pio
 .vscode/.browse.c_cpp.db*
@@ -58,3 +60,4 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+

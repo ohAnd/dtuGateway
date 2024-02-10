@@ -18,69 +18,124 @@ const char INDEX_HTML[] PROGMEM = R"=====(
         </div>
     </div>
     <div class="popup" id="changeSettings">
-        <!-- <form method="POST" action="/updateStorage" enctype="multipart/form-data" id="upload_form"></form> -->
-        <!-- <form method="POST" action="#" enctype="multipart/form-data" id="upload_form"> -->
-        <h2 id="settingsTitle">settings</h2>
-        <div style="padding-bottom: 10px;">
-            <p>available wifi's (<b id="networkCount">0</b>) - currently connected: <b id="wifiSSID"></b>
-            </p>
-            <div id="networks">
-
+        <div class="popupHeader">
+            <div class="popupHeaderTitle">settings
+                <!-- <h2>settings</h2> -->
+            </div>
+            <div class="popupHeaderTabs">
+                <div>dtu</div>
+                <div>openhab</div>
+                <div class="selected">wifi</div>
             </div>
         </div>
-        <div>
-            connect to wifi:
+        <div class="popupContent" id="wifi" style="display: block;">
+            <div style="padding-bottom: 10px;">
+                <p>available wifi's (<b id="networkCount">0</b>) - currently connected: <b id="wifiSSID"></b>
+                </p>
+                <div id="networks">
+                </div>
+            </div>
+            <div>
+                connect to wifi:
+            </div>
+            <div>
+                <input type="text" id="wifiSSIDsend" value="please choose above or type in" required maxlength="32">
+            </div>
+            <div>
+                wifi password (<i id="passcheck" value="invisible">show</i>):
+            </div>
+            <div>
+                <input type="password" id="wifiPASSsend" value="admin12345" required maxlength="32">
+            </div>
+            <div style="text-align: center;">
+                <b onclick="changeWifiData()" id="btnSaveWifiSettings" class="form-button btn">save</b>
+                <b onclick="hide('#changeSettings')" id="btnSettingsClose" class="form-button btn">close</b>
+            </div>
         </div>
-        <div>
-            <input type="text" id="wifiSSIDsend" value="please choose above or type in" required maxlength="32">
+        <div class="popupContent" id="openhab">
+            <div>
+                <p>define your openhab instance</p>
+            </div>
+            <div>
+                IP to openhab:
+            </div>
+            <div>
+                <input type="text" id="openhabIP" class="ipv4Input" name="ipv4" placeholder="xxx.xxx.xxx.xxx">
+            </div>
+            <div>
+                openHab item for PV0 - Power
+            </div>
+            <div>
+                <input type="text" id="oH_item1" maxlength="32">
+            </div>
+            <div style="text-align: center;">
+                <b onclick="changeWifiData()" id="btnSaveWifiSettings" class="form-button btn">save</b>
+                <b onclick="hide('#changeSettings')" id="btnSettingsClose" class="form-button btn">close</b>
+            </div>
         </div>
-        <div>
-            wifi password (<i id="passcheck" value="invisible">show</i>):
+        <div class="popupContent" id="dtu">
+            <div>
+                <p>define your dtu connection</p>
+            </div>
+            <div>
+                IP:
+            </div>
+            <div>
+                <input type="text" id="dtuIP" class="ipv4Input" name="ipv4" placeholder="xxx.xxx.xxx.xxx">
+            </div>
+            <div>
+                openHab item for PV0 - Power
+            </div>
+            <div>
+                <input type="text" id="oH_item1" maxlength="32">
+            </div>
+            <div style="text-align: center;">
+                <b onclick="changeWifiData()" id="btnSaveWifiSettings" class="form-button btn">save</b>
+                <b onclick="hide('#changeSettings')" id="btnSettingsClose" class="form-button btn">close</b>
+            </div>
         </div>
-        <div>
-            <input type="password" id="wifiPASSsend" value="admin12345" required maxlength="32">
-        </div>
-        <div style="text-align: center;">
-            <b onclick="changeWifiData()" id="btnSaveWifiSettings" class="form-button btn">save</b>
-            <b onclick="hide('#changeSettings')" id="btnSettingsClose" class="form-button btn">close</b>
-        </div>
-        <!-- </form> -->
     </div>
     <div class="popup" id="updateMenu">
         <h2>Update</h2>
-        <hr>
-        <div style="padding-bottom: 10px;">
-            <p id="updateState">currently no update available</p>
-        </div>
         <div>
-            <table>
-                <tr>
-                    <td style="text-align: right;border: 0px; border-bottom: 1px;border-style: solid;">installed version
-                    </td>
-                    <td><b id="firmwareVersion" style="border: 0px; border-bottom: 1px;border-style: solid;">0.0.0</b>
-                    </td>
-                    <td style="text-align: left;border: 0px; border-bottom: 1px;border-style: solid;">from <b
-                            id="builddateVersion">Jan 01 2024 - 00:00:00</b></td>
-                </tr>
-                <tr>
-                    <td style="text-align: right;">available version</td>
-                    <td><b id="firmwareVersionServer">0.0.0</b></td>
-                    <td style="text-align: left;">from <b id="builddateVersionServer">Jan 01 2024 - 00:00:00</b></td>
-                </tr>
-            </table>
-        </div>
-        <hr>
-        <div style="text-align: center;">
-            <!-- <input id="btnUpdateStart" class="btn" type="submit" name="doUpdate" value="Update starten"> -->
-            <b onclick="" id="btnUpdateStart" class="form-button btn">start update</b>
-        </div>
-        <hr>
-        <div style="text-align: center;">
-            <b onclick="hide('#updateMenu')" class="form-button btn">close</b>
-        </div>
-        <hr>
-        <div>
-            <small style="text-align:center;"><a href="/update">manual update</a></small>
+            <div style="padding-bottom: 10px;">
+                <p id="updateState">currently no update available</p>
+            </div>
+            <div id="updateInfo">
+                <div>
+                    <div class="tableCell" style="text-align:right;">
+                        <div id="firmwareVersion"></div>
+                        <i>installed version</i>
+                    </div>
+                    <div class="tableCell">
+                        <div id="builddateVersion"></div>
+                        <i>release date</i>
+                    </div>
+                </div>
+                <div>
+                    <div class="tableCell" style="text-align:right;">
+                        <div id="firmwareVersionServer"></div>
+                        <i>available version</i>
+                    </div>
+                    <div class="tableCell">
+                        <div id="builddateVersionServer"></div>
+                        <i>release date</i>
+                    </div>
+                </div>
+            </div>
+            <hr>
+            <div style="text-align: center;">
+                <!-- <input id="btnUpdateStart" class="btn" type="submit" name="doUpdate" value="Update starten"> -->
+                <b onclick="" id="btnUpdateStart" class="form-button btn">start update</b>
+            </div>
+            <hr>
+            <div style="text-align: center;">
+                <b onclick="hide('#updateMenu')" class="form-button btn">close</b>
+            </div>
+            <hr>
+            <div>
+                <small style="text-align:center;"><a href="/update">manual update</a></small>
+            </div>
         </div>
     </div>
     <div class="popup" id="updateProgress">
@@ -306,6 +361,19 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             }, 100);
         });
 
+        // switchung in popups between tabs
+        $(document).on("click", ".popupHeaderTabs>div", function (event) {
+            $('.popupHeaderTabs>div').each(function () {
+                $(this).removeClass("selected");
+                if ($(this).html() == event.target.innerHTML) $(this).addClass("selected");
+            });
+
+            $('.popup>.popupContent').each(function () {
+                $(this).css("display", "none");
+                if ($(this).attr("id") == event.target.innerHTML) $(this).css("display", "block");;
+            });
+        })
+
         var show = function (id) {
             console.log("show " + id)
             $(id).show(200);
@@ -451,7 +519,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             cacheInfoData.foundNetworks.sort(compare);
             for (let index = 0; index < cacheInfoData.networkCount; index++) {
                 var selected = "";
-                if($('#wifiSSIDsend').val() == cacheInfoData.foundNetworks[index].name) selected = "checked"; 
+                if ($('#wifiSSIDsend').val() == cacheInfoData.foundNetworks[index].name) selected = "checked";
                 $('#networks').append('<label><input type="radio" id="wifi' + index + '" name="wifiselect" value="wifi' + index + '" style="width: auto; height: auto; display:inline" ' + selected + '> ' + cacheInfoData.foundNetworks[index].wifi + ' % - ch: ' + cacheInfoData.foundNetworks[index].chan + ' - ' + cacheInfoData.foundNetworks[index].name + '</label><br>');
             }
 
