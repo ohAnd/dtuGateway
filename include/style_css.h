@@ -599,4 +599,8 @@ td {
     background: #3498db;
 }
 
+.passcheck {
+    cursor: pointer;
+}
+
 )=====";

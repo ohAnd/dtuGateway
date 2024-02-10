@@ -1,6 +1,6 @@
 buildnumber.txt
-include/version.json
-include/version.h
+version.json
+version.h
 
 .pio
 .vscode/.browse.c_cpp.db*

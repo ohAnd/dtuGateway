@@ -23,8 +23,8 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                 <!-- <h2>settings</h2> -->
             </div>
             <div class="popupHeaderTabs">
-                <div>dtu</div>
                 <div>openhab</div>
+                <div>dtu</div>
                 <div class="selected">wifi</div>
             </div>
         </div>
@@ -42,7 +42,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                 <input type="text" id="wifiSSIDsend" value="please choose above or type in" required maxlength="32">
             </div>
             <div>
-                wifi password (<i id="passcheck" value="invisible">show</i>):
+                wifi password (<i class="passcheck" value="invisible">show</i>):
             </div>
             <div>
                 <input type="password" id="wifiPASSsend" value="admin12345" required maxlength="32">
@@ -69,28 +69,33 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                 <input type="text" id="oH_item1" maxlength="32">
             </div>
             <div style="text-align: center;">
-                <b onclick="changeWifiData()" id="btnSaveWifiSettings" class="form-button btn">save</b>
+                <b onclick="changeOpenhabData()" id="btnSaveWifiSettings" class="form-button btn">save</b>
                 <b onclick="hide('#changeSettings')" id="btnSettingsClose" class="form-button btn">close</b>
             </div>
         </div>
         <div class="popupContent" id="dtu">
             <div>
-                <p>define your dtu connection</p>
+                dtu host IP in your local network:
             </div>
             <div>
-                IP:
+                <input type="text" id="dtuHostIp" class="ipv4Input" name="ipv4" placeholder="xxx.xxx.xxx.xxx">
+            </div>
+            <hr>
+            <div>
+                dtu local wifi:
             </div>
             <div>
-                <input type="text" id="dtuIP" class="ipv4Input" name="ipv4" placeholder="xxx.xxx.xxx.xxx">
+                <input type="text" id="dtuSsid" value="please type in" required maxlength="32">
             </div>
             <div>
-                openHab item for PV0 - Power
+                dtu wifi password (<i class="passcheck" value="invisible">show</i>):
             </div>
             <div>
-                <input type="text" id="oH_item1" maxlength="32">
+                <input type="password" id="dtuPassword" value="admin12345" required maxlength="32">
             </div>
+
             <div style="text-align: center;">
-                <b onclick="changeWifiData()" id="btnSaveWifiSettings" class="form-button btn">save</b>
+                <b onclick="changeDtuData()" id="btnSaveDtuSettings" class="form-button btn">save</b>
                 <b onclick="hide('#changeSettings')" id="btnSettingsClose" class="form-button btn">close</b>
             </div>
         </div>
@@ -379,6 +384,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             $(id).show(200);
             if (id == '#changeSettings') {
                 getWIFIdata();
+                getDTUdata();
             }
         }
 
@@ -496,12 +502,12 @@ const char INDEX_HTML[] PROGMEM = R"=====(
 
         function refreshInfo(data) {
 
-            var wifiGWPercent = Math.round(data.wifiGW);
+            var wifiGWPercent = Math.round(data.wifiConnection.rssiGW);
             $('#rssitext_local').html(wifiGWPercent + '%');
-            var wifiDTUPercent = Math.round(data.wifiDtu);
+            var wifiDTUPercent = Math.round(data.dtuConnection.rssiDtu);
             $('#rssitext_dtu').html(wifiDTUPercent + '%');
 
-            $('#firmware').html("fw version: " + data.version);
+            $('#firmware').html("fw version: " + data.firmware.version);
 
             return true;
         }
@@ -511,34 +517,52 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             $('#btnSaveWifiSettings').css('opacity', '1.0');
             $('#btnSaveWifiSettings').attr('onclick', "changeWifiData();")
 
-            cacheJSON = cacheInfoData;
+            wifiData = cacheInfoData.wifiConnection;
+            wifiDataNw = wifiData.foundNetworks;
             // get networkdata
-            $('#wifiSSID').html(cacheInfoData.ssid);
-            $('#networkCount').html(cacheInfoData.networkCount);
+            $('#wifiSSID').html(wifiData.wifiSsid);
+            $('#wifiPASSsend').val(wifiData.wifiPassword);
+            $('#networkCount').html(wifiData.networkCount);
             $('#networks').empty();
-            cacheInfoData.foundNetworks.sort(compare);
-            for (let index = 0; index < cacheInfoData.networkCount; index++) {
+            wifiDataNw.sort(compare);
+            for (let index = 0; index < wifiData.networkCount; index++) {
                 var selected = "";
-                if ($('#wifiSSIDsend').val() == cacheInfoData.foundNetworks[index].name) selected = "checked";
-                $('#networks').append('<label><input type="radio" id="wifi' + index + '" name="wifiselect" value="wifi' + index + '" style="width: auto; height: auto; display:inline" ' + selected + '> ' + cacheInfoData.foundNetworks[index].wifi + ' % - ch: ' + cacheInfoData.foundNetworks[index].chan + ' - ' + cacheInfoData.foundNetworks[index].name + '</label><br>');
+                if ($('#wifiSSIDsend').val() == wifiDataNw[index].name) selected = "checked";
+                $('#networks').append('<label><input type="radio" id="wifi' + index + '" name="wifiselect" value="wifi' + index + '" style="width: auto; height: auto; display:inline" ' + selected + '> ' + wifiDataNw[index].wifi + ' % - ch: ' + wifiDataNw[index].chan + ' - ' + wifiDataNw[index].name + '</label><br>');
             }
 
             $('input[type=radio][name=wifiselect]').change(function () {
                 console.log("select: " + this.value + " - " + (this.value).split("wifi")[1]);
-                $('#wifiSSIDsend').val(cacheInfoData.foundNetworks[(this.value).split("wifi")[1]].name);
+                $('#wifiSSIDsend').val(wifiDataNw[(this.value).split("wifi")[1]].name);
             });
         }
 
-        $('#passcheck').click(function () {
-            console.log("passcheck stat: " + $(this).attr("value"))
+        function getDTUdata() {
+            // 
+            $('#btnSaveDtuSettings').css('opacity', '1.0');
+            $('#btnSaveDtuSettings').attr('onclick', "changeDtuData();")
+
+            dtuData = cacheInfoData.dtuConnection;
+
+            // get networkdata
+            $('#dtuHostIp').val(dtuData.dtuHostIp);
+            $('#dtuSsid').val(dtuData.dtuSsid);
+            $('#dtuPassword').val(dtuData.dtuPassword);
+    
+        }
+
+        $('.passcheck').click(function () {
+            console.log("passcheck stat: " + $(this).attr("value") + " - id: " + $(this).attr("id"))
             if ($(this).attr("value") == 'invisible') {
                 $('#wifiPASSsend').attr('type', 'text');
-                $('#passcheck').attr('value', 'visibile');
-                $('#passcheck').html("hide");
+                $('#dtuPassword').attr('type', 'text');
+                $('.passcheck').attr('value', 'visibile');
+                $('.passcheck').html("hide");
             } else {
                 $('#wifiPASSsend').attr('type', 'password');
-                $('#passcheck').attr('value', 'invisible');
-                $('#passcheck').html("show");
+                $('#dtuPassword').attr('type', 'password');
+                $('.passcheck').attr('value', 'invisible');
+                $('.passcheck').html("show");
             }
         });
 
@@ -567,7 +591,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
 
 
             var xmlHttp = new XMLHttpRequest();
-            xmlHttp.open("POST", "/updateSettings", false); // false for synchronous request
+            xmlHttp.open("POST", "/updateWifiSettings", false); // false for synchronous request
             xmlHttp.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
 
             // Finally, send our data.
@@ -575,12 +599,65 @@ const char INDEX_HTML[] PROGMEM = R"=====(
 
             strResult = xmlHttp.responseText;
             console.log("got from server: " + strResult);
-            alert("Wifi access data changed - please connect to the choosen wifi and access with the new ip inside your network (maybe look inside your wifi router)");
+            alert("Wifi access data changed\n__________________________________\n\nplease connect to the choosen wifi and access with the new ip inside your network (maybe look inside your wifi router)");
 
             $('#btnSaveWifiSettings').css('opacity', '0.3');
             $('#btnSaveWifiSettings').attr('onclick', "")
 
-            hide('#changeWifiSettings');
+            hide('#changeSettings');
+            return;
+        }
+
+        function changeDtuData() {
+            var dtuHostIpSend= $('#dtuHostIp').val();
+            var dtuSsidSend= $('#dtuSsid').val();
+            var dtuPasswordSend= $('#dtuPassword').val();
+            var data = {};
+            data["dtuHostIpSend"] = dtuHostIpSend;
+            data["dtuSsidSend"] = dtuSsidSend;
+            data["dtuPasswordSend"] = dtuPasswordSend;
+
+            console.log("send to server: dtuHostIp: " + dtuHostIpSend + " - dtuSsid: " + dtuSsidSend + " - pass: " + dtuPasswordSend);
+
+            const urlEncodedDataPairs = [];
+
+            // Turn the data object into an array of URL-encoded key/value pairs.
+            for (const [name, value] of Object.entries(data)) {
+                urlEncodedDataPairs.push(
+                    `${encodeURIComponent(name)}=${encodeURIComponent(value)}`,
+                );
+                console.log("push: " + name);
+            }
+
+            // Combine the pairs into a single string and replace all %-encoded spaces to
+            // the '+' character; matches the behavior of browser form submissions.
+            const urlEncodedData = urlEncodedDataPairs.join("&").replace(/%20/g, "+");
+
+
+            var xmlHttp = new XMLHttpRequest();
+            xmlHttp.open("POST", "/updateDtuSettings", false); // false for synchronous request
+            xmlHttp.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+
+            // Finally, send our data.
+            xmlHttp.send(urlEncodedData);
+
+            strResult = JSON.parse(xmlHttp.responseText);
+            console.log("got from server: " + strResult);
+            console.log("got from server - strResult.dtuHostIp: " + strResult.dtuHostIp + " - cmp with: " + dtuHostIpSend);
+            console.log("got from server - strResult.dtuSsid: " + strResult.dtuSsid + " - cmp with: " + dtuSsidSend);
+            console.log("got from server - strResult.dtuPassword: " + strResult.dtuHostIp + " - cmp with: " + dtuPasswordSend);
+
+            if(strResult.dtuHostIp == dtuHostIpSend && strResult.dtuSsid == dtuSsidSend && strResult.dtuPassword == dtuPasswordSend) {
+                console.log("check saved data - OK");
+                alert("dtu Settings change\n__________________________________\n\nYour settings were successfully changed.\n\nPlease reboot!");
+            } else {
+                alert("dtu Settings change\n__________________________________\n\nSome error occured! Checking data from gateway are not as excpeted after sending to save.\n\nPlease try again!");               
+            }
+            
+            //$('#btnSaveDtuSettings').css('opacity', '0.3');
+            //$('#btnSaveDtuSettings').attr('onclick', "")
+
+            hide('#changeSettings');
             return;
         }
 
@@ -595,11 +672,11 @@ const char INDEX_HTML[] PROGMEM = R"=====(
         }
 
         function getVersionData(data) {
-            $('#firmwareVersion').html(data.version);
-            $('#builddateVersion').html(data.versiondate);
-            $('#firmwareVersionServer').html(data.versionServer);
-            $('#builddateVersionServer').html(data.versiondateServer);
-            if (data.updateAvailable == 1) {
+            $('#firmwareVersion').html(data.firmware.version);
+            $('#builddateVersion').html(data.firmware.versiondate);
+            $('#firmwareVersionServer').html(data.firmware.versionServer);
+            $('#builddateVersionServer').html(data.firmware.versiondateServer);
+            if (data.firmware.updateAvailable == 1) {
                 $('#updateState').html("new update available");
                 $('#btnUpdateStart').css('opacity', '1.0');
                 $('#updateBadge').show();

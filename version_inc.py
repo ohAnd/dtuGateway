@@ -62,6 +62,7 @@ else:
     
     json_data['version'] = version_string_new
     json_data['versiondate'] = datetime_now
+    json_data['linksnapshot'] = "https://github.com/ohAnd/dtuGatewayTest/releases/download/snapshot/dtuGateway_snapshot_" + version_string_new + ".bin"
     json_data['link'] = "https://github.com/ohAnd/dtuGatewayTest/releases/download/snapshot/dtuGateway_snapshot_" + version_string_new + ".bin"
     
     # Save the updated JSON data back to the file
