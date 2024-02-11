@@ -1,4 +1,4 @@
-name: PlatformIO CI
+name: PlatformIO CI main release
 
 on:
   push:
@@ -49,12 +49,9 @@ jobs:
       - uses: "marvinpinto/action-automatic-releases@latest"
         with:
           repo_token: "${{ secrets.GITHUB_TOKEN }}"
+          automatic_release_tag: "v${{ env.CURRENT_VERSIONNUMBER }}"
           prerelease: false
-          title: "Latest release"
+          title: "dtuGateway v${{ env.CURRENT_VERSIONNUMBER }}"
           files: |
             .pio/build/esp12e/dtuGateway_release_${{ env.CURRENT_VERSIONNUMBER }}.bin
             include/version.json
-
-
-                
-                

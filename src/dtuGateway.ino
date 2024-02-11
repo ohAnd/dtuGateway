@@ -65,7 +65,7 @@ ESP8266HTTPUpdateServer httpUpdater;
 // built json during compile to announce the latest greatest on snapshot or release channel
 // { "version": "0.0.1", "versiondate": "01.01.2024 - 01:00:00", "linksnapshot": "https://<domain>/path/to/firmware/<file>.<bin>", "link": "https://<domain>/path/to/firmware/<file>.<bin>" }
 String updateInfoWebPath = "https://github.com/ohAnd/dtuGateway/releases/download/snapshot/version.json";
-String updateInfoWebPathRelease = "https://github.com/ohAnd/dtuGateway/releases/download/snapshot/version.json";
+String updateInfoWebPathRelease = "https://github.com/ohAnd/dtuGateway/releases/latest/download/version.json";
 
 String versionServer = "checking";
 String versiondateServer = "...";
