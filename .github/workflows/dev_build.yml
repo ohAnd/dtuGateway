@@ -3,7 +3,7 @@ name: PlatformIO CI
 on:
   push:
     branches:
-      - main
+      - develop
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -39,20 +39,21 @@ jobs:
             VERSIONNUMBER=$(python ${{ github.workspace }}/version_inc.py getversion 2>&1)
             echo "got versionnumber: " $VERSIONNUMBER
             echo "CURRENT_VERSIONNUMBER=$VERSIONNUMBER" >> $GITHUB_ENV
-            mv .pio/build/esp12e/firmware.bin .pio/build/esp12e/dtuGateway_release_$VERSIONNUMBER.bin
+            mv .pio/build/esp12e/firmware.bin .pio/build/esp12e/dtuGateway_snapshot_$VERSIONNUMBER.bin
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
         with:
-          path: .pio/build/esp12e/dtuGateway_release_${{ env.CURRENT_VERSIONNUMBER }}.bin
+          path: .pio/build/esp12e/dtuGateway_snapshot_${{ env.CURRENT_VERSIONNUMBER }}.bin
 
       - uses: "marvinpinto/action-automatic-releases@latest"
         with:
           repo_token: "${{ secrets.GITHUB_TOKEN }}"
-          prerelease: false
-          title: "Latest release"
+          automatic_release_tag: "snapshot"
+          prerelease: true
+          title: "Latest snapshot"
           files: |
-            .pio/build/esp12e/dtuGateway_release_${{ env.CURRENT_VERSIONNUMBER }}.bin
+            .pio/build/esp12e/dtuGateway_snapshot_${{ env.CURRENT_VERSIONNUMBER }}.bin
             include/version.json
 
 

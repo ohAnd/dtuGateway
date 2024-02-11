@@ -1,5 +1,30 @@
 # dtu Gateway for Hoymiles HMS-800W-2T (2T series)
 
+## Contents
+- [dtu Gateway for Hoymiles HMS-800W-2T (2T series)](#dtu-gateway-for-hoymiles-hms-800w-2t-2t-series)
+  - [Contents](#contents)
+  - [problem](#problem)
+  - [goal](#goal)
+  - [features](#features)
+    - [regarding dtu](#regarding-dtu)
+    - [regarding environment](#regarding-environment)
+  - [api](#api)
+    - [data - http://\<ip\_to\_your\_device\>/api/data](#data---httpip_to_your_deviceapidata)
+    - [info - http://\<ip\_to\_your\_device\>/api/info](#info---httpip_to_your_deviceapiinfo)
+  - [known bugs](#known-bugs)
+  - [releases](#releases)
+    - [installation / update](#installation--update)
+    - [main](#main)
+    - [snapshot](#snapshot)
+  - [experiences with the hoymiles HMS-800W-2T](#experiences-with-the-hoymiles-hms-800w-2t)
+    - [set values - frequency](#set-values---frequency)
+    - [hoymiles cloud update](#hoymiles-cloud-update)
+    - [sources](#sources)
+  - [build environment](#build-environment)
+    - [platformio](#platformio)
+    - [hints for workflow](#hints-for-workflow)
+
+
 ## problem
 The new series of Hoymiles inverter with internal wireless access point and wireless client have no direct API to include this endpoint in smarthome installations/ IFTT environments.
 
@@ -11,7 +36,7 @@ Data from dtu can be read in a very short time, bur it has to be tested how ofte
 On a manual way you can be back on track if you logging in to the local access point of the dtu and resend your local wifi login data to (it seems) initiate a reboot. With this way you can be back online in ~ 1:30 minutes.
 
 
-*hint: the whole project could be also implemented on a small server and translated to e.g. python [see here for an example](https://github.com/henkwiedig/Hoymiles-DTU-Proto) and also the sources below*
+> *hint: the whole project could be also implemented on a small server and translated to e.g. python [see here for an example](https://github.com/henkwiedig/Hoymiles-DTU-Proto) and also the sources below*
 
 ## goal
 1. Abstract the interface to the dtu (inverter connection endpoint) with different possibilities to connect other systems. (push/ pull)
@@ -151,15 +176,15 @@ On a manual way you can be back on track if you logging in to the local access p
 ### main
 ... todo ...
 
-![GitHub Downloads (all assets, latest release)](https://img.shields.io/github/downloads/ohand/dtuGatewayTest/latest/total)
+![GitHub Downloads (all assets, latest release)](https://img.shields.io/github/downloads/ohand/dtuGateway/latest/total)
 
 ### snapshot
 snapshot with latest build
-https://github.com/ohAnd/dtuGatewayTest/releases/tag/snapshot
+https://github.com/ohAnd/dtuGateway/releases/tag/snapshot
 
-![GitHub Downloads (all assets, specific tag)](https://img.shields.io/github/downloads/ohand/dtuGatewayTest/snapshot/total)
-![GitHub (Pre-)Release Date](https://img.shields.io/github/release-date-pre/ohand/dtugatewaytest)
-![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/ohand/dtugatewaytest/main.yml)
+![GitHub Downloads (all assets, specific tag)](https://img.shields.io/github/downloads/ohand/dtuGateway/snapshot/total)
+![GitHub (Pre-)Release Date](https://img.shields.io/github/release-date-pre/ohand/dtuGateway)
+![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/ohand/dtuGateway/main.yml)
 
 
 
