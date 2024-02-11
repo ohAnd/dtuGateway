@@ -31,7 +31,7 @@ The new series of Hoymiles inverter with internal wireless access point and wire
 Usually there should be no need for an extra device to "translate" the connection to common APIs or bindings. Unfortunately the interface on the dtu is unlikey unstable/ or not really stable.
 
 E.g. there is a treshhold of ~ 31 seconds before you can send new data to the dtu (e.g. new power limit), otherwise the connection hangs and an internal restart/ reboot (???) leads to an offline time of ~ 30 minutes. 
-Data from dtu can be read in a very short time, bur it has to be tested how often a request leads to the problem before.
+Data from dtu can be read in a very short time, but it has to be tested how often a request leads to the problem before.
 
 On a manual way you can be back on track if you logging in to the local access point of the dtu and resend your local wifi login data to (it seems) initiate a reboot. With this way you can be back online in ~ 1:30 minutes.
 
@@ -174,7 +174,8 @@ On a manual way you can be back on track if you logging in to the local access p
 3. all further updates are done by OTA (see chapters above) 
 
 ### main
-... todo ...
+latest release - changes will documented by commit messages
+https://github.com/ohAnd/dtuGateway/releases/latest
 
 ![GitHub Downloads (all assets, latest release)](https://img.shields.io/github/downloads/ohand/dtuGateway/latest/total)
 
