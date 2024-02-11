@@ -672,7 +672,7 @@ boolean getUpdateInfo()
           {
             versionServer = String(doc["version"]);
             versiondateServer = String(doc["versiondate"]);
-            updateURL = String(doc["link"]);
+            updateURL = String(doc["linksnapshot"]);
             updateAvailable = checkVersion(String(VERSION), versionServer);
           }
 
