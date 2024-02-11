@@ -1,4 +1,4 @@
-name: PlatformIO CI
+name: PlatformIO CI main release
 
 on:
   push:
@@ -55,6 +55,3 @@ jobs:
           files: |
             .pio/build/esp12e/dtuGateway_release_${{ env.CURRENT_VERSIONNUMBER }}.bin
             include/version.json
-
-                
-                
