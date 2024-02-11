@@ -486,11 +486,35 @@ void handleUpdateDtuSettings()
 
   server.send(200, "application/json", JSON);
 
-  delay(2000);   // give time for the json response
-  
+  delay(2000); // give time for the json response
+
   // stopping connection to DTU and set right state - to force reconnect with new data
   client.stop();
   globalControls.dtuConnectState = DTU_STATE_OFFLINE;
+
+  Serial.println("handleUpdateDtuSettings - send JSON: " + String(JSON));
+}
+
+void handleUpdateOTASettings()
+{
+  String releaseChannel = server.arg("releaseChannel"); // retrieve message from webserver
+  Serial.println("\nhandleUpdateOTASettings - got releaseChannel: " + releaseChannel);
+
+  userConfig.selectedUpdateChannel = releaseChannel.toInt();
+
+  saveConfigToEEPROM();
+  delay(500);
+
+  String JSON = "{";
+  JSON = JSON + "\"releaseChannel\": \"" + userConfig.selectedUpdateChannel + "\"";
+  JSON = JSON + "}";
+
+  server.send(200, "application/json", JSON);
+
+  // delay(2000); // give time for the json response
+
+  // trigger new update info with changed release channel
+  getUpdateInfo();
 
   Serial.println("handleUpdateDtuSettings - send JSON: " + String(JSON));
 }
@@ -512,6 +536,7 @@ void initializeWebServer()
 
   server.on("/updateWifiSettings", handleUpdateWifiSettings);
   server.on("/updateDtuSettings", handleUpdateDtuSettings);
+  server.on("/updateOTASettings", handleUpdateOTASettings);
 
   // api GETs
   server.on("/api/data", handleDataJson);
@@ -528,20 +553,24 @@ void initializeWebServer()
 // ---> /updateRequest
 void handleUpdateRequest()
 {
+  String urlToBin = "";
+  if (userConfig.selectedUpdateChannel == 0) urlToBin = updateURLRelease;
+  else urlToBin = updateURL;
+
   BearSSL::WiFiClientSecure updateclient;
   updateclient.setInsecure();
 
-  int doubleSlashPos = updateURL.indexOf("//");
-  int firstSlashPos = updateURL.indexOf('/', doubleSlashPos + 2);
-  String host = updateURL.substring(doubleSlashPos + 2, firstSlashPos);
-  String url = updateURL.substring(firstSlashPos);
+  int doubleSlashPos = urlToBin.indexOf("//");
+  int firstSlashPos = urlToBin.indexOf('/', doubleSlashPos + 2);
+  String host = urlToBin.substring(doubleSlashPos + 2, firstSlashPos);
+  String url = urlToBin.substring(firstSlashPos);
 
   Serial.print("connecting to ");
   Serial.println(host);
   Serial.print("with url: ");
   Serial.println(url);
 
-  if (updateURL == "" || updateAvailable != true)
+  if (urlToBin == "" || updateAvailable != true)
   {
     Serial.println("[update] no url given or no update available");
     return;
@@ -551,7 +580,7 @@ void handleUpdateRequest()
   server.send(200, "application/json", "{\"update\": \"in_progress\"}");
 
   Serial.println("[update] Update requested");
-  Serial.println("[update] try download from " + updateURL);
+  Serial.println("[update] try download from " + urlToBin);
 
   // wait to seconds to load css on client side
   Serial.println("[update] starting update");
@@ -564,7 +593,7 @@ void handleUpdateRequest()
 
   // // ESPhttpUpdate.rebootOnUpdate(false); // remove automatic update
   ESPhttpUpdate.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
-  t_httpUpdate_return ret = ESPhttpUpdate.update(updateclient, updateURL);
+  t_httpUpdate_return ret = ESPhttpUpdate.update(updateclient, urlToBin);
 
   switch (ret)
   {
@@ -584,14 +613,24 @@ void handleUpdateRequest()
 // get the info about update from remote
 boolean getUpdateInfo()
 {
+  String versionUrl = "";
   std::unique_ptr<BearSSL::WiFiClientSecure> secClient(new BearSSL::WiFiClientSecure);
   secClient->setInsecure();
+
+  if (userConfig.selectedUpdateChannel == 0)
+  {
+    versionUrl = updateInfoWebPathRelease;
+  }
+  else
+  {
+    versionUrl = updateInfoWebPath;
+  }
 
   // create an HTTPClient instance
   HTTPClient https;
 
   // Initializing an HTTPS communication using the secure client
-  if (https.begin(*secClient, updateInfoWebPath))
+  if (https.begin(*secClient, versionUrl))
   {                                                          // HTTPS
     https.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS); // Enable automatic following of redirects
     int httpCode = https.GET();
@@ -622,10 +661,21 @@ boolean getUpdateInfo()
         }
         else
         {
-          versionServer = String(doc["version"]);
-          versiondateServer = String(doc["versiondate"]);
-          updateURL = String(doc["link"]);
-          updateAvailable = checkVersion(String(VERSION), versionServer);
+          if (userConfig.selectedUpdateChannel == 0)
+          {
+            versionServerRelease = String(doc["version"]);
+            versiondateServerRelease = String(doc["versiondate"]);
+            updateURLRelease = String(doc["link"]);
+            updateAvailable = checkVersion(String(VERSION), versionServerRelease);
+          }
+          else
+          {
+            versionServer = String(doc["version"]);
+            versiondateServer = String(doc["versiondate"]);
+            updateURL = String(doc["link"]);
+            updateAvailable = checkVersion(String(VERSION), versionServer);
+          }
+
           server.sendHeader("Connection", "close");
           server.send(200, "application/json", "{\"updateRequest\": \"done\"}");
         }
