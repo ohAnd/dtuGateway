@@ -34,7 +34,7 @@ body {
     text-align: center;
     background-color: #1c1c1c;
     font-size: 5vmin;
-    
+
     border-radius: 10px;
     border-width: 1px;
     border-color: #2196f3;
@@ -64,7 +64,7 @@ body {
     width: 33.033%;
     height: 49.6%;
     padding: 1%;
-    
+
     margin-bottom: 0.3%;
     margin-left: 0.3%;
 
@@ -76,9 +76,10 @@ body {
     font-size: 3vmin;
 }
 
-.panelValueBox { 
+.panelValueBox {
     padding-top: 4vmin;
 }
+
 .panelValue {
     float: left;
     font-size: 7.5vmin;
@@ -124,7 +125,7 @@ body {
     background-color: #1c1c1c;
     text-align: center;
     border-radius: 10px;
-    
+
     border-width: 1px;
     border-color: #2196f3;
     border-style: solid;
@@ -180,21 +181,103 @@ body {
 
 .popup {
     display: none;
-    position: fixed;
+    position: absolute;
     padding: 25px;
     width: 80%;
     left: 10%;
-    /* margin-left: -10%; */
     height: 80%;
     top: 10%;
-    /* margin-top: -10%; */
     background: #FFF;
     border-width: 1px;
     border-color: #2196f3;
     border-style: solid;
     border-radius: 10px;
     z-index: 20;
-    overflow: scroll;
+    font-size: 2.4vmin;
+}
+
+/* .popup>.popupHeader>.selected { */
+/* .popup>.popupHeader { */
+.popupHeader {
+    position: absolute;
+    top: 5%;
+    left: 25px;
+    right: 25px;
+    bottom: 80%;
+
+    /* border-bottom: 1px solid; */
+    /* border: 1px solid #e73701; */
+    /* background-color: #2196f3; */
+    color: #474444;
+    z-index: 21;
+}
+
+.popupHeader>.popupHeaderTitle {
+    position: relative;
+    height: 50%;
+
+    font-weight: bold;
+    font-size: 1.5em;
+
+    /* border: 1px solid #790079; */
+    /* border-radius: 0px 0px 0px 0px; */
+}
+
+.popupHeader>.popupHeaderTabs {
+    position: relative;
+    height: 50%;
+
+    /* border: 1px solid #e3f300; */
+}
+
+.popupHeader>.popupHeaderTabs>div {
+    position: relative;
+    height: 100%;
+    padding: 1%;
+
+    float: right;
+    width: 33.33%;
+
+    border: 1px solid #2196f3;
+    border-radius: 5px 5px 0px 0px;
+
+    display: grid;
+    align-items: center;
+    justify-content: center;
+
+    cursor: pointer;
+
+    font-size: 3.5vmin;
+}
+
+.popupHeader>.popupHeaderTabs>.selected {
+    border-left: 1px solid #2196f3;
+    border-top: 1px solid #2196f3;
+    border-right: 1px solid #2196f3;
+    border-bottom: 0px;
+    /* background-image: linear-gradient(#2196f3, #fff); */
+    background-color: #2196f3;
+    color: #FFF;
+
+}
+
+.popup>.popupContent {
+    /* at start not visible, controlled by jQuery */
+    display: none;
+    position: absolute;
+    top: 20%;
+    left: 25px;
+    right: 25px;
+
+    bottom: 1%;
+    overflow-y: scroll;
+
+    padding: 1%;
+
+    border-left: 1px solid;
+    border-right: 1px solid;
+    border-bottom: 1px solid;
+    border-radius: 0px 0px 5px 5px;
 }
 
 #popup2:after {
@@ -221,6 +304,21 @@ body {
     border-style: solid;
     border-radius: 10px;
     z-index: -1;
+}
+
+.tableCell {
+    float: left;
+    width: 50%;
+    padding: 1vmin;
+}
+
+.tablecell>div {
+    border-bottom: 1px solid;
+    font-weight: bold;
+}
+
+.tablecell>i {
+    font-size: 1.3vmin;
 }
 
 #networks {
@@ -392,16 +490,18 @@ td {
 }
 
 @media (orientation: portrait) {
-/* @media (max-width: 820px) { */
-/* @media (max-width: 739px) or (max-aspect-ratio: 10/9) { */
-/* @media (max-aspect-ratio: 10/8) { */
+
+    /* @media (max-width: 820px) { */
+    /* @media (max-width: 739px) or (max-aspect-ratio: 10/9) { */
+    /* @media (max-aspect-ratio: 10/8) { */
     body {
-        font-size: 2.7vmin;
+        /* font-size: 2.7vmin; */
     }
 
     .column {
         width: 32.9%;
-        height: 33%; /* (100 / 3) - (6 * 0,3) = 32,133 */
+        height: 33%;
+        /* (100 / 3) - (6 * 0,3) = 32,133 */
         font-size: 1.5em;
     }
 
@@ -428,6 +528,7 @@ td {
         border-width: 1px;
         margin-top: 5%;
     }
+
     .panelHead {
         /* float: left; */
         width: 100%;
@@ -491,60 +592,15 @@ td {
     }
 }
 
-/* @media (max-width: 768px) {
-    .panelValue {
-        padding-top: 23%;
-        font-size: 6.2vmin;
-    }
-} */
-
-
-/* @keyframes rotate {
-    from {
-        transform: rotate(0deg);
-    }
-
-    to {
-        transform: rotate(360deg);
-    }
-}
-
-@-webkit-keyframes rotate {
-    from {
-        -webkit-transform: rotate(0deg);
-    }
-
-    to {
-        -webkit-transform: rotate(360deg);
-    }
-} */
-
-/* .load {
-    width: 100px;
-    height: 100px;
-    margin: 110px auto 0;
-    border: solid 10px #8822aa;
-    border-radius: 50%;
-    border-right-color: transparent;
-    border-bottom-color: transparent;
-    -webkit-transition: all 0.5s ease-in;
-    -webkit-animation-name: rotate;
-    -webkit-animation-duration: 1.0s;
-    -webkit-animation-iteration-count: infinite;
-    -webkit-animation-timing-function: linear;
-
-    transition: all 0.5s ease-in;
-    animation-name: rotate;
-    animation-duration: 1.0s;
-    animation-iteration-count: infinite;
-    animation-timing-function: linear;
-} */
-
 /* update progress */
 .ui-progressbar-value {
     transition: width 0.25s;
     -webkit-transition: width 0.5s;
     background: #3498db;
+}
+
+.passcheck {
+    cursor: pointer;
 }
 
 )=====";

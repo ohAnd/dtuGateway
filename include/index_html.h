@@ -18,69 +18,129 @@ const char INDEX_HTML[] PROGMEM = R"=====(
         </div>
     </div>
     <div class="popup" id="changeSettings">
-        <!-- <form method="POST" action="/updateStorage" enctype="multipart/form-data" id="upload_form"></form> -->
-        <!-- <form method="POST" action="#" enctype="multipart/form-data" id="upload_form"> -->
-        <h2 id="settingsTitle">settings</h2>
-        <div style="padding-bottom: 10px;">
-            <p>available wifi's (<b id="networkCount">0</b>) - currently connected: <b id="wifiSSID"></b>
-            </p>
-            <div id="networks">
-
+        <div class="popupHeader">
+            <div class="popupHeaderTitle">settings
+                <!-- <h2>settings</h2> -->
+            </div>
+            <div class="popupHeaderTabs">
+                <div>openhab</div>
+                <div>dtu</div>
+                <div class="selected">wifi</div>
             </div>
         </div>
-        <div>
-            connect to wifi:
+        <div class="popupContent" id="wifi" style="display: block;">
+            <div style="padding-bottom: 10px;">
+                <p>available wifi's (<b id="networkCount">0</b>) - currently connected: <b id="wifiSSID"></b>
+                </p>
+                <div id="networks">
+                </div>
+            </div>
+            <div>
+                connect to wifi:
+            </div>
+            <div>
+                <input type="text" id="wifiSSIDsend" value="please choose above or type in" required maxlength="32">
+            </div>
+            <div>
+                wifi password (<i class="passcheck" value="invisible">show</i>):
+            </div>
+            <div>
+                <input type="password" id="wifiPASSsend" value="admin12345" required maxlength="32">
+            </div>
+            <div style="text-align: center;">
+                <b onclick="changeWifiData()" id="btnSaveWifiSettings" class="form-button btn">save</b>
+                <b onclick="hide('#changeSettings')" id="btnSettingsClose" class="form-button btn">close</b>
+            </div>
         </div>
-        <div>
-            <input type="text" id="wifiSSIDsend" value="please choose above or type in" required maxlength="32">
+        <div class="popupContent" id="openhab">
+            <div>
+                <p>define your openhab instance</p>
+            </div>
+            <div>
+                IP to openhab:
+            </div>
+            <div>
+                <input type="text" id="openhabIP" class="ipv4Input" name="ipv4" placeholder="xxx.xxx.xxx.xxx">
+            </div>
+            <div>
+                openHab item for PV0 - Power
+            </div>
+            <div>
+                <input type="text" id="oH_item1" maxlength="32">
+            </div>
+            <div style="text-align: center;">
+                <b onclick="changeOpenhabData()" id="btnSaveWifiSettings" class="form-button btn">save</b>
+                <b onclick="hide('#changeSettings')" id="btnSettingsClose" class="form-button btn">close</b>
+            </div>
         </div>
-        <div>
-            wifi password (<i id="passcheck" value="invisible">show</i>):
+        <div class="popupContent" id="dtu">
+            <div>
+                dtu host IP in your local network:
+            </div>
+            <div>
+                <input type="text" id="dtuHostIp" class="ipv4Input" name="ipv4" placeholder="xxx.xxx.xxx.xxx">
+            </div>
+            <hr>
+            <div>
+                dtu local wifi:
+            </div>
+            <div>
+                <input type="text" id="dtuSsid" value="please type in" required maxlength="32">
+            </div>
+            <div>
+                dtu wifi password (<i class="passcheck" value="invisible">show</i>):
+            </div>
+            <div>
+                <input type="password" id="dtuPassword" value="admin12345" required maxlength="32">
+            </div>
+
+            <div style="text-align: center;">
+                <b onclick="changeDtuData()" id="btnSaveDtuSettings" class="form-button btn">save</b>
+                <b onclick="hide('#changeSettings')" id="btnSettingsClose" class="form-button btn">close</b>
+            </div>
         </div>
-        <div>
-            <input type="password" id="wifiPASSsend" value="admin12345" required maxlength="32">
-        </div>
-        <div style="text-align: center;">
-            <b onclick="changeWifiData()" id="btnSaveWifiSettings" class="form-button btn">save</b>
-            <b onclick="hide('#changeSettings')" id="btnSettingsClose" class="form-button btn">close</b>
-        </div>
-        <!-- </form> -->
     </div>
     <div class="popup" id="updateMenu">
         <h2>Update</h2>
-        <hr>
-        <div style="padding-bottom: 10px;">
-            <p id="updateState">currently no update available</p>
-        </div>
         <div>
-            <table>
-                <tr>
-                    <td style="text-align: right;border: 0px; border-bottom: 1px;border-style: solid;">installed version
-                    </td>
-                    <td><b id="firmwareVersion" style="border: 0px; border-bottom: 1px;border-style: solid;">0.0.0</b>
-                    </td>
-                    <td style="text-align: left;border: 0px; border-bottom: 1px;border-style: solid;">from <b
-                            id="builddateVersion">Jan 01 2024 - 00:00:00</b></td>
-                </tr>
-                <tr>
-                    <td style="text-align: right;">available version</td>
-                    <td><b id="firmwareVersionServer">0.0.0</b></td>
-                    <td style="text-align: left;">from <b id="builddateVersionServer">Jan 01 2024 - 00:00:00</b></td>
-                </tr>
-            </table>
-        </div>
-        <hr>
-        <div style="text-align: center;">
-            <!-- <input id="btnUpdateStart" class="btn" type="submit" name="doUpdate" value="Update starten"> -->
-            <b onclick="" id="btnUpdateStart" class="form-button btn">start update</b>
-        </div>
-        <hr>
-        <div style="text-align: center;">
-            <b onclick="hide('#updateMenu')" class="form-button btn">close</b>
-        </div>
-        <hr>
-        <div>
-            <small style="text-align:center;"><a href="/update">manual update</a></small>
+            <div style="padding-bottom: 10px;">
+                <p id="updateState">currently no update available</p>
+            </div>
+            <div id="updateInfo">
+                <div>
+                    <div class="tableCell" style="text-align:right;">
+                        <div id="firmwareVersion"></div>
+                        <i>installed version</i>
+                    </div>
+                    <div class="tableCell">
+                        <div id="builddateVersion"></div>
+                        <i>release date</i>
+                    </div>
+                </div>
+                <div>
+                    <div class="tableCell" style="text-align:right;">
+                        <div id="firmwareVersionServer"></div>
+                        <i>available version</i>
+                    </div>
+                    <div class="tableCell">
+                        <div id="builddateVersionServer"></div>
+                        <i>release date</i>
+                    </div>
+                </div>
+            </div>
+            <hr>
+            <div style="text-align: center;">
+                <!-- <input id="btnUpdateStart" class="btn" type="submit" name="doUpdate" value="Update starten"> -->
+                <b onclick="" id="btnUpdateStart" class="form-button btn">start update</b>
+            </div>
+            <hr>
+            <div style="text-align: center;">
+                <b onclick="hide('#updateMenu')" class="form-button btn">close</b>
+            </div>
+            <hr>
+            <div>
+                <small style="text-align:center;"><a href="/update">manual update</a></small>
+            </div>
         </div>
     </div>
     <div class="popup" id="updateProgress">
@@ -306,11 +366,25 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             }, 100);
         });
 
+        // switchung in popups between tabs
+        $(document).on("click", ".popupHeaderTabs>div", function (event) {
+            $('.popupHeaderTabs>div').each(function () {
+                $(this).removeClass("selected");
+                if ($(this).html() == event.target.innerHTML) $(this).addClass("selected");
+            });
+
+            $('.popup>.popupContent').each(function () {
+                $(this).css("display", "none");
+                if ($(this).attr("id") == event.target.innerHTML) $(this).css("display", "block");;
+            });
+        })
+
         var show = function (id) {
             console.log("show " + id)
             $(id).show(200);
             if (id == '#changeSettings') {
                 getWIFIdata();
+                getDTUdata();
             }
         }
 
@@ -428,12 +502,12 @@ const char INDEX_HTML[] PROGMEM = R"=====(
 
         function refreshInfo(data) {
 
-            var wifiGWPercent = Math.round(data.wifiGW);
+            var wifiGWPercent = Math.round(data.wifiConnection.rssiGW);
             $('#rssitext_local').html(wifiGWPercent + '%');
-            var wifiDTUPercent = Math.round(data.wifiDtu);
+            var wifiDTUPercent = Math.round(data.dtuConnection.rssiDtu);
             $('#rssitext_dtu').html(wifiDTUPercent + '%');
 
-            $('#firmware').html("fw version: " + data.version);
+            $('#firmware').html("fw version: " + data.firmware.version);
 
             return true;
         }
@@ -443,34 +517,52 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             $('#btnSaveWifiSettings').css('opacity', '1.0');
             $('#btnSaveWifiSettings').attr('onclick', "changeWifiData();")
 
-            cacheJSON = cacheInfoData;
+            wifiData = cacheInfoData.wifiConnection;
+            wifiDataNw = wifiData.foundNetworks;
             // get networkdata
-            $('#wifiSSID').html(cacheInfoData.ssid);
-            $('#networkCount').html(cacheInfoData.networkCount);
+            $('#wifiSSID').html(wifiData.wifiSsid);
+            $('#wifiPASSsend').val(wifiData.wifiPassword);
+            $('#networkCount').html(wifiData.networkCount);
             $('#networks').empty();
-            cacheInfoData.foundNetworks.sort(compare);
-            for (let index = 0; index < cacheInfoData.networkCount; index++) {
+            wifiDataNw.sort(compare);
+            for (let index = 0; index < wifiData.networkCount; index++) {
                 var selected = "";
-                if($('#wifiSSIDsend').val() == cacheInfoData.foundNetworks[index].name) selected = "checked"; 
-                $('#networks').append('<label><input type="radio" id="wifi' + index + '" name="wifiselect" value="wifi' + index + '" style="width: auto; height: auto; display:inline" ' + selected + '> ' + cacheInfoData.foundNetworks[index].wifi + ' % - ch: ' + cacheInfoData.foundNetworks[index].chan + ' - ' + cacheInfoData.foundNetworks[index].name + '</label><br>');
+                if ($('#wifiSSIDsend').val() == wifiDataNw[index].name) selected = "checked";
+                $('#networks').append('<label><input type="radio" id="wifi' + index + '" name="wifiselect" value="wifi' + index + '" style="width: auto; height: auto; display:inline" ' + selected + '> ' + wifiDataNw[index].wifi + ' % - ch: ' + wifiDataNw[index].chan + ' - ' + wifiDataNw[index].name + '</label><br>');
             }
 
             $('input[type=radio][name=wifiselect]').change(function () {
                 console.log("select: " + this.value + " - " + (this.value).split("wifi")[1]);
-                $('#wifiSSIDsend').val(cacheInfoData.foundNetworks[(this.value).split("wifi")[1]].name);
+                $('#wifiSSIDsend').val(wifiDataNw[(this.value).split("wifi")[1]].name);
             });
         }
 
-        $('#passcheck').click(function () {
-            console.log("passcheck stat: " + $(this).attr("value"))
+        function getDTUdata() {
+            // 
+            $('#btnSaveDtuSettings').css('opacity', '1.0');
+            $('#btnSaveDtuSettings').attr('onclick', "changeDtuData();")
+
+            dtuData = cacheInfoData.dtuConnection;
+
+            // get networkdata
+            $('#dtuHostIp').val(dtuData.dtuHostIp);
+            $('#dtuSsid').val(dtuData.dtuSsid);
+            $('#dtuPassword').val(dtuData.dtuPassword);
+    
+        }
+
+        $('.passcheck').click(function () {
+            console.log("passcheck stat: " + $(this).attr("value") + " - id: " + $(this).attr("id"))
             if ($(this).attr("value") == 'invisible') {
                 $('#wifiPASSsend').attr('type', 'text');
-                $('#passcheck').attr('value', 'visibile');
-                $('#passcheck').html("hide");
+                $('#dtuPassword').attr('type', 'text');
+                $('.passcheck').attr('value', 'visibile');
+                $('.passcheck').html("hide");
             } else {
                 $('#wifiPASSsend').attr('type', 'password');
-                $('#passcheck').attr('value', 'invisible');
-                $('#passcheck').html("show");
+                $('#dtuPassword').attr('type', 'password');
+                $('.passcheck').attr('value', 'invisible');
+                $('.passcheck').html("show");
             }
         });
 
@@ -499,7 +591,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
 
 
             var xmlHttp = new XMLHttpRequest();
-            xmlHttp.open("POST", "/updateSettings", false); // false for synchronous request
+            xmlHttp.open("POST", "/updateWifiSettings", false); // false for synchronous request
             xmlHttp.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
 
             // Finally, send our data.
@@ -507,12 +599,65 @@ const char INDEX_HTML[] PROGMEM = R"=====(
 
             strResult = xmlHttp.responseText;
             console.log("got from server: " + strResult);
-            alert("Wifi access data changed - please connect to the choosen wifi and access with the new ip inside your network (maybe look inside your wifi router)");
+            alert("Wifi access data changed\n__________________________________\n\nplease connect to the choosen wifi and access with the new ip inside your network (maybe look inside your wifi router)");
 
             $('#btnSaveWifiSettings').css('opacity', '0.3');
             $('#btnSaveWifiSettings').attr('onclick', "")
 
-            hide('#changeWifiSettings');
+            hide('#changeSettings');
+            return;
+        }
+
+        function changeDtuData() {
+            var dtuHostIpSend= $('#dtuHostIp').val();
+            var dtuSsidSend= $('#dtuSsid').val();
+            var dtuPasswordSend= $('#dtuPassword').val();
+            var data = {};
+            data["dtuHostIpSend"] = dtuHostIpSend;
+            data["dtuSsidSend"] = dtuSsidSend;
+            data["dtuPasswordSend"] = dtuPasswordSend;
+
+            console.log("send to server: dtuHostIp: " + dtuHostIpSend + " - dtuSsid: " + dtuSsidSend + " - pass: " + dtuPasswordSend);
+
+            const urlEncodedDataPairs = [];
+
+            // Turn the data object into an array of URL-encoded key/value pairs.
+            for (const [name, value] of Object.entries(data)) {
+                urlEncodedDataPairs.push(
+                    `${encodeURIComponent(name)}=${encodeURIComponent(value)}`,
+                );
+                console.log("push: " + name);
+            }
+
+            // Combine the pairs into a single string and replace all %-encoded spaces to
+            // the '+' character; matches the behavior of browser form submissions.
+            const urlEncodedData = urlEncodedDataPairs.join("&").replace(/%20/g, "+");
+
+
+            var xmlHttp = new XMLHttpRequest();
+            xmlHttp.open("POST", "/updateDtuSettings", false); // false for synchronous request
+            xmlHttp.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+
+            // Finally, send our data.
+            xmlHttp.send(urlEncodedData);
+
+            strResult = JSON.parse(xmlHttp.responseText);
+            console.log("got from server: " + strResult);
+            console.log("got from server - strResult.dtuHostIp: " + strResult.dtuHostIp + " - cmp with: " + dtuHostIpSend);
+            console.log("got from server - strResult.dtuSsid: " + strResult.dtuSsid + " - cmp with: " + dtuSsidSend);
+            console.log("got from server - strResult.dtuPassword: " + strResult.dtuHostIp + " - cmp with: " + dtuPasswordSend);
+
+            if(strResult.dtuHostIp == dtuHostIpSend && strResult.dtuSsid == dtuSsidSend && strResult.dtuPassword == dtuPasswordSend) {
+                console.log("check saved data - OK");
+                alert("dtu Settings change\n__________________________________\n\nYour settings were successfully changed.\n\nPlease reboot!");
+            } else {
+                alert("dtu Settings change\n__________________________________\n\nSome error occured! Checking data from gateway are not as excpeted after sending to save.\n\nPlease try again!");               
+            }
+            
+            //$('#btnSaveDtuSettings').css('opacity', '0.3');
+            //$('#btnSaveDtuSettings').attr('onclick', "")
+
+            hide('#changeSettings');
             return;
         }
 
@@ -527,11 +672,11 @@ const char INDEX_HTML[] PROGMEM = R"=====(
         }
 
         function getVersionData(data) {
-            $('#firmwareVersion').html(data.version);
-            $('#builddateVersion').html(data.versiondate);
-            $('#firmwareVersionServer').html(data.versionServer);
-            $('#builddateVersionServer').html(data.versiondateServer);
-            if (data.updateAvailable == 1) {
+            $('#firmwareVersion').html(data.firmware.version);
+            $('#builddateVersion').html(data.firmware.versiondate);
+            $('#firmwareVersionServer').html(data.firmware.versionServer);
+            $('#builddateVersionServer').html(data.firmware.versiondateServer);
+            if (data.firmware.updateAvailable == 1) {
                 $('#updateState').html("new update available");
                 $('#btnUpdateStart').css('opacity', '1.0');
                 $('#updateBadge').show();

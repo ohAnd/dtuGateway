@@ -52,8 +52,8 @@ struct UserConfig
   char openhabHostIp[16];
   int cloudPauseTime;
   boolean wifiAPstart;
-  int selectedUpdateChannel;  // 0 - release 1 - snapshot
-  byte eepromInitialized; // specific pattern to determine floating state in EEPROM from Factory
+  int selectedUpdateChannel; // 0 - release 1 - snapshot
+  byte eepromInitialized;    // specific pattern to determine floating state in EEPROM from Factory
 };
 
 #define EEPROM_INIT_PATTERN 0xAA
@@ -64,7 +64,8 @@ UserConfig userConfig;
 ESP8266HTTPUpdateServer httpUpdater;
 // built json during compile to announce the latest greatest on snapshot or release channel
 // { "version": "0.0.1", "versiondate": "01.01.2024 - 01:00:00", "linksnapshot": "https://<domain>/path/to/firmware/<file>.<bin>", "link": "https://<domain>/path/to/firmware/<file>.<bin>" }
-String updateInfoWebPath = "https://github.com/ohAnd/dtuGatewayTest/releases/download/snapshot/version.json";
+String updateInfoWebPath = "https://github.com/ohAnd/dtuGateway/releases/download/snapshot/version.json";
+String updateInfoWebPathRelease = "https://github.com/ohAnd/dtuGateway/releases/download/snapshot/version.json";
 
 String versionServer = "checking";
 String versiondateServer = "...";
@@ -169,7 +170,7 @@ struct inverterData
   float inverterTemp = 0;
   uint8_t powerLimit = 0;
   uint8_t powerLimitSet = 101; // init with not possible value for startup
-  uint32_t wifi_rssi = 0;
+  uint32_t rssiDtu = 0;
   uint32_t wifi_rssi_gateway = 0;
   uint32_t respTimestamp = localTimeSecond;     // init with start time stamp > 0
   uint32_t lastRespTimestamp = localTimeSecond; // init with start time stamp > 0
@@ -400,13 +401,7 @@ void handleInfojson()
   JSON = JSON + "\"host\": \"" + String(host) + "\",";
   JSON = JSON + "\"initMode\": " + userConfig.wifiAPstart + ",";
 
-  JSON = JSON + "\"wifiGW\": " + globalData.wifi_rssi_gateway + ",";
-  JSON = JSON + "\"wifiDtu\": " + globalData.wifi_rssi + ",";
-
-  JSON = JSON + "\"networkCount\": " + networkCount + ",";
-  JSON = JSON + "\"foundNetworks\":" + foundNetworks + ",";
-  JSON = JSON + "\"ssid\": \"" + String(userConfig.wifiSsid) + "\",";
-
+  JSON = JSON + "\"firmware\": {";
   JSON = JSON + "\"version\": \"" + String(VERSION) + "\",";
   JSON = JSON + "\"versiondate\": \"" + String(BUILDTIME) + "\",";
   JSON = JSON + "\"versionServer\": \"" + String(versionServer) + "\",";
@@ -415,23 +410,36 @@ void handleInfojson()
   JSON = JSON + "\"versiondateServerRelease\": \"" + String(versiondateServerRelease) + "\",";
   JSON = JSON + "\"selectedUpdateChannel\": \"" + String(userConfig.selectedUpdateChannel) + "\",";
   JSON = JSON + "\"updateAvailable\": " + updateAvailable;
+  JSON = JSON + "},";
+
+  JSON = JSON + "\"dtuConnection\": {";
+  JSON = JSON + "\"dtuHostIp\": \"" + String(userConfig.dtuHostIp) + "\",";
+  JSON = JSON + "\"dtuSsid\": \"" + String(userConfig.dtuSsid) + "\",";
+  JSON = JSON + "\"dtuPassword\": \"" + String(userConfig.dtuPassword) + "\",";
+  JSON = JSON + "\"rssiDtu\": " + globalData.rssiDtu;
+  JSON = JSON + "},";
+
+  JSON = JSON + "\"wifiConnection\": {";
+  JSON = JSON + "\"networkCount\": " + networkCount + ",";
+  JSON = JSON + "\"foundNetworks\":" + foundNetworks + ",";
+  JSON = JSON + "\"wifiSsid\": \"" + String(userConfig.wifiSsid) + "\",";
+  JSON = JSON + "\"wifiPassword\": \"" + String(userConfig.wifiPassword) + "\",";
+  JSON = JSON + "\"rssiGW\": " + globalData.wifi_rssi_gateway;
+  JSON = JSON + "}";
+
   JSON = JSON + "}";
 
   server.send(200, "application/json; charset=utf-8", JSON);
 }
 
-void handleupdateSettings()
+void handleUpdateWifiSettings()
 {
   String wifiSSIDUser = server.arg("wifiSSIDsend"); // retrieve message from webserver
   String wifiPassUser = server.arg("wifiPASSsend"); // retrieve message from webserver
-  Serial.println("\nhandleupdateSettings - got WifiSSID: " + wifiSSIDUser + " - got WifiPass: " + wifiPassUser);
+  Serial.println("\nhandleUpdateWifiSettings - got WifiSSID: " + wifiSSIDUser + " - got WifiPass: " + wifiPassUser);
 
   wifiSSIDUser.toCharArray(userConfig.wifiSsid, sizeof(userConfig.wifiSsid));
   wifiPassUser.toCharArray(userConfig.wifiPassword, sizeof(userConfig.wifiSsid));
-  // userConfig.wifiSsid = wifiSSIDUser;
-  // userConfig.wifiPassword = wifiPassUser;
-
-  Serial.println("handleupdateSettings - set WifiSSID: " + wifiSSIDUser + " - set WifiPass: " + wifiPassUser);
 
   // after saving from user entry - no more in init state
   userConfig.wifiAPstart = false;
@@ -453,7 +461,38 @@ void handleupdateSettings()
   WiFi.mode(WIFI_STA);
   checkWifiTask();
 
-  Serial.println("handleupdateSettings - send JSON: " + String(JSON));
+  Serial.println("handleUpdateWifiSettings - send JSON: " + String(JSON));
+}
+
+void handleUpdateDtuSettings()
+{
+  String dtuHostIpUser = server.arg("dtuHostIpSend"); // retrieve message from webserver
+  String dtuSSIDUser = server.arg("dtuSsidSend");     // retrieve message from webserver
+  String dtuPassUser = server.arg("dtuPasswordSend"); // retrieve message from webserver
+  Serial.println("\nhandleUpdateDtuSettings - got dtu ip: " + dtuHostIpUser + "- got dtu ssid: " + dtuSSIDUser + " - got WifiPass: " + dtuPassUser);
+
+  dtuHostIpUser.toCharArray(userConfig.dtuHostIp, sizeof(userConfig.dtuHostIp));
+  dtuSSIDUser.toCharArray(userConfig.dtuSsid, sizeof(userConfig.dtuSsid));
+  dtuPassUser.toCharArray(userConfig.dtuPassword, sizeof(userConfig.dtuPassword));
+
+  saveConfigToEEPROM();
+  delay(500);
+
+  String JSON = "{";
+  JSON = JSON + "\"dtuHostIp\": \"" + userConfig.dtuHostIp + "\",";
+  JSON = JSON + "\"dtuSsid\": \"" + userConfig.dtuSsid + "\",";
+  JSON = JSON + "\"dtuPassword\": \"" + userConfig.dtuPassword + "\"";
+  JSON = JSON + "}";
+
+  server.send(200, "application/json", JSON);
+
+  delay(2000);   // give time for the json response
+  
+  // stopping connection to DTU and set right state - to force reconnect with new data
+  client.stop();
+  globalControls.dtuConnectState = DTU_STATE_OFFLINE;
+
+  Serial.println("handleUpdateDtuSettings - send JSON: " + String(JSON));
 }
 
 // webserver port 80
@@ -471,7 +510,8 @@ void initializeWebServer()
     server.sendHeader("Connection", "close");
     server.send(200, "text/html", STYLE_CSS); });
 
-  server.on("/updateSettings", handleupdateSettings);
+  server.on("/updateWifiSettings", handleUpdateWifiSettings);
+  server.on("/updateDtuSettings", handleUpdateDtuSettings);
 
   // api GETs
   server.on("/api/data", handleDataJson);
@@ -762,7 +802,7 @@ boolean updateValueToOpenhab()
 
   postMessageToOpenhab("inverter_Temp", (String)globalData.inverterTemp);
   postMessageToOpenhab("inverter_PowerLimit", (String)globalData.powerLimit);
-  postMessageToOpenhab("inverter_WifiRSSI", (String)globalData.wifi_rssi);
+  postMessageToOpenhab("inverter_WifiRSSI", (String)globalData.rssiDtu);
 
   return true;
 }
@@ -1251,7 +1291,7 @@ void readRespGetConfig(WiFiClient *client)
   Serial.print("\ngot remote (GetConfig):\t " + getTimeStringByTimestamp(getconfigreqdto.server_send_time));
 
   globalData.powerLimit = int(calcValue(getconfigreqdto.limit_power_mypower));
-  globalData.wifi_rssi = getconfigreqdto.wifi_rssi;
+  globalData.rssiDtu = getconfigreqdto.wifi_rssi;
 }
 
 void writeReqGetConfig(WiFiClient *client)
@@ -1805,7 +1845,7 @@ void loop()
       // check for server connection
       if (!client.connected() && !globalControls.dtuActiveOffToCloudUpdate)
       {
-        Serial.print("\n>>> Client not connected with DTU! - try to connect ... ");
+        Serial.print("\n>>> Client not connected with DTU! - trying to connect to " + String(userConfig.dtuHostIp) + " ... ");
         if (!client.connect(userConfig.dtuHostIp, dtuPort))
         {
           Serial.print("Connection to DTU failed.\n");
@@ -1866,7 +1906,7 @@ void loop()
 
           doc["timestamp"] = globalData.respTimestamp;
           doc["uptodate"] = globalData.uptodate;
-          doc["wifi_rssi"] = globalData.wifi_rssi;
+          doc["rssiDtu"] = globalData.rssiDtu;
           doc["powerLimit"] = globalData.powerLimit;
           doc["powerLimitSet"] = globalData.powerLimitSet;
           doc["inverterTemp"] = globalData.inverterTemp;
@@ -1893,7 +1933,7 @@ void loop()
         else
         {
           Serial.print("\n\nupdate at remote: " + getTimeStringByTimestamp(globalData.respTimestamp) + " - uptodate: " + String(globalData.uptodate) + " \n");
-          Serial.print("wifi rssi: " + String(globalData.wifi_rssi) + " % (DTU->Cloud) - " + String(globalData.wifi_rssi_gateway) + " % (Client->AP) \n");
+          Serial.print("wifi rssi: " + String(globalData.rssiDtu) + " % (DTU->Cloud) - " + String(globalData.wifi_rssi_gateway) + " % (Client->AP) \n");
           Serial.print("power limit (set): " + String(globalData.powerLimit) + " % (" + String(globalData.powerLimitSet) + " %) \n");
           Serial.print("inverter temp:\t " + String(globalData.inverterTemp) + " °C \n");
 
