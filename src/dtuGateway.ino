@@ -64,18 +64,18 @@ UserConfig userConfig;
 ESP8266HTTPUpdateServer httpUpdater;
 // built json during compile to announce the latest greatest on snapshot or release channel
 // { "version": "0.0.1", "versiondate": "01.01.2024 - 01:00:00", "linksnapshot": "https://<domain>/path/to/firmware/<file>.<bin>", "link": "https://<domain>/path/to/firmware/<file>.<bin>" }
-String updateInfoWebPath = "https://github.com/ohAnd/dtuGateway/releases/download/snapshot/version.json";
-String updateInfoWebPathRelease = "https://github.com/ohAnd/dtuGateway/releases/latest/download/version.json";
+char updateInfoWebPath[128] = "https://github.com/ohAnd/dtuGateway/releases/download/snapshot/version.json";
+char updateInfoWebPathRelease[128] = "https://github.com/ohAnd/dtuGateway/releases/latest/download/version.json";
 
-String versionServer = "checking";
-String versiondateServer = "...";
-String updateURL = ""; // will be read by getting -> updateInfoWebPath
-String versionServerRelease = "checking";
-String versiondateServerRelease = "...";
-String updateURLRelease = ""; // will be read by getting -> updateInfoWebPath
+char versionServer[32] = "checking";
+char versiondateServer[32] = "...";
+char updateURL[128] = ""; // will be read by getting -> updateInfoWebPath
+char versionServerRelease[32] = "checking";
+char versiondateServerRelease[32] = "...";
+char updateURLRelease[128] = ""; // will be read by getting -> updateInfoWebPath
 boolean updateAvailable = false;
 float updateProgress = 0;
-String updateState = "waiting";
+char updateState[16] = "waiting";
 
 #define DTU_TIME_OFFSET 28800
 #define DTU_CLOUD_UPLOAD_SECONDS 40
@@ -204,7 +204,7 @@ void initializeEEPROM()
 
   if (userConfig.eepromInitialized != EEPROM_INIT_PATTERN)
   {
-    Serial.println(" -> not initialized - writing factory defaults");
+    Serial.println(F(" -> not initialized - writing factory defaults"));
     // EEPROM not initialized, set default values
     strcpy(userConfig.dtuSsid, "DTUBI-12345678");
     strcpy(userConfig.dtuPassword, "dtubiPassword");
@@ -224,7 +224,7 @@ void initializeEEPROM()
   }
   else
   {
-    Serial.println(" -> already configured");
+    Serial.println(F(" -> already configured"));
   }
 }
 
@@ -242,11 +242,11 @@ boolean checkWifiTask()
     if (reconnectsCnt >= 25)
     {
       reconnectsCnt = 0;
-      Serial.println("No Wifi connection after 25 tries!");
+      Serial.println(F("No Wifi connection after 25 tries!"));
       // after 20 reconnects inner 7 min - write defaults
       if ((timeClient.getEpochTime() - reconnects[0]) < (WIFI_RETRY_TIME_SECONDS * 1000)) //
       {
-        Serial.println("No Wifi connection after 5 tries and inner 5 minutes");
+        Serial.println(F("No Wifi connection after 5 tries and inner 5 minutes"));
       }
     }
 
@@ -276,7 +276,7 @@ boolean checkWifiTask()
   }
   else if (WiFi.status() != WL_CONNECTED && wifi_connecting && wifiTimeoutShort == 0 && wifiTimeoutLong-- <= 0) // check during connecting wifi and decrease for short timeout
   {
-    Serial.println("\ncheckWifiTask - state 'connecting' - wait time done");
+    Serial.println(F("\ncheckWifiTask - state 'connecting' - wait time done"));
     wifiTimeoutShort = WIFI_RETRY_TIMEOUT_SECONDS;
     wifiTimeoutLong = WIFI_RETRY_TIME_SECONDS;
     wifi_connecting = false;
@@ -284,7 +284,7 @@ boolean checkWifiTask()
   }
   else if (WiFi.status() == WL_CONNECTED && wifi_connecting) // is connected after connecting
   {
-    Serial.println("\ncheckWifiTask - is now connected after state: 'connecting'");
+    Serial.println(F("\ncheckWifiTask - is now connected after state: 'connecting'"));
     wifi_connecting = false;
     wifiTimeoutShort = WIFI_RETRY_TIMEOUT_SECONDS;
     wifiTimeoutLong = WIFI_RETRY_TIME_SECONDS;
@@ -293,7 +293,7 @@ boolean checkWifiTask()
   }
   else if (WiFi.status() == WL_CONNECTED) // everything fine & connected
   {
-    // Serial.println("Wifi connection: checked and fine ...");
+    // Serial.println(F("Wifi connection: checked and fine ..."));
     blinkCode = BLINK_NORMAL_CONNECTION;
     return true;
   }
@@ -334,7 +334,7 @@ boolean scanNetworksResult(int networksFound)
   }
   else
   {
-    Serial.println("no networks found after scanning!");
+    Serial.println(F("no networks found after scanning!"));
   }
   return true;
 }
@@ -560,30 +560,20 @@ void handleUpdateRequest()
   BearSSL::WiFiClientSecure updateclient;
   updateclient.setInsecure();
 
-  int doubleSlashPos = urlToBin.indexOf("//");
-  int firstSlashPos = urlToBin.indexOf('/', doubleSlashPos + 2);
-  String host = urlToBin.substring(doubleSlashPos + 2, firstSlashPos);
-  String url = urlToBin.substring(firstSlashPos);
-
-  Serial.print(F("connecting to "));
-  Serial.println(host);
-  Serial.print(F("with url: "));
-  Serial.println(url);
-
   if (urlToBin == "" || updateAvailable != true)
   {
-    Serial.println("[update] no url given or no update available");
+    Serial.println(F("[update] no url given or no update available"));
     return;
   }
 
   server.sendHeader("Connection", "close");
   server.send(200, "application/json", "{\"update\": \"in_progress\"}");
 
-  Serial.println("[update] Update requested");
+  Serial.println(F("[update] Update requested"));
   Serial.println("[update] try download from " + urlToBin);
 
   // wait to seconds to load css on client side
-  Serial.println("[update] starting update");
+  Serial.println(F("[update] starting update"));
 
   ESPhttpUpdate.onStart(update_started);
   ESPhttpUpdate.onEnd(update_finished);
@@ -599,13 +589,13 @@ void handleUpdateRequest()
   {
   case HTTP_UPDATE_FAILED:
     Serial.printf("HTTP_UPDATE_FAILD Error (%d): %s\n", ESPhttpUpdate.getLastError(), ESPhttpUpdate.getLastErrorString().c_str());
-    Serial.println("[update] Update failed.");
+    Serial.println(F("[update] Update failed."));
     break;
   case HTTP_UPDATE_NO_UPDATES:
-    Serial.println("[update] Update no Update.");
+    Serial.println(F("[update] Update no Update."));
     break;
   case HTTP_UPDATE_OK:
-    Serial.println("[update] Update ok."); // may not be called since we reboot the ESP
+    Serial.println(F("[update] Update ok.")); // may not be called since we reboot the ESP
     break;
   }
   Serial.println("[update] Update routine done - ReturnCode: " + String(ret));
@@ -663,16 +653,22 @@ boolean getUpdateInfo()
         {
           if (userConfig.selectedUpdateChannel == 0)
           {
-            versionServerRelease = String(doc["version"]);
-            versiondateServerRelease = String(doc["versiondate"]);
-            updateURLRelease = String(doc["link"]);
+            // versionServerRelease = String(doc["version"]);
+            strcpy(versionServerRelease,(const char*)(doc["version"]));
+            // versiondateServerRelease = String(doc["versiondate"]);
+            strcpy(versiondateServerRelease,(const char*)(doc["versiondate"]));
+            // updateURLRelease = String(doc["link"]);
+            strcpy(updateURLRelease,(const char*)(doc["link"]));
             updateAvailable = checkVersion(String(VERSION), versionServerRelease);
           }
           else
           {
-            versionServer = String(doc["version"]);
-            versiondateServer = String(doc["versiondate"]);
-            updateURL = String(doc["linksnapshot"]);
+            // versionServer = String(doc["version"]);
+            strcpy(versionServer,(const char*)(doc["version"]));
+            // versiondateServer = String(doc["versiondate"]);
+            strcpy(versiondateServer,(const char*)(doc["versiondate"]));
+            // updateURL = String(doc["linksnapshot"]);
+            strcpy(updateURL,(const char*)(doc["linksnapshot"]));
             updateAvailable = checkVersion(String(VERSION), versionServer);
           }
 
@@ -690,7 +686,7 @@ boolean getUpdateInfo()
   }
   else
   {
-    Serial.println("\ngetUpdateInfo - [HTTPS] Unable to connect to server");
+    Serial.println(F("\ngetUpdateInfo - [HTTPS] Unable to connect to server"));
   }
 
   return true;
@@ -753,24 +749,24 @@ boolean checkVersion(String v1, String v2)
 
 void update_started()
 {
-  Serial.println("CALLBACK:  HTTP update process started");
-  updateState = "started";
+  Serial.println(F("CALLBACK:  HTTP update process started"));
+  strcpy(updateState,"started");
 }
 void update_finished()
 {
-  Serial.println("CALLBACK:  HTTP update process finished");
-  updateState = "done";
+  Serial.println(F("CALLBACK:  HTTP update process finished"));
+  strcpy(updateState,"done");
 }
 void update_progress(int cur, int total)
 {
   updateProgress = (cur / total) * 100;
-  updateState = "running";
+  strcpy(updateState,"running");
   Serial.print("CALLBACK:  HTTP update process at " + String(cur) + "  of " + String(total) + " bytes - " + String(updateProgress, 1) + " %...\n");
 }
 void update_error(int err)
 {
   Serial.printf("CALLBACK:  HTTP update fatal error code %d\n", err);
-  updateState = "error";
+  strcpy(updateState,"error");
 }
 
 // send values to openhab
@@ -868,7 +864,8 @@ void setup()
   digitalWrite(LED_BUILTIN, LOW); // turn the LED off by making the voltage LOW
 
   Serial.begin(115200);
-  Serial.println(F("Booting"));
+  Serial.print(F("\nBooting - with firmware version "));
+  Serial.println(VERSION);
 
   // Initialize EEPROM
   initializeEEPROM();
@@ -930,7 +927,7 @@ void setup()
 
     MDNS.begin("hoymilesGW");
     MDNS.addService("http", "tcp", 80);
-    Serial.println("Ready! Open http://hoymilesGW.local in your browser");
+    Serial.println(F("Ready! Open http://hoymilesGW.local in your browser"));
 
     initializeWebServer();
   }
@@ -962,8 +959,7 @@ void startServices()
 {
   if (WiFi.waitForConnectResult() == WL_CONNECTED)
   {
-    Serial.println("");
-    Serial.print(F("Connected! IP address: "));
+    Serial.print(F("\nConnected! IP address: "));
     Serial.println(WiFi.localIP());
     Serial.print(F("IP address of gateway: "));
     Serial.println(WiFi.gatewayIP());
@@ -1008,7 +1004,7 @@ void readRespAppGetHistPower(WiFiClient *client)
   {
     if (millis() - timeout > 2000)
     {
-      Serial.println(">>> Client Timeout !");
+      Serial.println(F(">>> Client Timeout !"));
       client->stop();
       return;
     }
@@ -1079,7 +1075,7 @@ void writeReqAppGetHistPower(WiFiClient *client)
 
   if (!status)
   {
-    Serial.println("Failed to encode");
+    Serial.println(F("Failed to encode"));
     return;
   }
 
@@ -1131,7 +1127,7 @@ void readRespRealDataNew(WiFiClient *client)
   {
     if (millis() - timeout > 2000)
     {
-      Serial.println(">>> Client Timeout !");
+      Serial.println(F(">>> Client Timeout !"));
       client->stop();
       return;
     }
@@ -1253,7 +1249,7 @@ void writeReqRealDataNew(WiFiClient *client)
 
   if (!status)
   {
-    Serial.println("Failed to encode");
+    Serial.println(F("Failed to encode"));
     return;
   }
 
@@ -1305,7 +1301,7 @@ void readRespGetConfig(WiFiClient *client)
   {
     if (millis() - timeout > 2000)
     {
-      Serial.println(">>> Client Timeout !");
+      Serial.println(F(">>> Client Timeout !"));
       client->stop();
       return;
     }
@@ -1356,7 +1352,7 @@ void writeReqGetConfig(WiFiClient *client)
 
   if (!status)
   {
-    Serial.println("Failed to encode");
+    Serial.println(F("Failed to encode"));
     return;
   }
 
@@ -1408,7 +1404,7 @@ void readRespCommand(WiFiClient *client)
   {
     if (millis() - timeout > 2000)
     {
-      Serial.println(">>> Client Timeout !");
+      Serial.println(F(">>> Client Timeout !"));
       client->stop();
       return;
     }
@@ -1481,7 +1477,7 @@ void writeReqCommand(WiFiClient *client)
 
   if (!status)
   {
-    Serial.println("Failed to encode");
+    Serial.println(F("Failed to encode"));
     return;
   }
 
