@@ -11,6 +11,15 @@ body {
     color: #2196f3;
 }
 
+hr {
+    /* display: block;
+    height: 1px; */
+    /* border: 0; */
+    border-top: 1px solid #2196f3;
+    /* margin: 1em 0;
+    padding: 0; */
+}
+
 /* reload bar at the top */
 .bar {
     display: flex;
@@ -250,15 +259,16 @@ body {
     font-size: 3.5vmin;
 }
 
+.selected {
+    background-color: #2196f3;
+    color: #FFF;
+}
+
 .popupHeader>.popupHeaderTabs>.selected {
     border-left: 1px solid #2196f3;
     border-top: 1px solid #2196f3;
     border-right: 1px solid #2196f3;
     border-bottom: 0px;
-    /* background-image: linear-gradient(#2196f3, #fff); */
-    background-color: #2196f3;
-    color: #FFF;
-
 }
 
 .popup>.popupContent {
@@ -597,6 +607,13 @@ td {
     transition: width 0.25s;
     -webkit-transition: width 0.5s;
     background: #3498db;
+}
+
+.updateChannel {
+    border: 1px solid #3498db;
+    text-align: center;
+    cursor: pointer;
+    width: 50%;
 }
 
 .passcheck {

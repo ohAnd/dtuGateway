@@ -129,6 +129,14 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                 </div>
             </div>
             <hr>
+            <div style="display: grid;align-items: center;justify-content: center;width:100%;">
+                <div onclick="changeReleaseChannel(0)" id="relChanStable" class="updateChannel selected"
+                    style="border-radius: 5px 0px 0px 5px;">stable</div>
+                <div onclick="changeReleaseChannel(1)" id="relChanSnapshot" class="updateChannel"
+                    style="border-radius: 0px 5px 5px 0px;position:relative;top:-1.25em;left:50%;">snapshot</div>
+                <i style="font-size:x-small;">switch update channels (stable/ latest snapshot)</i>
+            </div>
+            <hr>
             <div style="text-align: center;">
                 <!-- <input id="btnUpdateStart" class="btn" type="submit" name="doUpdate" value="Update starten"> -->
                 <b onclick="" id="btnUpdateStart" class="form-button btn">start update</b>
@@ -338,6 +346,8 @@ const char INDEX_HTML[] PROGMEM = R"=====(
         let timerRemainingProgess = 0;
         const waitTime = 31000;
         let remainingTime = waitTime;
+
+        let timerInfoUpdate = 0;
         let cacheInfoData = {};
 
         $(document).ready(function () {
@@ -352,7 +362,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                 getDataValues();
             }, 5000);
 
-            window.setInterval(function () {
+            timerInfoUpdate = window.setInterval(function () {
                 getInfoValues();
             }, 7500);
 
@@ -509,6 +519,9 @@ const char INDEX_HTML[] PROGMEM = R"=====(
 
             $('#firmware').html("fw version: " + data.firmware.version);
 
+            if (data.firmware.selectedUpdateChannel == 0) { $("#relChanStable").addClass("selected"); $("#relChanSnapshot").removeClass("selected"); }
+            else { $("#relChanStable").removeClass("selected"); $("#relChanSnapshot").addClass("selected"); }
+
             return true;
         }
 
@@ -548,7 +561,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             $('#dtuHostIp').val(dtuData.dtuHostIp);
             $('#dtuSsid').val(dtuData.dtuSsid);
             $('#dtuPassword').val(dtuData.dtuPassword);
-    
+
         }
 
         $('.passcheck').click(function () {
@@ -609,9 +622,9 @@ const char INDEX_HTML[] PROGMEM = R"=====(
         }
 
         function changeDtuData() {
-            var dtuHostIpSend= $('#dtuHostIp').val();
-            var dtuSsidSend= $('#dtuSsid').val();
-            var dtuPasswordSend= $('#dtuPassword').val();
+            var dtuHostIpSend = $('#dtuHostIp').val();
+            var dtuSsidSend = $('#dtuSsid').val();
+            var dtuPasswordSend = $('#dtuPassword').val();
             var data = {};
             data["dtuHostIpSend"] = dtuHostIpSend;
             data["dtuSsidSend"] = dtuSsidSend;
@@ -647,13 +660,77 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             console.log("got from server - strResult.dtuSsid: " + strResult.dtuSsid + " - cmp with: " + dtuSsidSend);
             console.log("got from server - strResult.dtuPassword: " + strResult.dtuHostIp + " - cmp with: " + dtuPasswordSend);
 
-            if(strResult.dtuHostIp == dtuHostIpSend && strResult.dtuSsid == dtuSsidSend && strResult.dtuPassword == dtuPasswordSend) {
+            if (strResult.dtuHostIp == dtuHostIpSend && strResult.dtuSsid == dtuSsidSend && strResult.dtuPassword == dtuPasswordSend) {
                 console.log("check saved data - OK");
-                alert("dtu Settings change\n__________________________________\n\nYour settings were successfully changed.\n\nPlease reboot!");
+                alert("dtu Settings change\n__________________________________\n\nYour settings were successfully changed.\n\nClient connection will be reconnected to the new IP.");
             } else {
-                alert("dtu Settings change\n__________________________________\n\nSome error occured! Checking data from gateway are not as excpeted after sending to save.\n\nPlease try again!");               
+                alert("dtu Settings change\n__________________________________\n\nSome error occured! Checking data from gateway are not as excpeted after sending to save.\n\nPlease try again!");
             }
-            
+
+            //$('#btnSaveDtuSettings').css('opacity', '0.3');
+            //$('#btnSaveDtuSettings').attr('onclick', "")
+
+            hide('#changeSettings');
+            return;
+        }
+
+        function changeReleaseChannel(channel) {
+            if (cacheInfoData.firmware.selectedUpdateChannel == channel) return;
+
+            cacheInfoData.firmware.versionServer = "reloading";
+            cacheInfoData.firmware.versiondateServer = "reloading";
+            cacheInfoData.firmware.selectedUpdateChannel = channel;
+            cacheInfoData.firmware.updateAvailable = 0;
+
+            getVersionData(cacheInfoData);
+            refreshInfo(cacheInfoData);
+
+            clearInterval(timerInfoUpdate);
+            timerInfoUpdate = window.setInterval(function () {
+                getInfoValues();
+            }, 7500);
+
+            var data = {};
+            data["releaseChannel"] = channel;
+
+            console.log("send to server: releaseChannel: " + channel);
+
+            const urlEncodedDataPairs = [];
+
+            // Turn the data object into an array of URL-encoded key/value pairs.
+            for (const [name, value] of Object.entries(data)) {
+                urlEncodedDataPairs.push(
+                    `${encodeURIComponent(name)}=${encodeURIComponent(value)}`,
+                );
+                console.log("push: " + name);
+            }
+
+            // Combine the pairs into a single string and replace all %-encoded spaces to
+            // the '+' character; matches the behavior of browser form submissions.
+            const urlEncodedData = urlEncodedDataPairs.join("&").replace(/%20/g, "+");
+
+            var xmlHttp = new XMLHttpRequest();
+            xmlHttp.open("POST", "/updateOTASettings", false); // false for synchronous request
+            xmlHttp.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+
+            // Finally, send our data.
+            xmlHttp.send(urlEncodedData);
+
+            try {
+                strResult = JSON.parse(xmlHttp.responseText);
+                console.log("got from server: " + strResult);
+                console.log("got from server - strResult.dtuHostIp: " + strResult.dtuHostIp + " - cmp with: " + dtuHostIpSend);
+
+                if (strResult.dtuHostIp == dtuHostIpSend && strResult.dtuSsid == dtuSsidSend && strResult.dtuPassword == dtuPasswordSend) {
+                    console.log("check saved data - OK");
+                    alert("dtu Settings change\n__________________________________\n\nYour settings were successfully changed.\n\nClient connection will be reconnected to the new IP.");
+                } else {
+                    alert("dtu Settings change\n__________________________________\n\nSome error occured! Checking data from gateway are not as excpeted after sending to save.\n\nPlease try again!");
+                }
+            } catch (error) {
+                console.log("error at request change release channel: " + error);
+            }
+
             //$('#btnSaveDtuSettings').css('opacity', '0.3');
             //$('#btnSaveDtuSettings').attr('onclick', "")
 
@@ -672,10 +749,12 @@ const char INDEX_HTML[] PROGMEM = R"=====(
         }
 
         function getVersionData(data) {
+            if (data.firmware.selectedUpdateChannel == 1) { $('#firmwareVersionServer').html(data.firmware.versionServer); $('#builddateVersionServer').html(data.firmware.versiondateServer); }
+            else { $('#firmwareVersionServer').html(data.firmware.versionServerRelease); $('#builddateVersionServer').html(data.firmware.versiondateServerRelease); }
+
             $('#firmwareVersion').html(data.firmware.version);
             $('#builddateVersion').html(data.firmware.versiondate);
-            $('#firmwareVersionServer').html(data.firmware.versionServer);
-            $('#builddateVersionServer').html(data.firmware.versiondateServer);
+
             if (data.firmware.updateAvailable == 1) {
                 $('#updateState').html("new update available");
                 $('#btnUpdateStart').css('opacity', '1.0');
