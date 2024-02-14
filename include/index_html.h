@@ -852,7 +852,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
         function getTime(unix_timestamp, dateTime = "time") {
             var date = new Date(unix_timestamp * 1000);
             var day = ("0" + date.getDate()).substr(-2);
-            var mon = ("0" + date.getMonth() + 1).substr(-2);
+            var mon = ("0" + (date.getMonth() + 1)).substr(-2);
             var year = date.getFullYear();
             var hours = ("0" + date.getHours()).substr(-2);
             var minutes = ("0" + date.getMinutes()).substr(-2);

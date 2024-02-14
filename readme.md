@@ -66,7 +66,7 @@ On a manual way you can be back on track if you logging in to the local access p
   - select found local wifi and enter/ save the needed wifi password
   - change dtu connection data (e.g. host IP in local network, wireless user/ pass for dtu access point)
   - configurable data for openhab item settings
-- OTA with direct connection ro the github build pipeline - available updates will be checked by web app and device. Notifiaction in web app if update available and user can decide for direct online update 
+- OTA with direct connection to the github build pipeline - available updates will be checked by web app and device. Notification in web app, if update available and user can decide for direct online update 
 
 ## api
 
