@@ -14,6 +14,7 @@
   - [known bugs](#known-bugs)
   - [releases](#releases)
     - [installation / update](#installation--update)
+    - [first setup with access point](#first-setup-with-access-point)
     - [main](#main)
     - [snapshot](#snapshot)
   - [experiences with the hoymiles HMS-800W-2T](#experiences-with-the-hoymiles-hms-800w-2t)
@@ -172,6 +173,12 @@ On a manual way you can be back on track if you logging in to the local access p
    6. select your COM port and baudrate = 921600
    7. press start ;-)
 3. all further updates are done by OTA (see chapters above) 
+
+### first setup with access point
+1. connect with the AP hoymilesGW_<chipID> (on smartphone sometimes you have to accept the connection explicitly with the knowledge there is no internet connectivity)
+2. open the website http://192.168.4.1 (or http://hoymilesGW.local) for the first configuration
+3. choose your wifi
+4. type in the wifi password - save
 
 ### main
 latest release - changes will documented by commit messages
