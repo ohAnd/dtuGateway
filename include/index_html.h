@@ -63,10 +63,10 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                 <input type="text" id="openhabIP" class="ipv4Input" name="ipv4" placeholder="xxx.xxx.xxx.xxx">
             </div>
             <div>
-                openHab item for PV0 - Power
+                openHab item prefix for U,I,P,dE,TE per channel:
             </div>
             <div>
-                <input type="text" id="oH_item1" maxlength="32">
+                <input type="text" id="ohItemPrefix" maxlength="32">
             </div>
             <div style="text-align: center;">
                 <b onclick="changeOpenhabData()" id="btnSaveWifiSettings" class="form-button btn">save</b>
@@ -395,6 +395,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             if (id == '#changeSettings') {
                 getWIFIdata();
                 getDTUdata();
+                getOHdata();
             }
         }
 
@@ -564,6 +565,18 @@ const char INDEX_HTML[] PROGMEM = R"=====(
 
         }
 
+        function getOHdata() {
+            // 
+            $('#btnSaveDtuSettings').css('opacity', '1.0');
+            $('#btnSaveDtuSettings').attr('onclick', "changeDtuData();")
+
+            ohData = cacheInfoData.openHabConnection;
+
+            // get networkdata
+            $('#openhabIP').val(ohData.ohHostIp);
+            $('#ohItemPrefix').val(ohData.ohItemPrefix);
+        }
+
         $('.passcheck').click(function () {
             console.log("passcheck stat: " + $(this).attr("value") + " - id: " + $(this).attr("id"))
             if ($(this).attr("value") == 'invisible') {
@@ -669,6 +682,50 @@ const char INDEX_HTML[] PROGMEM = R"=====(
 
             //$('#btnSaveDtuSettings').css('opacity', '0.3');
             //$('#btnSaveDtuSettings').attr('onclick', "")
+
+            hide('#changeSettings');
+            return;
+        }
+
+        function changeOpenhabData() {
+            var openhabHostIpSend = $('#openhabIP').val();
+            var data = {};
+            data["openhabHostIpSend"] = openhabHostIpSend;
+            
+            console.log("send to server: openhabHostIpSend: " + openhabHostIpSend);
+
+            const urlEncodedDataPairs = [];
+
+            // Turn the data object into an array of URL-encoded key/value pairs.
+            for (const [name, value] of Object.entries(data)) {
+                urlEncodedDataPairs.push(
+                    `${encodeURIComponent(name)}=${encodeURIComponent(value)}`,
+                );
+                console.log("push: " + name);
+            }
+
+            // Combine the pairs into a single string and replace all %-encoded spaces to
+            // the '+' character; matches the behavior of browser form submissions.
+            const urlEncodedData = urlEncodedDataPairs.join("&").replace(/%20/g, "+");
+
+
+            var xmlHttp = new XMLHttpRequest();
+            xmlHttp.open("POST", "/updateOHSettings", false); // false for synchronous request
+            xmlHttp.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+
+            // Finally, send our data.
+            xmlHttp.send(urlEncodedData);
+
+            strResult = JSON.parse(xmlHttp.responseText);
+            console.log("got from server: " + strResult);
+            console.log("got from server - strResult.dtuHostIp: " + strResult.openhabHostIp + " - cmp with: " + openhabHostIp);
+
+            if (strResult.dtuHostIp == dtuHostIpSend && strResult.dtuSsid == dtuSsidSend && strResult.dtuPassword == dtuPasswordSend) {
+                console.log("check saved data - OK");
+                alert("openhab Settings change\n__________________________________\n\nYour settings were successfully changed.\n\nClient connection will be reconnected to the new IP.");
+            } else {
+                alert("openhab Settings change\n__________________________________\n\nSome error occured! Checking data from gateway are not as excpeted after sending to save.\n\nPlease try again!");
+            }
 
             hide('#changeSettings');
             return;

@@ -50,6 +50,7 @@ struct UserConfig
   char wifiPassword[32];
   char dtuHostIp[16];
   char openhabHostIp[16];
+  char openItemPrefix[32];
   int cloudPauseTime;
   boolean wifiAPstart;
   int selectedUpdateChannel; // 0 - release 1 - snapshot
@@ -211,7 +212,8 @@ void initializeEEPROM()
     strcpy(userConfig.wifiSsid, "mySSID");
     strcpy(userConfig.wifiPassword, "myPassword");
     strcpy(userConfig.dtuHostIp, "192.168.0.254");
-    strcpy(userConfig.openhabHostIp, "192.168.0.254");
+    strcpy(userConfig.openhabHostIp, "192.168.1.30");
+    strcpy(userConfig.openItemPrefix, "inverter");
     userConfig.selectedUpdateChannel = 0; // default - release channel
     userConfig.cloudPauseTime = 40;
     userConfig.wifiAPstart = true;
@@ -412,6 +414,12 @@ void handleInfojson()
   JSON = JSON + "\"updateAvailable\": " + updateAvailable;
   JSON = JSON + "},";
 
+  
+  JSON = JSON + "\"openHabConnection\": {";
+  JSON = JSON + "\"ohHostIp\": \"" + String(userConfig.openhabHostIp) + "\",";
+  JSON = JSON + "\"ohItemPrefix\": \"" + String(userConfig.openItemPrefix) + "\"";
+  JSON = JSON + "},";
+
   JSON = JSON + "\"dtuConnection\": {";
   JSON = JSON + "\"dtuHostIp\": \"" + String(userConfig.dtuHostIp) + "\",";
   JSON = JSON + "\"dtuSsid\": \"" + String(userConfig.dtuSsid) + "\",";
@@ -495,6 +503,31 @@ void handleUpdateDtuSettings()
   Serial.println("handleUpdateDtuSettings - send JSON: " + String(JSON));
 }
 
+void handleUpdateOpenhabSettings()
+{
+  String openhabHostIpUser = server.arg("openhabHostIpSend"); // retrieve message from webserver
+  Serial.println("\nhandleUpdateDtuSettings - got openhab ip: " + openhabHostIpUser);
+
+  openhabHostIpUser.toCharArray(userConfig.openhabHostIp, sizeof(userConfig.openhabHostIp));
+
+  saveConfigToEEPROM();
+  delay(500);
+
+  String JSON = "{";
+  JSON = JSON + "\"openhabHostIp\": \"" + userConfig.openhabHostIp + "\",";
+  JSON = JSON + "}";
+
+  server.send(200, "application/json", JSON);
+
+  delay(2000); // give time for the json response
+
+  // stopping connection to DTU and set right state - to force reconnect with new data
+  client.stop();
+  globalControls.dtuConnectState = DTU_STATE_OFFLINE;
+
+  Serial.println("handleUpdateOpenhabSettings - send JSON: " + String(JSON));
+}
+
 void handleUpdateOTASettings()
 {
   String releaseChannel = server.arg("releaseChannel"); // retrieve message from webserver
@@ -537,6 +570,7 @@ void initializeWebServer()
   server.on("/updateWifiSettings", handleUpdateWifiSettings);
   server.on("/updateDtuSettings", handleUpdateDtuSettings);
   server.on("/updateOTASettings", handleUpdateOTASettings);
+  server.on("/updateOHSettings", handleUpdateOpenhabSettings);
 
   // api GETs
   server.on("/api/data", handleDataJson);
@@ -554,8 +588,10 @@ void initializeWebServer()
 void handleUpdateRequest()
 {
   String urlToBin = "";
-  if (userConfig.selectedUpdateChannel == 0) urlToBin = updateURLRelease;
-  else urlToBin = updateURL;
+  if (userConfig.selectedUpdateChannel == 0)
+    urlToBin = updateURLRelease;
+  else
+    urlToBin = updateURL;
 
   BearSSL::WiFiClientSecure updateclient;
   updateclient.setInsecure();
@@ -654,21 +690,21 @@ boolean getUpdateInfo()
           if (userConfig.selectedUpdateChannel == 0)
           {
             // versionServerRelease = String(doc["version"]);
-            strcpy(versionServerRelease,(const char*)(doc["version"]));
+            strcpy(versionServerRelease, (const char *)(doc["version"]));
             // versiondateServerRelease = String(doc["versiondate"]);
-            strcpy(versiondateServerRelease,(const char*)(doc["versiondate"]));
+            strcpy(versiondateServerRelease, (const char *)(doc["versiondate"]));
             // updateURLRelease = String(doc["link"]);
-            strcpy(updateURLRelease,(const char*)(doc["link"]));
+            strcpy(updateURLRelease, (const char *)(doc["link"]));
             updateAvailable = checkVersion(String(VERSION), versionServerRelease);
           }
           else
           {
             // versionServer = String(doc["version"]);
-            strcpy(versionServer,(const char*)(doc["version"]));
+            strcpy(versionServer, (const char *)(doc["version"]));
             // versiondateServer = String(doc["versiondate"]);
-            strcpy(versiondateServer,(const char*)(doc["versiondate"]));
+            strcpy(versiondateServer, (const char *)(doc["versiondate"]));
             // updateURL = String(doc["linksnapshot"]);
-            strcpy(updateURL,(const char*)(doc["linksnapshot"]));
+            strcpy(updateURL, (const char *)(doc["linksnapshot"]));
             updateAvailable = checkVersion(String(VERSION), versionServer);
           }
 
@@ -750,23 +786,23 @@ boolean checkVersion(String v1, String v2)
 void update_started()
 {
   Serial.println(F("CALLBACK:  HTTP update process started"));
-  strcpy(updateState,"started");
+  strcpy(updateState, "started");
 }
 void update_finished()
 {
   Serial.println(F("CALLBACK:  HTTP update process finished"));
-  strcpy(updateState,"done");
+  strcpy(updateState, "done");
 }
 void update_progress(int cur, int total)
 {
   updateProgress = (cur / total) * 100;
-  strcpy(updateState,"running");
+  strcpy(updateState, "running");
   Serial.print("CALLBACK:  HTTP update process at " + String(cur) + "  of " + String(total) + " bytes - " + String(updateProgress, 1) + " %...\n");
 }
 void update_error(int err)
 {
   Serial.printf("CALLBACK:  HTTP update fatal error code %d\n", err);
-  strcpy(updateState,"error");
+  strcpy(updateState, "error");
 }
 
 // send values to openhab
@@ -776,13 +812,23 @@ boolean postMessageToOpenhab(String key, String value)
   WiFiClient client;
   HTTPClient http;
   String openhabHost = "http://" + String(userConfig.openhabHostIp) + ":8080/rest/items/";
-  // if (http.begin(openhabHost + key))
+  http.setTimeout(1000); // prevent blocking of progam
+  // Serial.print("postMessageToOpenhab (" + openhabHost + ") - " + key + " -> " + value);
   if (http.begin(client, openhabHost + key))
   {
     http.addHeader("Content-Type", "text/plain");
     http.addHeader("Accept", "application/json");
-    // http.POST("title=foo&body=bar&userId=1");
-    http.POST(value);
+
+    int httpCode = http.POST(value);
+    // Check for timeout
+    if (httpCode == HTTPC_ERROR_CONNECTION_REFUSED || httpCode == HTTPC_ERROR_SEND_HEADER_FAILED ||
+        httpCode == HTTPC_ERROR_SEND_PAYLOAD_FAILED)
+    {
+      Serial.print("\n[HTTP] postMessageToOpenhab Timeout error: " + String(httpCode) + "\n");
+      http.end();
+      return false; // Return timeout error
+    }
+
     http.writeToStream(&Serial);
     http.end();
     return true;
@@ -790,7 +836,7 @@ boolean postMessageToOpenhab(String key, String value)
   else
   {
     Serial.print("[HTTP] postMessageToOpenhab Unable to connect " + openhabHost + " \n");
-    return "connectError";
+    return false;
   }
 }
 
@@ -799,6 +845,7 @@ String getMessageFromOpenhab(String key)
   WiFiClient client;
   HTTPClient http;
   String openhabHost = "http://" + String(userConfig.openhabHostIp) + ":8080/rest/items/";
+  http.setTimeout(2000); // prevent blocking of progam
   if (http.begin(client, openhabHost + key + "/state"))
   {
     String payload = "";
@@ -819,37 +866,39 @@ String getMessageFromOpenhab(String key)
 
 boolean updateValueToOpenhab()
 {
-  postMessageToOpenhab("inverterGrid_U", (String)globalData.grid.voltage);
-  postMessageToOpenhab("inverterGrid_I", (String)globalData.grid.current);
-  postMessageToOpenhab("inverterGrid_P", (String)globalData.grid.power);
-  postMessageToOpenhab("inverterPV_E_day", String(globalData.grid.dailyEnergy, 3));
-  if (globalData.grid.totalEnergy != 0)
+  boolean sendOk = postMessageToOpenhab("inverterGrid_U", (String)globalData.grid.voltage);
+  if (sendOk)
   {
-    postMessageToOpenhab("inverterPV_E_total", String(globalData.grid.totalEnergy, 3));
+    postMessageToOpenhab("inverterGrid_I", (String)globalData.grid.current);
+    postMessageToOpenhab("inverterGrid_P", (String)globalData.grid.power);
+    postMessageToOpenhab("inverterPV_E_day", String(globalData.grid.dailyEnergy, 3));
+    if (globalData.grid.totalEnergy != 0)
+    {
+      postMessageToOpenhab("inverterPV_E_total", String(globalData.grid.totalEnergy, 3));
+    }
+
+    postMessageToOpenhab("inverterPV1_U", (String)globalData.pv0.voltage);
+    postMessageToOpenhab("inverterPV1_I", (String)globalData.pv0.current);
+    postMessageToOpenhab("inverterPV1_P", (String)globalData.pv0.power);
+    postMessageToOpenhab("inverterPV1_E_day", String(globalData.pv0.dailyEnergy, 3));
+    if (globalData.pv0.totalEnergy != 0)
+    {
+      postMessageToOpenhab("inverterPV1_E_total", String(globalData.pv0.totalEnergy, 3));
+    }
+
+    postMessageToOpenhab("inverterPV2_U", (String)globalData.pv1.voltage);
+    postMessageToOpenhab("inverterPV2_I", (String)globalData.pv1.current);
+    postMessageToOpenhab("inverterPV2_P", (String)globalData.pv1.power);
+    postMessageToOpenhab("inverterPV2_E_day", String(globalData.pv1.dailyEnergy, 3));
+    if (globalData.pv1.totalEnergy != 0)
+    {
+      postMessageToOpenhab("inverterPV2_E_total", String(globalData.pv1.totalEnergy, 3));
+    }
+
+    postMessageToOpenhab("inverter_Temp", (String)globalData.inverterTemp);
+    postMessageToOpenhab("inverter_PowerLimit", (String)globalData.powerLimit);
+    postMessageToOpenhab("inverter_WifiRSSI", (String)globalData.rssiDtu);
   }
-
-  postMessageToOpenhab("inverterPV1_U", (String)globalData.pv0.voltage);
-  postMessageToOpenhab("inverterPV1_I", (String)globalData.pv0.current);
-  postMessageToOpenhab("inverterPV1_P", (String)globalData.pv0.power);
-  postMessageToOpenhab("inverterPV1_E_day", String(globalData.pv0.dailyEnergy, 3));
-  if (globalData.pv0.totalEnergy != 0)
-  {
-    postMessageToOpenhab("inverterPV1_E_total", String(globalData.pv0.totalEnergy, 3));
-  }
-
-  postMessageToOpenhab("inverterPV2_U", (String)globalData.pv1.voltage);
-  postMessageToOpenhab("inverterPV2_I", (String)globalData.pv1.current);
-  postMessageToOpenhab("inverterPV2_P", (String)globalData.pv1.power);
-  postMessageToOpenhab("inverterPV2_E_day", String(globalData.pv1.dailyEnergy, 3));
-  if (globalData.pv1.totalEnergy != 0)
-  {
-    postMessageToOpenhab("inverterPV2_E_total", String(globalData.pv1.totalEnergy, 3));
-  }
-
-  postMessageToOpenhab("inverter_Temp", (String)globalData.inverterTemp);
-  postMessageToOpenhab("inverter_PowerLimit", (String)globalData.powerLimit);
-  postMessageToOpenhab("inverter_WifiRSSI", (String)globalData.rssiDtu);
-
   return true;
 }
 
@@ -892,6 +941,9 @@ void setup()
 
     Serial.print(F("openhab host: \t"));
     Serial.println(userConfig.openhabHostIp);
+
+    Serial.print(F("openhab item prefix: \t"));
+    Serial.println(userConfig.openItemPrefix);
 
     Serial.print(F("cloud pause: \t"));
     Serial.println(userConfig.cloudPauseTime);
