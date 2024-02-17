@@ -866,38 +866,38 @@ String getMessageFromOpenhab(String key)
 
 boolean updateValueToOpenhab()
 {
-  boolean sendOk = postMessageToOpenhab("inverterGrid_U", (String)globalData.grid.voltage);
+  boolean sendOk = postMessageToOpenhab(String(userConfig.openItemPrefix) + "Grid_U", (String)globalData.grid.voltage);
   if (sendOk)
   {
-    postMessageToOpenhab("inverterGrid_I", (String)globalData.grid.current);
-    postMessageToOpenhab("inverterGrid_P", (String)globalData.grid.power);
-    postMessageToOpenhab("inverterPV_E_day", String(globalData.grid.dailyEnergy, 3));
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "Grid_I", (String)globalData.grid.current);
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "Grid_P", (String)globalData.grid.power);
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV_E_day", String(globalData.grid.dailyEnergy, 3));
     if (globalData.grid.totalEnergy != 0)
     {
-      postMessageToOpenhab("inverterPV_E_total", String(globalData.grid.totalEnergy, 3));
+      postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV_E_total", String(globalData.grid.totalEnergy, 3));
     }
 
-    postMessageToOpenhab("inverterPV1_U", (String)globalData.pv0.voltage);
-    postMessageToOpenhab("inverterPV1_I", (String)globalData.pv0.current);
-    postMessageToOpenhab("inverterPV1_P", (String)globalData.pv0.power);
-    postMessageToOpenhab("inverterPV1_E_day", String(globalData.pv0.dailyEnergy, 3));
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV1_U", (String)globalData.pv0.voltage);
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV1_I", (String)globalData.pv0.current);
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV1_P", (String)globalData.pv0.power);
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV1_E_day", String(globalData.pv0.dailyEnergy, 3));
     if (globalData.pv0.totalEnergy != 0)
     {
-      postMessageToOpenhab("inverterPV1_E_total", String(globalData.pv0.totalEnergy, 3));
+      postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV1_E_total", String(globalData.pv0.totalEnergy, 3));
     }
 
-    postMessageToOpenhab("inverterPV2_U", (String)globalData.pv1.voltage);
-    postMessageToOpenhab("inverterPV2_I", (String)globalData.pv1.current);
-    postMessageToOpenhab("inverterPV2_P", (String)globalData.pv1.power);
-    postMessageToOpenhab("inverterPV2_E_day", String(globalData.pv1.dailyEnergy, 3));
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV2_U", (String)globalData.pv1.voltage);
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV2_I", (String)globalData.pv1.current);
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV2_P", (String)globalData.pv1.power);
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV2_E_day", String(globalData.pv1.dailyEnergy, 3));
     if (globalData.pv1.totalEnergy != 0)
     {
-      postMessageToOpenhab("inverterPV2_E_total", String(globalData.pv1.totalEnergy, 3));
+      postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV2_E_total", String(globalData.pv1.totalEnergy, 3));
     }
 
-    postMessageToOpenhab("inverter_Temp", (String)globalData.inverterTemp);
-    postMessageToOpenhab("inverter_PowerLimit", (String)globalData.powerLimit);
-    postMessageToOpenhab("inverter_WifiRSSI", (String)globalData.rssiDtu);
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "_Temp", (String)globalData.inverterTemp);
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "_PowerLimit", (String)globalData.powerLimit);
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "_WifiRSSI", (String)globalData.rssiDtu);
   }
   return true;
 }
@@ -1915,7 +1915,7 @@ void loop()
       // get data from openhab if not connected to DTU
       if (globalControls.dtuConnectState == DTU_STATE_CONNECTED)
       {
-        uint8_t gotLimit = (getMessageFromOpenhab("inverter_PowerLimit_Set")).toInt();
+        uint8_t gotLimit = (getMessageFromOpenhab(String(userConfig.openItemPrefix) + "_PowerLimit_Set")).toInt();
         if (gotLimit < 2)
           globalData.powerLimitSet = 2;
         else if (gotLimit > 100)

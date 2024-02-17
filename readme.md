@@ -11,6 +11,7 @@
   - [api](#api)
     - [data - http://\<ip\_to\_your\_device\>/api/data](#data---httpip_to_your_deviceapidata)
     - [info - http://\<ip\_to\_your\_device\>/api/info](#info---httpip_to_your_deviceapiinfo)
+  - [openhab integration/ configuration](#openhab-integration-configuration)
   - [known bugs](#known-bugs)
   - [releases](#releases)
     - [installation / update](#installation--update)
@@ -55,6 +56,7 @@ On a manual way you can be back on track if you logging in to the local access p
   - temperature and wifi rssi of the dtu
 - setting the target inverter power limit dynamically
 - serving the readed data per /api/data
+- updating openHab instance with readed data and pulling set data from the instance
 - for testing purposes the time between each request is adjustable (default 31 seconds) 
 - syncing time of gateway with the local time of the dtu to prevent wrong restart counters
 - configurable 'cloud pause' - see [experiences](#-experiences-with-the-hoymiles-HMS-800W-2T) - to prevent missing updates by the dtu to the hoymiles cloud 
@@ -158,6 +160,36 @@ On a manual way you can be back on track if you logging in to the local access p
 }
 ```
 
+## openhab integration/ configuration
+
+- set the IP to your openhab instance - data will be read with http://<your_openhab_ip>:8080/rest/items/<itemName>/state
+- set the prefix (<openItemPrefix>) of your openhab items
+- list of items that should be available in your openhab config
+  - read your given power set value from openhab with "<yourOpenItemPrefix>_PowerLimit_Set"
+  - set openhab items with data from dtu:
+    - grid data:
+      - "<openItemPrefix>Grid_U"
+      - "<openItemPrefix>Grid_I"
+      - "<openItemPrefix>Grid_P"
+      - "<openItemPrefix>PV_E_day"
+      - "<openItemPrefix>PV_E_total"
+    - panel 1 data:
+      - "<openItemPrefix>PV1_U"
+      - "<openItemPrefix>PV1_I"
+      - "<openItemPrefix>PV1_P"
+      - "<openItemPrefix>PV1_E_day"
+      - "<openItemPrefix>PV1_E_total"
+    - panel 2 data:
+      - "<openItemPrefix>PV2_U"
+      - "<openItemPrefix>PV2_I"
+      - "<openItemPrefix>PV2_P"
+      - "<openItemPrefix>PV2_E_day"
+      - "<openItemPrefix>PV2_E_total"
+    - inverter status:
+      - "<openItemPrefix>_Temp"
+      - "<openItemPrefix>_PowerLimit" //current read power limit from dtu
+      - "<openItemPrefix>_WifiRSSI"
+
 ## known bugs
 - ...
 
@@ -185,6 +217,8 @@ latest release - changes will documented by commit messages
 https://github.com/ohAnd/dtuGateway/releases/latest
 
 ![GitHub Downloads (all assets, latest release)](https://img.shields.io/github/downloads/ohand/dtuGateway/latest/total)
+![GitHub (Pre-)Release Date](https://img.shields.io/github/release-date/ohand/dtuGateway)
+![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/ohand/dtuGateway/main_build.yml)
 
 ### snapshot
 snapshot with latest build
@@ -192,7 +226,7 @@ https://github.com/ohAnd/dtuGateway/releases/tag/snapshot
 
 ![GitHub Downloads (all assets, specific tag)](https://img.shields.io/github/downloads/ohand/dtuGateway/snapshot/total)
 ![GitHub (Pre-)Release Date](https://img.shields.io/github/release-date-pre/ohand/dtuGateway)
-![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/ohand/dtuGateway/main.yml)
+![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/ohand/dtuGateway/dev_build.yml)
 
 
 
