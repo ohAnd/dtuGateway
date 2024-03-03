@@ -14,6 +14,9 @@
 #include "CommandPB.pb.h"
 #include "CRC16.h"
 
+// DTU connect
+const uint16_t dtuPort = 10081;
+
 #define DTU_TIME_OFFSET 28800
 #define DTU_CLOUD_UPLOAD_SECONDS 40
 
@@ -66,18 +69,19 @@ struct inverterData
 
 extern inverterData globalData;
 
+extern CRC16 crc;
 
 void initializeCRC();
-float calcValue();
+// float calcValue();
 String getTimeStringByTimestamp(unsigned long timestamp);
-boolean preventCloudErrorTask(unsigned long localTimeSecond);
-void readRespAppGetHistPower(WiFiClient *client);
-void writeReqAppGetHistPower(WiFiClient *client, unsigned long localTimeSecond);
-void readRespRealDataNew(WiFiClient *client);
-void writeReqRealDataNew(WiFiClient *client, unsigned long localTimeSecond);
-void readRespGetConfig(WiFiClient *client);
-void writeReqGetConfig(WiFiClient *client, unsigned long localTimeSecond);
-void readRespCommand(WiFiClient *client);
-void writeReqCommand(WiFiClient *client, unsigned long localTimeSecond);
+// boolean preventCloudErrorTask(unsigned long localTimeSecond);
+// void readRespAppGetHistPower(WiFiClient *client);
+// void writeReqAppGetHistPower(WiFiClient *client, unsigned long localTimeSecond);
+// void readRespRealDataNew(WiFiClient *client);
+// void writeReqRealDataNew(WiFiClient *client, unsigned long localTimeSecond);
+// void readRespGetConfig(WiFiClient *client);
+// void writeReqGetConfig(WiFiClient *client, unsigned long localTimeSecond);
+// void readRespCommand(WiFiClient *client);
+// void writeReqCommand(WiFiClient *client, unsigned long localTimeSecond);
 
 #endif // DTUINTERFACE_H
