@@ -294,7 +294,6 @@ void handleInfojson()
   JSON = JSON + "\"updateAvailable\": " + updateAvailable;
   JSON = JSON + "},";
 
-  
   JSON = JSON + "\"openHabConnection\": {";
   JSON = JSON + "\"ohHostIp\": \"" + String(userConfig.openhabHostIp) + "\",";
   JSON = JSON + "\"ohItemPrefix\": \"" + String(userConfig.openItemPrefix) + "\"";
@@ -1737,14 +1736,34 @@ void loop()
       // get data from openhab if not connected to DTU
       if (globalControls.dtuConnectState == DTU_STATE_CONNECTED)
       {
-        uint8_t gotLimit = (getMessageFromOpenhab(String(userConfig.openItemPrefix) + "_PowerLimit_Set")).toInt();
-        if (gotLimit < 2)
-          globalData.powerLimitSet = 2;
-        else if (gotLimit > 100)
-          globalData.powerLimitSet = 2;
-        else
-          globalData.powerLimitSet = gotLimit;
+        uint8_t gotLimit;
+        bool conversionSuccess = false;
 
+        String openhabMessage = getMessageFromOpenhab(String(userConfig.openItemPrefix) + "_PowerLimit_Set");
+        if (openhabMessage.length() > 0)
+        {
+          gotLimit = openhabMessage.toInt();
+          // Check if the conversion was successful by comparing the string with its integer representation, to avoid wronmg interpretations of 0 after toInt by a "no number string"
+          conversionSuccess = (String(gotLimit) == openhabMessage);
+        }
+
+        if (conversionSuccess)
+        {
+          if (gotLimit < 2)
+            globalData.powerLimitSet = 2;
+          else if (gotLimit > 100)
+            globalData.powerLimitSet = 2;
+          else
+            globalData.powerLimitSet = gotLimit;
+        }
+        else
+        {
+          // Handle the case where the conversion was not successful
+          // This could be an error or the string represents 0
+          // In this case, gotLimit should be 0
+          // ...
+          Serial.print("got wrong data for SetLimit: " + openhabMessage);
+        }
         // Serial.print("got SetLimit: " + String(globalData.powerLimitSet) + " - current limit: " + String(globalData.powerLimit) + " %");
       }
     }
