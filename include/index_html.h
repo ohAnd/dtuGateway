@@ -294,7 +294,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                         <b id="gwNTPtime" class="panelValueSmall">00:00:00</b>
                     </div>
                     <div class="panelValueBoxDetail">
-                        <small class="panelHead">DTU connect</small>
+                        <small class="panelHead">DTU</small>
                         <b id="dtu_connect_state" class="panelValueSmall valueText"> offline </b>
                     </div>
                     <div class="panelValueBoxDetail">

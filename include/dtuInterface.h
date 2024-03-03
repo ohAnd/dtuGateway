@@ -74,14 +74,19 @@ extern CRC16 crc;
 void initializeCRC();
 float calcValue(int32_t value, int32_t divider = 10);
 String getTimeStringByTimestamp(unsigned long timestamp);
-// boolean preventCloudErrorTask(unsigned long localTimeSecond);
-// void readRespAppGetHistPower(WiFiClient *client);
-// void writeReqAppGetHistPower(WiFiClient *client, unsigned long localTimeSecond);
-// void readRespRealDataNew(WiFiClient *client);
-// void writeReqRealDataNew(WiFiClient *client, unsigned long localTimeSecond);
-// void readRespGetConfig(WiFiClient *client);
-// void writeReqGetConfig(WiFiClient *client, unsigned long localTimeSecond);
-// void readRespCommand(WiFiClient *client);
-// void writeReqCommand(WiFiClient *client, unsigned long localTimeSecond);
+boolean preventCloudErrorTask(unsigned long locTimeSec);
+
+void readRespAppGetHistPower(WiFiClient *localDtuClient);
+void writeReqAppGetHistPower(WiFiClient *localDtuClient, unsigned long locTimeSec);
+
+void readRespRealDataNew(WiFiClient *localDtuClient);
+void writeReqRealDataNew(WiFiClient *localDtuClient, unsigned long locTimeSec);
+
+void readRespGetConfig(WiFiClient *localDtuClient);
+void writeReqGetConfig(WiFiClient *localDtuClient, unsigned long locTimeSec);
+
+void readRespCommand(WiFiClient *localDtuClient);
+void writeReqCommand(WiFiClient *localDtuClient, uint8_t setPercent, unsigned long locTimeSec);
+
 
 #endif // DTUINTERFACE_H
