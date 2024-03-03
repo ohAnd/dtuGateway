@@ -18,12 +18,11 @@ void initializeCRC()
     crc.restart();
 }
 
-// float calcValue(int32_t value, int32_t divder = 10)
-// {
-//     float calcValue = 0;
-//     calcValue = float(value) / divder;
-//     return calcValue;
-// }
+float calcValue(int32_t value, int32_t divider)
+{
+    float result = static_cast<float>(value) / divider;
+    return result;
+}
 
 String getTimeStringByTimestamp(unsigned long timestamp)
 {

@@ -72,7 +72,7 @@ extern inverterData globalData;
 extern CRC16 crc;
 
 void initializeCRC();
-// float calcValue();
+float calcValue(int32_t value, int32_t divider = 10);
 String getTimeStringByTimestamp(unsigned long timestamp);
 // boolean preventCloudErrorTask(unsigned long localTimeSecond);
 // void readRespAppGetHistPower(WiFiClient *client);

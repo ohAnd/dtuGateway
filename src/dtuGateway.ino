@@ -880,13 +880,6 @@ void startServices()
 
 // protobuf functions
 
-float calcValue(int32_t value, int32_t divder = 10)
-{
-  float calcValue = 0;
-  calcValue = float(value) / divder;
-  return calcValue;
-}
-
 void readRespAppGetHistPower(WiFiClient *client)
 {
   unsigned long timeout = millis();
@@ -1487,15 +1480,6 @@ void blinkCodeTask()
     ledCycle = 0;
   }
 }
-
-// String getTimeStringByTimestamp(unsigned long timestamp)
-// {
-//   UnixTime stamp(1);
-//   char buf[30];
-//   stamp.getDateTime(localTimeSecond);
-//   sprintf(buf, "%02i.%02i.%04i - %02i:%02i:%02i", stamp.day, stamp.month, stamp.year, stamp.hour, stamp.minute, stamp.second);
-//   return String(buf);
-// }
 
 // serial comm
 String getValue(String data, char separator, int index)
