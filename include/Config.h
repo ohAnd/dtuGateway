@@ -16,7 +16,9 @@ struct UserConfig
     char dtuHostIp[16];
     char openhabHostIp[16];
     char openItemPrefix[32];
-    int cloudPauseTime;
+    int dtuCloudPauseTime;
+    boolean dtuCloudPauseActive;
+    int dtuUpdateTime;
     boolean wifiAPstart;
     int selectedUpdateChannel; // 0 - release 1 - snapshot
     byte eepromInitialized;    // specific pattern to determine floating state in EEPROM from Factory

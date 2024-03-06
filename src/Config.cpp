@@ -38,7 +38,7 @@ void initializeEEPROM()
         strcpy(userConfig.openhabHostIp, "192.168.1.30");
         strcpy(userConfig.openItemPrefix, "inverter");
         userConfig.selectedUpdateChannel = 0; // default - release channel
-        userConfig.cloudPauseTime = 40;
+        userConfig.dtuCloudPauseTime = 40;
         userConfig.wifiAPstart = true;
 
         // Mark EEPROM as initialized
@@ -79,7 +79,7 @@ void printEEPROMdata()
         Serial.println(userConfig.openItemPrefix);
 
         Serial.print(F("cloud pause: \t"));
-        Serial.println(userConfig.cloudPauseTime);
+        Serial.println(userConfig.dtuCloudPauseTime);
 
         Serial.print(F("update channel: \t"));
         Serial.println(userConfig.selectedUpdateChannel);

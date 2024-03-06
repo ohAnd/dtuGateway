@@ -295,7 +295,10 @@ void handleInfojson()
   JSON = JSON + "\"dtuHostIp\": \"" + String(userConfig.dtuHostIp) + "\",";
   JSON = JSON + "\"dtuSsid\": \"" + String(userConfig.dtuSsid) + "\",";
   JSON = JSON + "\"dtuPassword\": \"" + String(userConfig.dtuPassword) + "\",";
-  JSON = JSON + "\"rssiDtu\": " + globalData.rssiDtu;
+  JSON = JSON + "\"dtuRssi\": " + globalData.dtuRssi + ",";
+  JSON = JSON + "\"dtuDataCycle\": " + userConfig.dtuUpdateTime + ",";
+  JSON = JSON + "\"dtuCloudPause\": " + userConfig.dtuCloudPauseActive + ",";
+  JSON = JSON + "\"dtuCloudPauseTime\": " + userConfig.dtuCloudPauseTime;
   JSON = JSON + "},";
 
   JSON = JSON + "\"wifiConnection\": {";
@@ -768,7 +771,7 @@ boolean updateValueToOpenhab()
 
     postMessageToOpenhab(String(userConfig.openItemPrefix) + "_Temp", (String)globalData.inverterTemp);
     postMessageToOpenhab(String(userConfig.openItemPrefix) + "_PowerLimit", (String)globalData.powerLimit);
-    postMessageToOpenhab(String(userConfig.openItemPrefix) + "_WifiRSSI", (String)globalData.rssiDtu);
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "_WifiRSSI", (String)globalData.dtuRssi);
   }
   return true;
 }
@@ -1274,7 +1277,7 @@ void loop()
 
           doc["timestamp"] = globalData.respTimestamp;
           doc["uptodate"] = globalData.uptodate;
-          doc["rssiDtu"] = globalData.rssiDtu;
+          doc["dtuRssi"] = globalData.dtuRssi;
           doc["powerLimit"] = globalData.powerLimit;
           doc["powerLimitSet"] = globalData.powerLimitSet;
           doc["inverterTemp"] = globalData.inverterTemp;
@@ -1301,7 +1304,7 @@ void loop()
         else
         {
           Serial.print("\n\nupdate at remote: " + getTimeStringByTimestamp(globalData.respTimestamp) + " - uptodate: " + String(globalData.uptodate) + " \n");
-          Serial.print("wifi rssi: " + String(globalData.rssiDtu) + " % (DTU->Cloud) - " + String(globalData.wifi_rssi_gateway) + " % (Client->AP) \n");
+          Serial.print("wifi rssi: " + String(globalData.dtuRssi) + " % (DTU->Cloud) - " + String(globalData.wifi_rssi_gateway) + " % (Client->AP) \n");
           Serial.print("power limit (set): " + String(globalData.powerLimit) + " % (" + String(globalData.powerLimitSet) + " %) \n");
           Serial.print("inverter temp:\t " + String(globalData.inverterTemp) + " °C \n");
 

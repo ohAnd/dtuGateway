@@ -515,7 +515,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
 
             var wifiGWPercent = Math.round(data.wifiConnection.rssiGW);
             $('#rssitext_local').html(wifiGWPercent + '%');
-            var wifiDTUPercent = Math.round(data.dtuConnection.rssiDtu);
+            var wifiDTUPercent = Math.round(data.dtuConnection.dtuRssi);
             $('#rssitext_dtu').html(wifiDTUPercent + '%');
 
             $('#firmware').html("fw version: " + data.firmware.version);

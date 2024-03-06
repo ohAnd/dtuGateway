@@ -60,7 +60,7 @@ struct inverterData
   float inverterTemp = 0;
   uint8_t powerLimit = 0;
   uint8_t powerLimitSet = 101; // init with not possible value for startup
-  uint32_t rssiDtu = 0;
+  uint32_t dtuRssi = 0;
   uint32_t wifi_rssi_gateway = 0;
   uint32_t respTimestamp = 1704063600;     // init with start time stamp > 0
   uint32_t lastRespTimestamp = 1704063600; // init with start time stamp > 0

@@ -405,7 +405,7 @@ void readRespGetConfig(WiFiClient *localDtuClient)
     Serial.print("\nGetConfig - got remote:\t" + getTimeStringByTimestamp(getconfigreqdto.request_time));
 
     globalData.powerLimit = int(calcValue(getconfigreqdto.limit_power_mypower));
-    globalData.rssiDtu = getconfigreqdto.wifi_rssi;
+    globalData.dtuRssi = getconfigreqdto.wifi_rssi;
 }
 
 void writeReqGetConfig(WiFiClient *localDtuClient, unsigned long locTimeSec)

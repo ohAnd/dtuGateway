@@ -135,7 +135,10 @@ On a manual way you can be back on track if you logging in to the local access p
     "dtuHostIp": "192.168.0.249",
     "dtuSsid": "DTUBI-12345678",
     "dtuPassword": "dtubiPassword",
-    "rssiDtu": 0
+    "dtuRssi": 0,
+    "dtuDataCycle": 32,
+    "dtuCloudPause": 1,
+    "dtuCloudPauseTime": 40
   },
   "wifiConnection": {
     "networkCount": 2,
