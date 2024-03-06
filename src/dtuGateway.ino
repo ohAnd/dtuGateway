@@ -84,7 +84,7 @@ ESP8266Timer ITimer;
 const long interval100ms = 100; // interval (milliseconds)
 const long intervalShort = 1;   // interval (milliseconds)
 const long interval5000ms = 5;  // interval (milliseconds)
-unsigned long intervalMid = 31; // interval (milliseconds)
+unsigned long intervalMid = 15; // interval (milliseconds)
 const long intervalLong = 60;   // interval (milliseconds)
 unsigned long previousMillis100ms = 0;
 unsigned long previousMillisShort = 1704063600;
@@ -1116,10 +1116,16 @@ void loop()
     // Serial.print(" --- NTP: " + timeClient.getFormattedTime() + " --- currentMillis " + String(currentMillis) + " --- ");
     previousMillisShort = currentMillis;
     // -------->
-    // task to check and change for cloud update pause
+
     if (dtuConnection.preventCloudErrors)
+    {
+      // task to check and change for cloud update pause
       if (preventCloudErrorTask(localTimeSecond))
         blinkCode = BLINK_PAUSE_CLOUD_UPDATE;
+      // disconnet DTU server, if prevention on
+      if (dtuConnection.dtuActiveOffToCloudUpdate)
+        dtuClient.stop();
+    }
 
     if (globalControls.wifiSwitch && !userConfig.wifiAPstart)
       checkWifiTask();
@@ -1128,11 +1134,6 @@ void loop()
       dtuClient.stop(); // stopping connection to DTU before go wifi offline
       dtuConnection.dtuConnectState = DTU_STATE_OFFLINE;
       WiFi.disconnect();
-    }
-    // disconnet DTU server, if prevention on
-    if (dtuConnection.dtuActiveOffToCloudUpdate)
-    {
-      dtuClient.stop();
     }
 
     if (dtuClient.connected())
@@ -1210,6 +1211,7 @@ void loop()
     if (WiFi.status() == WL_CONNECTED)
     {
       // check for server connection
+      dtuClient.setTimeout(5000);
       if (!dtuClient.connected() && !dtuConnection.dtuActiveOffToCloudUpdate)
       {
         Serial.print("\n>>> Client not connected with DTU! - trying to connect to " + String(userConfig.dtuHostIp) + " ... ");
@@ -1303,7 +1305,7 @@ void loop()
           Serial.print("power limit (set): " + String(globalData.powerLimit) + " % (" + String(globalData.powerLimitSet) + " %) \n");
           Serial.print("inverter temp:\t " + String(globalData.inverterTemp) + " °C \n");
 
-          Serial.print(F("\t |\t current  |\t voltage  |\t power    |        daily      |     total     |\n"));
+          Serial.print(F(" \t |\t current  |\t voltage  |\t power    |        daily      |     total     |\n"));
           // 12341234 |1234 current  |1234 voltage  |1234 power1234|12341234daily 1234|12341234total 1234|
           // grid1234 |1234 123456 A |1234 123456 V |1234 123456 W |1234 12345678 kWh |1234 12345678 kWh |
           // pvO 1234 |1234 123456 A |1234 123456 V |1234 123456 W |1234 12345678 kWh |1234 12345678 kWh |
