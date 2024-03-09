@@ -42,7 +42,7 @@ else:
         version_string_new = f"{major}.{minor}.{build_string}"
     else:
         # Increment to the new version string
-        patch += 1
+        # patch += 1
         version_string_new = f"{major}.{minor}.{patch}"
     
     print(f"set new version: {version_string_new}")

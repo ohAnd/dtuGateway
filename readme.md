@@ -11,9 +11,11 @@
   - [api](#api)
     - [data - http://\<ip\_to\_your\_device\>/api/data](#data---httpip_to_your_deviceapidata)
     - [info - http://\<ip\_to\_your\_device\>/api/info](#info---httpip_to_your_deviceapiinfo)
+  - [openhab integration/ configuration](#openhab-integration-configuration)
   - [known bugs](#known-bugs)
   - [releases](#releases)
     - [installation / update](#installation--update)
+    - [first setup with access point](#first-setup-with-access-point)
     - [main](#main)
     - [snapshot](#snapshot)
   - [experiences with the hoymiles HMS-800W-2T](#experiences-with-the-hoymiles-hms-800w-2t)
@@ -54,6 +56,7 @@ On a manual way you can be back on track if you logging in to the local access p
   - temperature and wifi rssi of the dtu
 - setting the target inverter power limit dynamically
 - serving the readed data per /api/data
+- updating openHab instance with readed data and pulling set data from the instance
 - for testing purposes the time between each request is adjustable (default 31 seconds) 
 - syncing time of gateway with the local time of the dtu to prevent wrong restart counters
 - configurable 'cloud pause' - see [experiences](#-experiences-with-the-hoymiles-HMS-800W-2T) - to prevent missing updates by the dtu to the hoymiles cloud 
@@ -66,7 +69,7 @@ On a manual way you can be back on track if you logging in to the local access p
   - select found local wifi and enter/ save the needed wifi password
   - change dtu connection data (e.g. host IP in local network, wireless user/ pass for dtu access point)
   - configurable data for openhab item settings
-- OTA with direct connection ro the github build pipeline - available updates will be checked by web app and device. Notifiaction in web app if update available and user can decide for direct online update 
+- OTA with direct connection to the github build pipeline - available updates will be checked by web app and device. Notification in web app, if update available and user can decide for direct online update 
 
 ## api
 
@@ -132,7 +135,14 @@ On a manual way you can be back on track if you logging in to the local access p
     "dtuHostIp": "192.168.0.249",
     "dtuSsid": "DTUBI-12345678",
     "dtuPassword": "dtubiPassword",
-    "rssiDtu": 0
+    "dtuRssi": 0,
+    "dtuDataCycle": 32,
+    "dtuCloudPause": 1,
+    "dtuCloudPauseTime": 40
+  },
+  "openHabConnection": {
+    "ohHostIp": "192.168.1.100",
+    "ohItemPrefix": "inverter"
   },
   "wifiConnection": {
     "networkCount": 2,
@@ -157,6 +167,36 @@ On a manual way you can be back on track if you logging in to the local access p
 }
 ```
 
+## openhab integration/ configuration
+
+- set the IP to your openhab instance - data will be read with http://<your_openhab_ip>:8080/rest/items/<itemName>/state
+- set the prefix (<openItemPrefix>) of your openhab items
+- list of items that should be available in your openhab config
+  - read your given power set value from openhab with "<yourOpenItemPrefix>_PowerLimit_Set"
+  - set openhab items with data from dtu:
+    - grid data:
+      - "<openItemPrefix>Grid_U"
+      - "<openItemPrefix>Grid_I"
+      - "<openItemPrefix>Grid_P"
+      - "<openItemPrefix>PV_E_day"
+      - "<openItemPrefix>PV_E_total"
+    - panel 1 data:
+      - "<openItemPrefix>PV1_U"
+      - "<openItemPrefix>PV1_I"
+      - "<openItemPrefix>PV1_P"
+      - "<openItemPrefix>PV1_E_day"
+      - "<openItemPrefix>PV1_E_total"
+    - panel 2 data:
+      - "<openItemPrefix>PV2_U"
+      - "<openItemPrefix>PV2_I"
+      - "<openItemPrefix>PV2_P"
+      - "<openItemPrefix>PV2_E_day"
+      - "<openItemPrefix>PV2_E_total"
+    - inverter status:
+      - "<openItemPrefix>_Temp"
+      - "<openItemPrefix>_PowerLimit" //current read power limit from dtu
+      - "<openItemPrefix>_WifiRSSI"
+
 ## known bugs
 - ...
 
@@ -173,11 +213,19 @@ On a manual way you can be back on track if you logging in to the local access p
    7. press start ;-)
 3. all further updates are done by OTA (see chapters above) 
 
+### first setup with access point
+1. connect with the AP hoymilesGW_<chipID> (on smartphone sometimes you have to accept the connection explicitly with the knowledge there is no internet connectivity)
+2. open the website http://192.168.4.1 (or http://hoymilesGW.local) for the first configuration
+3. choose your wifi
+4. type in the wifi password - save
+
 ### main
 latest release - changes will documented by commit messages
 https://github.com/ohAnd/dtuGateway/releases/latest
 
 ![GitHub Downloads (all assets, latest release)](https://img.shields.io/github/downloads/ohand/dtuGateway/latest/total)
+![GitHub (Pre-)Release Date](https://img.shields.io/github/release-date/ohand/dtuGateway)
+![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/ohand/dtuGateway/main_build.yml)
 
 ### snapshot
 snapshot with latest build
@@ -185,7 +233,7 @@ https://github.com/ohAnd/dtuGateway/releases/tag/snapshot
 
 ![GitHub Downloads (all assets, specific tag)](https://img.shields.io/github/downloads/ohand/dtuGateway/snapshot/total)
 ![GitHub (Pre-)Release Date](https://img.shields.io/github/release-date-pre/ohand/dtuGateway)
-![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/ohand/dtuGateway/main.yml)
+![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/ohand/dtuGateway/dev_build.yml)
 
 
 
@@ -194,7 +242,7 @@ https://github.com/ohAnd/dtuGateway/releases/tag/snapshot
 ### set values - frequency
 (not fully investigated yet)
 
-If there to much requests of setting the power limit minutes later the connection is broken and cannot be directly established again - with current experience the dtu resets after ~ 30 min and is accessable again.
+If there to much requests of setting the power limit minutes later the connection is broken and cannot be directly established again - with current experience the dtu resets itself after ~ 30 min and is accessable again.
 
 With the manual login to dtu access point and forcing the storing of local wifi connect data again, then dtu is back online and accessable in your local network. (This is a possible feature that can be implemented in future - needed protocol sequence has to be investigated)
 

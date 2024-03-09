@@ -1,4 +1,3 @@
-#include <UnixTime.h>
 #include "ESP8266TimerInterrupt.h"
 #include <ESP8266_ISR_Timer.h>
 #include <ESP8266WiFi.h>
@@ -18,47 +17,17 @@
 
 #include <EEPROM.h>
 
-#include "pb_encode.h"
-#include "pb_decode.h"
-#include "AppGetHistPower.pb.h"
-#include "RealtimeDataNew.pb.h"
-#include "GetConfig.pb.h"
-#include "CommandPB.pb.h"
-#include "CRC16.h"
+#include "dtuInterface.h"
 
 #include "index_html.h"
 #include "jquery_min_js.h"
 #include "style_css.h"
 
 #include "version.h"
-
-CRC16 crc;
-
-// DTU connect
-const uint16_t dtuPort = 10081;
+#include "Config.h"
 
 // first start AP name
 const char *apNameStart = "hoymilesGW"; // + chipid
-
-// config
-const int MAX_STRING_LENGTH = 64; // maximum length, will be truncated befroe writing to eeprom
-struct UserConfig
-{
-  char dtuSsid[32];
-  char dtuPassword[32];
-  char wifiSsid[32];
-  char wifiPassword[32];
-  char dtuHostIp[16];
-  char openhabHostIp[16];
-  int cloudPauseTime;
-  boolean wifiAPstart;
-  int selectedUpdateChannel; // 0 - release 1 - snapshot
-  byte eepromInitialized;    // specific pattern to determine floating state in EEPROM from Factory
-};
-
-#define EEPROM_INIT_PATTERN 0xAA
-
-UserConfig userConfig;
 
 // OTA
 ESP8266HTTPUpdateServer httpUpdater;
@@ -77,9 +46,6 @@ boolean updateAvailable = false;
 float updateProgress = 0;
 char updateState[16] = "waiting";
 
-#define DTU_TIME_OFFSET 28800
-#define DTU_CLOUD_UPLOAD_SECONDS 40
-
 #define WIFI_RETRY_TIME_SECONDS 30
 #define WIFI_RETRY_TIMEOUT_SECONDS 30
 #define RECONNECTS_ARRAY_SIZE 50
@@ -96,7 +62,7 @@ int8_t blinkCode = BLINK_WIFI_OFF;
 
 String host;
 WiFiUDP ntpUDP;
-WiFiClient client;
+WiFiClient dtuClient;
 NTPClient timeClient(ntpUDP); // By default 'pool.ntp.org' is used with 60 seconds update interval
 #define CLIENT_TIME_OFFSET 3600
 
@@ -118,7 +84,7 @@ ESP8266Timer ITimer;
 const long interval100ms = 100; // interval (milliseconds)
 const long intervalShort = 1;   // interval (milliseconds)
 const long interval5000ms = 5;  // interval (milliseconds)
-unsigned long intervalMid = 31; // interval (milliseconds)
+unsigned long intervalMid = 32; // interval (milliseconds)
 const long intervalLong = 60;   // interval (milliseconds)
 unsigned long previousMillis100ms = 0;
 unsigned long previousMillisShort = 1704063600;
@@ -127,106 +93,14 @@ unsigned long previousMillisMid = 1704063600;
 unsigned long previousMillisLong = 1704063600;
 unsigned long localTimeSecond = 1704063600;
 
-#define DTU_STATE_OFFLINE 0
-#define DTU_STATE_CONNECTED 1
-#define DTU_STATE_CLOUD_PAUSE 2
-#define DTU_STATE_TRY_RECONNECT 3
-
-#define DTU_ERROR_NO_ERROR 0
-#define DTU_ERROR_NO_TIME 1
-#define DTU_ERROR_TIME_DIFF 2
-#define DTU_ERROR_DATA_NO_CHANGE 3
-#define DTU_ERROR_LAST_SEND 4
-
 struct controls
 {
   boolean wifiSwitch = true;
-  boolean preventCloudErrors = true;
-  boolean dtuActiveOffToCloudUpdate = true;
   boolean getDataAuto = true;
   boolean getDataOnce = false;
   boolean dataFormatJSON = false;
-  uint8_t dtuConnectState = DTU_STATE_OFFLINE;
-  uint8_t dtuErrorState = DTU_ERROR_NO_ERROR;
 };
-
 controls globalControls;
-
-struct baseData
-{
-  float current = 0;
-  float voltage = 0;
-  float power = 0;
-  float dailyEnergy = 0;
-  float totalEnergy = 0;
-};
-
-struct inverterData
-{
-  baseData grid;
-  baseData pv0;
-  baseData pv1;
-  float gridFreq = 0;
-  float inverterTemp = 0;
-  uint8_t powerLimit = 0;
-  uint8_t powerLimitSet = 101; // init with not possible value for startup
-  uint32_t rssiDtu = 0;
-  uint32_t wifi_rssi_gateway = 0;
-  uint32_t respTimestamp = localTimeSecond;     // init with start time stamp > 0
-  uint32_t lastRespTimestamp = localTimeSecond; // init with start time stamp > 0
-  boolean uptodate = false;
-};
-
-inverterData globalData;
-
-void saveConfigToEEPROM()
-{
-  EEPROM.put(0, userConfig);
-  EEPROM.commit();
-  delay(1000);
-}
-
-void loadConfigFromEEPROM()
-{
-  EEPROM.get(0, userConfig);
-}
-
-void initializeEEPROM()
-{
-  // EEPROM initialize
-  EEPROM.begin(256); // emulate 512 Byte pf EEPROM
-
-  // Check if EEPROM has been initialized before
-  EEPROM.get(0, userConfig);
-  Serial.print(F("\nchecking for factory mode ("));
-  Serial.print(userConfig.eepromInitialized, HEX);
-  Serial.print(F(")"));
-
-  if (userConfig.eepromInitialized != EEPROM_INIT_PATTERN)
-  {
-    Serial.println(F(" -> not initialized - writing factory defaults"));
-    // EEPROM not initialized, set default values
-    strcpy(userConfig.dtuSsid, "DTUBI-12345678");
-    strcpy(userConfig.dtuPassword, "dtubiPassword");
-    strcpy(userConfig.wifiSsid, "mySSID");
-    strcpy(userConfig.wifiPassword, "myPassword");
-    strcpy(userConfig.dtuHostIp, "192.168.0.254");
-    strcpy(userConfig.openhabHostIp, "192.168.0.254");
-    userConfig.selectedUpdateChannel = 0; // default - release channel
-    userConfig.cloudPauseTime = 40;
-    userConfig.wifiAPstart = true;
-
-    // Mark EEPROM as initialized
-    userConfig.eepromInitialized = EEPROM_INIT_PATTERN;
-
-    // Save the default values to EEPROM
-    saveConfigToEEPROM();
-  }
-  else
-  {
-    Serial.println(F(" -> already configured"));
-  }
-}
 
 // wifi functions
 boolean wifi_connecting = false;
@@ -354,8 +228,8 @@ void handleDataJson()
   JSON = JSON + "\"ntpStamp\": " + String(timeClient.getEpochTime() - CLIENT_TIME_OFFSET) + ",";
 
   JSON = JSON + "\"lastResponse\": " + globalData.lastRespTimestamp + ",";
-  JSON = JSON + "\"dtuConnState\": " + globalControls.dtuConnectState + ",";
-  JSON = JSON + "\"dtuErrorState\": " + globalControls.dtuErrorState + ",";
+  JSON = JSON + "\"dtuConnState\": " + dtuConnection.dtuConnectState + ",";
+  JSON = JSON + "\"dtuErrorState\": " + dtuConnection.dtuErrorState + ",";
 
   JSON = JSON + "\"starttime\": " + String(starttime - CLIENT_TIME_OFFSET) + ",";
 
@@ -412,11 +286,19 @@ void handleInfojson()
   JSON = JSON + "\"updateAvailable\": " + updateAvailable;
   JSON = JSON + "},";
 
+  JSON = JSON + "\"openHabConnection\": {";
+  JSON = JSON + "\"ohHostIp\": \"" + String(userConfig.openhabHostIp) + "\",";
+  JSON = JSON + "\"ohItemPrefix\": \"" + String(userConfig.openItemPrefix) + "\"";
+  JSON = JSON + "},";
+
   JSON = JSON + "\"dtuConnection\": {";
   JSON = JSON + "\"dtuHostIp\": \"" + String(userConfig.dtuHostIp) + "\",";
   JSON = JSON + "\"dtuSsid\": \"" + String(userConfig.dtuSsid) + "\",";
   JSON = JSON + "\"dtuPassword\": \"" + String(userConfig.dtuPassword) + "\",";
-  JSON = JSON + "\"rssiDtu\": " + globalData.rssiDtu;
+  JSON = JSON + "\"dtuRssi\": " + globalData.dtuRssi + ",";
+  JSON = JSON + "\"dtuDataCycle\": " + userConfig.dtuUpdateTime + ",";
+  JSON = JSON + "\"dtuCloudPause\": " + userConfig.dtuCloudPauseActive + ",";
+  JSON = JSON + "\"dtuCloudPauseTime\": " + userConfig.dtuCloudPauseTime;
   JSON = JSON + "},";
 
   JSON = JSON + "\"wifiConnection\": {";
@@ -467,17 +349,30 @@ void handleUpdateWifiSettings()
 void handleUpdateDtuSettings()
 {
   String dtuHostIpUser = server.arg("dtuHostIpSend"); // retrieve message from webserver
+  String dtuDataCycle = server.arg("dtuDataCycleSend"); // retrieve message from webserver
+  String dtuCloudPause = server.arg("dtuCloudPauseSend"); // retrieve message from webserver
   String dtuSSIDUser = server.arg("dtuSsidSend");     // retrieve message from webserver
   String dtuPassUser = server.arg("dtuPasswordSend"); // retrieve message from webserver
-  Serial.println("\nhandleUpdateDtuSettings - got dtu ip: " + dtuHostIpUser + "- got dtu ssid: " + dtuSSIDUser + " - got WifiPass: " + dtuPassUser);
+  Serial.println("\nhandleUpdateDtuSettings - got dtu ip: " + dtuHostIpUser + "- got dtuDataCycle: " + dtuDataCycle + "- got dtu dtuCloudPause: " + dtuCloudPause);
+  Serial.println("handleUpdateDtuSettings - got dtu ssid: " + dtuSSIDUser + " - got WifiPass: " + dtuPassUser);
 
   dtuHostIpUser.toCharArray(userConfig.dtuHostIp, sizeof(userConfig.dtuHostIp));
+  userConfig.dtuUpdateTime = dtuDataCycle.toInt();
+  if(dtuCloudPause)
+    userConfig.dtuCloudPauseActive = true;
+  else
+    userConfig.dtuCloudPauseActive = false;
   dtuSSIDUser.toCharArray(userConfig.dtuSsid, sizeof(userConfig.dtuSsid));
   dtuPassUser.toCharArray(userConfig.dtuPassword, sizeof(userConfig.dtuPassword));
 
   saveConfigToEEPROM();
   delay(500);
 
+  intervalMid = userConfig.dtuUpdateTime;
+  dtuConnection.preventCloudErrors = userConfig.dtuCloudPauseActive;
+  Serial.println("\nhandleUpdateDtuSettings - setting dtu cycle to:" + String(intervalMid));
+  
+  
   String JSON = "{";
   JSON = JSON + "\"dtuHostIp\": \"" + userConfig.dtuHostIp + "\",";
   JSON = JSON + "\"dtuSsid\": \"" + userConfig.dtuSsid + "\",";
@@ -489,10 +384,33 @@ void handleUpdateDtuSettings()
   delay(2000); // give time for the json response
 
   // stopping connection to DTU and set right state - to force reconnect with new data
-  client.stop();
-  globalControls.dtuConnectState = DTU_STATE_OFFLINE;
+  dtuClient.stop();
+  dtuConnection.dtuConnectState = DTU_STATE_OFFLINE;
+}
 
-  Serial.println("handleUpdateDtuSettings - send JSON: " + String(JSON));
+void handleUpdateOpenhabSettings()
+{
+  String openhabHostIpUser = server.arg("openhabHostIpSend"); // retrieve message from webserver
+  Serial.println("\nhandleUpdateDtuSettings - got openhab ip: " + openhabHostIpUser);
+
+  openhabHostIpUser.toCharArray(userConfig.openhabHostIp, sizeof(userConfig.openhabHostIp));
+
+  saveConfigToEEPROM();
+  delay(500);
+
+  String JSON = "{";
+  JSON = JSON + "\"openhabHostIp\": \"" + userConfig.openhabHostIp + "\",";
+  JSON = JSON + "}";
+
+  server.send(200, "application/json", JSON);
+
+  delay(2000); // give time for the json response
+
+  // stopping connection to DTU and set right state - to force reconnect with new data
+  dtuClient.stop();
+  dtuConnection.dtuConnectState = DTU_STATE_OFFLINE;
+
+  Serial.println("handleUpdateOpenhabSettings - send JSON: " + String(JSON));
 }
 
 void handleUpdateOTASettings()
@@ -537,6 +455,7 @@ void initializeWebServer()
   server.on("/updateWifiSettings", handleUpdateWifiSettings);
   server.on("/updateDtuSettings", handleUpdateDtuSettings);
   server.on("/updateOTASettings", handleUpdateOTASettings);
+  server.on("/updateOHSettings", handleUpdateOpenhabSettings);
 
   // api GETs
   server.on("/api/data", handleDataJson);
@@ -554,8 +473,10 @@ void initializeWebServer()
 void handleUpdateRequest()
 {
   String urlToBin = "";
-  if (userConfig.selectedUpdateChannel == 0) urlToBin = updateURLRelease;
-  else urlToBin = updateURL;
+  if (userConfig.selectedUpdateChannel == 0)
+    urlToBin = updateURLRelease;
+  else
+    urlToBin = updateURL;
 
   BearSSL::WiFiClientSecure updateclient;
   updateclient.setInsecure();
@@ -654,21 +575,21 @@ boolean getUpdateInfo()
           if (userConfig.selectedUpdateChannel == 0)
           {
             // versionServerRelease = String(doc["version"]);
-            strcpy(versionServerRelease,(const char*)(doc["version"]));
+            strcpy(versionServerRelease, (const char *)(doc["version"]));
             // versiondateServerRelease = String(doc["versiondate"]);
-            strcpy(versiondateServerRelease,(const char*)(doc["versiondate"]));
+            strcpy(versiondateServerRelease, (const char *)(doc["versiondate"]));
             // updateURLRelease = String(doc["link"]);
-            strcpy(updateURLRelease,(const char*)(doc["link"]));
+            strcpy(updateURLRelease, (const char *)(doc["link"]));
             updateAvailable = checkVersion(String(VERSION), versionServerRelease);
           }
           else
           {
             // versionServer = String(doc["version"]);
-            strcpy(versionServer,(const char*)(doc["version"]));
+            strcpy(versionServer, (const char *)(doc["version"]));
             // versiondateServer = String(doc["versiondate"]);
-            strcpy(versiondateServer,(const char*)(doc["versiondate"]));
+            strcpy(versiondateServer, (const char *)(doc["versiondate"]));
             // updateURL = String(doc["linksnapshot"]);
-            strcpy(updateURL,(const char*)(doc["linksnapshot"]));
+            strcpy(updateURL, (const char *)(doc["linksnapshot"]));
             updateAvailable = checkVersion(String(VERSION), versionServer);
           }
 
@@ -750,23 +671,23 @@ boolean checkVersion(String v1, String v2)
 void update_started()
 {
   Serial.println(F("CALLBACK:  HTTP update process started"));
-  strcpy(updateState,"started");
+  strcpy(updateState, "started");
 }
 void update_finished()
 {
   Serial.println(F("CALLBACK:  HTTP update process finished"));
-  strcpy(updateState,"done");
+  strcpy(updateState, "done");
 }
 void update_progress(int cur, int total)
 {
   updateProgress = (cur / total) * 100;
-  strcpy(updateState,"running");
+  strcpy(updateState, "running");
   Serial.print("CALLBACK:  HTTP update process at " + String(cur) + "  of " + String(total) + " bytes - " + String(updateProgress, 1) + " %...\n");
 }
 void update_error(int err)
 {
   Serial.printf("CALLBACK:  HTTP update fatal error code %d\n", err);
-  strcpy(updateState,"error");
+  strcpy(updateState, "error");
 }
 
 // send values to openhab
@@ -776,13 +697,23 @@ boolean postMessageToOpenhab(String key, String value)
   WiFiClient client;
   HTTPClient http;
   String openhabHost = "http://" + String(userConfig.openhabHostIp) + ":8080/rest/items/";
-  // if (http.begin(openhabHost + key))
+  http.setTimeout(1000); // prevent blocking of progam
+  // Serial.print("postMessageToOpenhab (" + openhabHost + ") - " + key + " -> " + value);
   if (http.begin(client, openhabHost + key))
   {
     http.addHeader("Content-Type", "text/plain");
     http.addHeader("Accept", "application/json");
-    // http.POST("title=foo&body=bar&userId=1");
-    http.POST(value);
+
+    int httpCode = http.POST(value);
+    // Check for timeout
+    if (httpCode == HTTPC_ERROR_CONNECTION_REFUSED || httpCode == HTTPC_ERROR_SEND_HEADER_FAILED ||
+        httpCode == HTTPC_ERROR_SEND_PAYLOAD_FAILED)
+    {
+      Serial.print("\n[HTTP] postMessageToOpenhab Timeout error: " + String(httpCode) + "\n");
+      http.end();
+      return false; // Return timeout error
+    }
+
     http.writeToStream(&Serial);
     http.end();
     return true;
@@ -790,7 +721,7 @@ boolean postMessageToOpenhab(String key, String value)
   else
   {
     Serial.print("[HTTP] postMessageToOpenhab Unable to connect " + openhabHost + " \n");
-    return "connectError";
+    return false;
   }
 }
 
@@ -799,6 +730,7 @@ String getMessageFromOpenhab(String key)
   WiFiClient client;
   HTTPClient http;
   String openhabHost = "http://" + String(userConfig.openhabHostIp) + ":8080/rest/items/";
+  http.setTimeout(2000); // prevent blocking of progam
   if (http.begin(client, openhabHost + key + "/state"))
   {
     String payload = "";
@@ -819,37 +751,39 @@ String getMessageFromOpenhab(String key)
 
 boolean updateValueToOpenhab()
 {
-  postMessageToOpenhab("inverterGrid_U", (String)globalData.grid.voltage);
-  postMessageToOpenhab("inverterGrid_I", (String)globalData.grid.current);
-  postMessageToOpenhab("inverterGrid_P", (String)globalData.grid.power);
-  postMessageToOpenhab("inverterPV_E_day", String(globalData.grid.dailyEnergy, 3));
-  if (globalData.grid.totalEnergy != 0)
+  boolean sendOk = postMessageToOpenhab(String(userConfig.openItemPrefix) + "Grid_U", (String)globalData.grid.voltage);
+  if (sendOk)
   {
-    postMessageToOpenhab("inverterPV_E_total", String(globalData.grid.totalEnergy, 3));
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "Grid_I", (String)globalData.grid.current);
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "Grid_P", (String)globalData.grid.power);
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV_E_day", String(globalData.grid.dailyEnergy, 3));
+    if (globalData.grid.totalEnergy != 0)
+    {
+      postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV_E_total", String(globalData.grid.totalEnergy, 3));
+    }
+
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV1_U", (String)globalData.pv0.voltage);
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV1_I", (String)globalData.pv0.current);
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV1_P", (String)globalData.pv0.power);
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV1_E_day", String(globalData.pv0.dailyEnergy, 3));
+    if (globalData.pv0.totalEnergy != 0)
+    {
+      postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV1_E_total", String(globalData.pv0.totalEnergy, 3));
+    }
+
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV2_U", (String)globalData.pv1.voltage);
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV2_I", (String)globalData.pv1.current);
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV2_P", (String)globalData.pv1.power);
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV2_E_day", String(globalData.pv1.dailyEnergy, 3));
+    if (globalData.pv1.totalEnergy != 0)
+    {
+      postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV2_E_total", String(globalData.pv1.totalEnergy, 3));
+    }
+
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "_Temp", (String)globalData.inverterTemp);
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "_PowerLimit", (String)globalData.powerLimit);
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "_WifiRSSI", (String)globalData.dtuRssi);
   }
-
-  postMessageToOpenhab("inverterPV1_U", (String)globalData.pv0.voltage);
-  postMessageToOpenhab("inverterPV1_I", (String)globalData.pv0.current);
-  postMessageToOpenhab("inverterPV1_P", (String)globalData.pv0.power);
-  postMessageToOpenhab("inverterPV1_E_day", String(globalData.pv0.dailyEnergy, 3));
-  if (globalData.pv0.totalEnergy != 0)
-  {
-    postMessageToOpenhab("inverterPV1_E_total", String(globalData.pv0.totalEnergy, 3));
-  }
-
-  postMessageToOpenhab("inverterPV2_U", (String)globalData.pv1.voltage);
-  postMessageToOpenhab("inverterPV2_I", (String)globalData.pv1.current);
-  postMessageToOpenhab("inverterPV2_P", (String)globalData.pv1.power);
-  postMessageToOpenhab("inverterPV2_E_day", String(globalData.pv1.dailyEnergy, 3));
-  if (globalData.pv1.totalEnergy != 0)
-  {
-    postMessageToOpenhab("inverterPV2_E_total", String(globalData.pv1.totalEnergy, 3));
-  }
-
-  postMessageToOpenhab("inverter_Temp", (String)globalData.inverterTemp);
-  postMessageToOpenhab("inverter_PowerLimit", (String)globalData.powerLimit);
-  postMessageToOpenhab("inverter_WifiRSSI", (String)globalData.rssiDtu);
-
   return true;
 }
 
@@ -869,44 +803,10 @@ void setup()
 
   // Initialize EEPROM
   initializeEEPROM();
-
   // Load configuration from EEPROM
   loadConfigFromEEPROM();
-
-  Serial.print(F("startup state - normal=0, config=1  (hex): "));
-  Serial.print(userConfig.wifiAPstart, HEX);
-  Serial.print(F("\n"));
-
-  if (userConfig.eepromInitialized == EEPROM_INIT_PATTERN)
-  {
-    // Configuration has been written before
-    Serial.print(F("\n--------------------------------------\n"));
-    Serial.print(F("Configuration loaded from EEPROM:\n"));
-    Serial.print(F("init phase: \t"));
-    Serial.println(userConfig.wifiAPstart);
-
-    Serial.print(F("wifi ssid: \t"));
-    Serial.println(userConfig.wifiSsid);
-    Serial.print(F("wifi pass: \t"));
-    Serial.println(userConfig.wifiPassword);
-
-    Serial.print(F("openhab host: \t"));
-    Serial.println(userConfig.openhabHostIp);
-
-    Serial.print(F("cloud pause: \t"));
-    Serial.println(userConfig.cloudPauseTime);
-
-    Serial.print(F("update channel: \t"));
-    Serial.println(userConfig.selectedUpdateChannel);
-
-    Serial.print(F("dtu host: \t"));
-    Serial.println(userConfig.dtuHostIp);
-    Serial.print(F("dtu ssid: \t"));
-    Serial.println(userConfig.dtuSsid);
-    Serial.print(F("dtu pass: \t"));
-    Serial.println(userConfig.dtuPassword);
-    Serial.print(F("--------------------------------------\n"));
-  }
+  // check for saved data end print to serial
+  printEEPROMdata();
 
   if (userConfig.wifiAPstart)
   {
@@ -936,13 +836,16 @@ void setup()
     WiFi.mode(WIFI_STA);
   }
 
-  // CRC
-  crc.setInitial(CRC16_MODBUS_INITIAL);
-  crc.setPolynome(CRC16_MODBUS_POLYNOME);
-  crc.setReverseIn(CRC16_MODBUS_REV_IN);
-  crc.setReverseOut(CRC16_MODBUS_REV_OUT);
-  crc.setXorOut(CRC16_MODBUS_XOR_OUT);
-  crc.restart();
+  // CRC for protobuf
+  initializeCRC();
+
+  // setting startup interval for dtucylce
+  intervalMid = userConfig.dtuUpdateTime;
+  Serial.print(F("\nsetup - setting dtu cycle to:"));
+  Serial.println(intervalMid);
+
+  // setting startup for dtu cloud pause
+  dtuConnection.preventCloudErrors = userConfig.dtuCloudPauseActive;
 
   // Interval in microsecs
   if (ITimer.setInterval(TIMER_INTERVAL_MS * 1000, timer1000MilliSeconds))
@@ -985,569 +888,6 @@ void startServices()
   else
   {
     Serial.println(F("WiFi Failed"));
-  }
-}
-
-// protobuf functions
-
-float calcValue(int32_t value, int32_t divder = 10)
-{
-  float calcValue = 0;
-  calcValue = float(value) / divder;
-  return calcValue;
-}
-
-void readRespAppGetHistPower(WiFiClient *client)
-{
-  unsigned long timeout = millis();
-  while (client->available() == 0)
-  {
-    if (millis() - timeout > 2000)
-    {
-      Serial.println(F(">>> Client Timeout !"));
-      client->stop();
-      return;
-    }
-  }
-
-  // Read all the bytes of the reply from server and print them to Serial
-  uint8_t buffer[1024];
-  size_t read = 0;
-  while (client->available())
-  {
-    buffer[read++] = client->read();
-  }
-
-  // Serial.printf("\nResponse: ");
-  // for (int i = 0; i < read; i++)
-  // {
-  //   Serial.printf("%02X", buffer[i]);
-  // }
-
-  pb_istream_t istream;
-  istream = pb_istream_from_buffer(buffer + 10, read - 10);
-
-  AppGetHistPowerReqDTO appgethistpowerreqdto = AppGetHistPowerReqDTO_init_default;
-
-  pb_decode(&istream, &AppGetHistPowerReqDTO_msg, &appgethistpowerreqdto);
-
-  globalData.grid.dailyEnergy = calcValue(appgethistpowerreqdto.daily_energy, 1000);
-  globalData.grid.totalEnergy = calcValue(appgethistpowerreqdto.total_energy, 1000);
-
-  // Serial.printf("\n\n start_time: %i", appgethistpowerreqdto.start_time);
-  // Serial.printf(" | step_time: %i", appgethistpowerreqdto.step_time);
-  // Serial.printf(" | absolute_start: %i", appgethistpowerreqdto.absolute_start);
-  // Serial.printf(" | long_term_start: %i", appgethistpowerreqdto.long_term_start);
-  // Serial.printf(" | request_time: %i", appgethistpowerreqdto.request_time);
-  // Serial.printf(" | offset: %i", appgethistpowerreqdto.offset);
-
-  // Serial.printf("\naccess_point: %i", appgethistpowerreqdto.access_point);
-  // Serial.printf(" | control_point: %i", appgethistpowerreqdto.control_point);
-  // Serial.printf(" | daily_energy: %i", appgethistpowerreqdto.daily_energy);
-
-  // Serial.printf(" | relative_power: %f", calcValue(appgethistpowerreqdto.relative_power));
-
-  // Serial.printf(" | serial_number: %lld", appgethistpowerreqdto.serial_number);
-
-  // Serial.printf(" | total_energy: %f kWh", calcValue(appgethistpowerreqdto.total_energy, 1000));
-  // Serial.printf(" | warning_number: %i\n", appgethistpowerreqdto.warning_number);
-
-  // Serial.printf("\n power data count: %i\n", appgethistpowerreqdto.power_array_count);
-  // int starttimeApp = appgethistpowerreqdto.absolute_start;
-  // for (unsigned int i = 0; i < appgethistpowerreqdto.power_array_count; i++)
-  // {
-  //   float histPowerValue = float(appgethistpowerreqdto.power_array[i]) / 10;
-  //   Serial.printf("%i (%s) - power data: %f W (%i)\n", i, getTimeStringByTimestamp(starttimeApp), histPowerValue, appgethistpowerreqdto.power_array[i]);
-  //   starttime = starttime + appgethistpowerreqdto.step_time;
-  // }
-
-  // Serial.printf("\nsn: %lld, relative_power: %i, total_energy: %i, daily_energy: %i, warning_number: %i\n", appgethistpowerreqdto.serial_number, appgethistpowerreqdto.relative_power, appgethistpowerreqdto.total_energy, appgethistpowerreqdto.daily_energy,appgethistpowerreqdto.warning_number);
-}
-
-void writeReqAppGetHistPower(WiFiClient *client)
-{
-  uint8_t buffer[200];
-  pb_ostream_t stream = pb_ostream_from_buffer(buffer, sizeof(buffer));
-  AppGetHistPowerResDTO appgethistpowerres = AppGetHistPowerResDTO_init_default;
-  appgethistpowerres.offset = DTU_TIME_OFFSET;
-  appgethistpowerres.requested_time = int32_t(localTimeSecond);
-  bool status = pb_encode(&stream, AppGetHistPowerResDTO_fields, &appgethistpowerres);
-
-  if (!status)
-  {
-    Serial.println(F("Failed to encode"));
-    return;
-  }
-
-  // Serial.print(F("\nencoded: "));
-  for (unsigned int i = 0; i < stream.bytes_written; i++)
-  {
-    // Serial.printf("%02X", buffer[i]);
-    crc.add(buffer[i]);
-  }
-
-  uint8_t header[10];
-  header[0] = 0x48;
-  header[1] = 0x4d;
-  header[2] = 0xa3;
-  header[3] = 0x15; // AppGetHistPowerRes = 0x15
-  header[4] = 0x00;
-  header[5] = 0x01;
-  header[6] = (crc.calc() >> 8) & 0xFF;
-  header[7] = (crc.calc()) & 0xFF;
-  header[8] = ((stream.bytes_written + 10) >> 8) & 0xFF; // suggest parentheses around '+' in operand of '&'
-  header[9] = (stream.bytes_written + 10) & 0xFF;        // suggest parentheses around '+' in operand of '&'
-  crc.restart();
-
-  uint8_t message[10 + stream.bytes_written];
-  for (int i = 0; i < 10; i++)
-  {
-    message[i] = header[i];
-  }
-  for (unsigned int i = 0; i < stream.bytes_written; i++)
-  {
-    message[i + 10] = buffer[i];
-  }
-
-  // Serial.print(F("\nRequest: "));
-  // for (int i = 0; i < 10 + stream.bytes_written; i++)
-  // {
-  //   Serial.print(message[i]);
-  // }
-  // Serial.println("");
-
-  client->write(message, 10 + stream.bytes_written);
-  readRespAppGetHistPower(client);
-}
-
-void readRespRealDataNew(WiFiClient *client)
-{
-  unsigned long timeout = millis();
-  while (client->available() == 0)
-  {
-    if (millis() - timeout > 2000)
-    {
-      Serial.println(F(">>> Client Timeout !"));
-      client->stop();
-      return;
-    }
-  }
-
-  // Read all the bytes of the reply from server and print them to Serial
-  uint8_t buffer[1024];
-  size_t read = 0;
-  while (client->available())
-  {
-    buffer[read++] = client->read();
-  }
-
-  // Serial.printf("\nResponse: ");
-  // for (int i = 0; i < read; i++)
-  // {
-  //   Serial.printf("%02X", buffer[i]);
-  // }
-
-  pb_istream_t istream;
-  istream = pb_istream_from_buffer(buffer + 10, read - 10);
-
-  RealDataNewReqDTO realdatanewreqdto = RealDataNewReqDTO_init_default;
-
-  SGSMO gridData = SGSMO_init_zero;
-  PvMO pvData0 = PvMO_init_zero;
-  PvMO pvData1 = PvMO_init_zero;
-
-  pb_decode(&istream, &RealDataNewReqDTO_msg, &realdatanewreqdto);
-  // Serial.printf("\ndevice_serial_number: %lld", realdatanewreqdto.device_serial_number);
-  // Serial.printf("\ntimestamp:\t %i", realdatanewreqdto.timestamp);
-  Serial.print("\ngot remote (realData):\t " + getTimeStringByTimestamp(realdatanewreqdto.timestamp));
-  // Serial.printf("\nCheck timestamp - local: %i - remote: %i", int(localTimeSecond), int(realdatanewreqdto.timestamp));
-
-  if (realdatanewreqdto.timestamp != 0)
-  {
-    globalData.respTimestamp = uint32_t(realdatanewreqdto.timestamp);
-    globalControls.dtuErrorState = DTU_ERROR_NO_ERROR;
-
-    // Serial.printf("\nactive-power: %i", realdatanewreqdto.active_power);
-    // Serial.printf("\ncumulative power: %i", realdatanewreqdto.cumulative_power);
-    // Serial.printf("\nfirmware_version: %i", realdatanewreqdto.firmware_version);
-    // Serial.printf("\ndtu_power: %i", realdatanewreqdto.dtu_power);
-    // Serial.printf("\ndtu_daily_energy: %i\n", realdatanewreqdto.dtu_daily_energy);
-
-    gridData = realdatanewreqdto.sgs_data[0];
-    pvData0 = realdatanewreqdto.pv_data[0];
-    pvData1 = realdatanewreqdto.pv_data[1];
-
-    // Serial.printf("\ngridData data count:\t %i\n ", realdatanewreqdto.sgs_data_count);
-
-    // Serial.printf("\ngridData reactive_power:\t %f W", calcValue(gridData.reactive_power));
-    // Serial.printf("\ngridData active_power:\t %f W", calcValue(gridData.active_power));
-    // Serial.printf("\ngridData voltage:\t %f V", calcValue(gridData.voltage));
-    // Serial.printf("\ngridData current:\t %f A", calcValue(gridData.current, 100));
-    // Serial.printf("\ngridData frequency:\t %f Hz", calcValue(gridData.frequency, 100));
-    // Serial.printf("\ngridData link_status:\t %i", gridData.link_status);
-    // Serial.printf("\ngridData power_factor:\t %f", calcValue(gridData.power_factor));
-    // Serial.printf("\ngridData power_limit:\t %i %%", gridData.power_limit);
-    // Serial.printf("\ngridData temperature:\t %f C", calcValue(gridData.temperature));
-    // Serial.printf("\ngridData warning_number:\t %i\n", gridData.warning_number);
-
-    globalData.grid.current = calcValue(gridData.current, 100);
-    globalData.grid.voltage = calcValue(gridData.voltage);
-    globalData.grid.power = calcValue(gridData.active_power);
-    globalData.inverterTemp = calcValue(gridData.temperature);
-
-    // Serial.printf("\npvData data count:\t %i\n", realdatanewreqdto.pv_data_count);
-    // Serial.printf("\npvData 0 current:\t %f A", calcValue(pvData0.current, 100));
-    // Serial.printf("\npvData 0 voltage:\t %f V", calcValue(pvData0.voltage));
-    // Serial.printf("\npvData 0 power:  \t %f W", calcValue(pvData0.power));
-    // Serial.printf("\npvData 0 energy_daily:\t %f kWh", calcValue(pvData0.energy_daily, 1000));
-    // Serial.printf("\npvData 0 energy_total:\t %f kWh", calcValue(pvData0.energy_total, 1000));
-    // Serial.printf("\npvData 0 port_number:\t %i\n", pvData0.port_number);
-
-    globalData.pv0.current = calcValue(pvData0.current, 100);
-    globalData.pv0.voltage = calcValue(pvData0.voltage);
-    globalData.pv0.power = calcValue(pvData0.power);
-    globalData.pv0.dailyEnergy = calcValue(pvData0.energy_daily, 1000);
-    if (pvData0.energy_total != 0)
-    {
-      globalData.pv0.totalEnergy = calcValue(pvData0.energy_total, 1000);
-    }
-
-    // Serial.printf("\npvData 1 current:\t %f A", calcValue(pvData1.current, 100));
-    // Serial.printf("\npvData 1 voltage:\t %f V", calcValue(pvData1.voltage));
-    // Serial.printf("\npvData 1 power:  \t %f W", calcValue(pvData1.power));
-    // Serial.printf("\npvData 1 energy_daily:\t %f kWh", calcValue(pvData1.energy_daily, 1000));
-    // Serial.printf("\npvData 1 energy_total:\t %f kWh", calcValue(pvData1.energy_total, 1000));
-    // Serial.printf("\npvData 1 port_number:\t %i", pvData1.port_number);
-
-    globalData.pv1.current = calcValue(pvData1.current, 100);
-    globalData.pv1.voltage = calcValue(pvData1.voltage);
-    globalData.pv1.power = calcValue(pvData1.power);
-    globalData.pv1.dailyEnergy = calcValue(pvData1.energy_daily, 1000);
-    if (pvData0.energy_total != 0)
-    {
-      globalData.pv1.totalEnergy = calcValue(pvData1.energy_total, 1000);
-    }
-
-    globalData.grid.dailyEnergy = globalData.pv0.dailyEnergy + globalData.pv1.dailyEnergy;
-    globalData.grid.totalEnergy = globalData.pv0.totalEnergy + globalData.pv1.totalEnergy;
-  }
-  else
-  {
-    globalControls.dtuErrorState = DTU_ERROR_NO_TIME;
-  }
-}
-
-void writeReqRealDataNew(WiFiClient *client)
-{
-  uint8_t buffer[200];
-  pb_ostream_t stream = pb_ostream_from_buffer(buffer, sizeof(buffer));
-
-  RealDataNewResDTO realdatanewresdto = RealDataNewResDTO_init_default;
-  realdatanewresdto.offset = DTU_TIME_OFFSET;
-  realdatanewresdto.time = int32_t(localTimeSecond);
-  bool status = pb_encode(&stream, RealDataNewResDTO_fields, &realdatanewresdto);
-
-  if (!status)
-  {
-    Serial.println(F("Failed to encode"));
-    return;
-  }
-
-  // Serial.print(F("\nencoded: "));
-  for (unsigned int i = 0; i < stream.bytes_written; i++)
-  {
-    // Serial.printf("%02X", buffer[i]);
-    crc.add(buffer[i]);
-  }
-
-  uint8_t header[10];
-  header[0] = 0x48;
-  header[1] = 0x4d;
-  header[2] = 0xa3;
-  header[3] = 0x11; // RealDataNew = 0x11
-  header[4] = 0x00;
-  header[5] = 0x01;
-  header[6] = (crc.calc() >> 8) & 0xFF;
-  header[7] = (crc.calc()) & 0xFF;
-  header[8] = ((stream.bytes_written + 10) >> 8) & 0xFF; // suggest parentheses around '+' inside '>>' [-Wparentheses]
-  header[9] = (stream.bytes_written + 10) & 0xFF;        // warning: suggest parentheses around '+' in operand of '&' [-Wparentheses]
-  crc.restart();
-
-  uint8_t message[10 + stream.bytes_written];
-  for (int i = 0; i < 10; i++)
-  {
-    message[i] = header[i];
-  }
-  for (unsigned int i = 0; i < stream.bytes_written; i++)
-  {
-    message[i + 10] = buffer[i];
-  }
-
-  // Serial.print(F("\nRequest: "));
-  // for (int i = 0; i < 10 + stream.bytes_written; i++)
-  // {
-  //   Serial.print(message[i]);
-  // }
-  // Serial.println("");
-
-  client->write(message, 10 + stream.bytes_written);
-  readRespRealDataNew(client);
-}
-
-void readRespGetConfig(WiFiClient *client)
-{
-  unsigned long timeout = millis();
-  while (client->available() == 0)
-  {
-    if (millis() - timeout > 2000)
-    {
-      Serial.println(F(">>> Client Timeout !"));
-      client->stop();
-      return;
-    }
-  }
-
-  // Read all the bytes of the reply from server and print them to Serial
-  uint8_t buffer[1024];
-  size_t read = 0;
-  while (client->available())
-  {
-    buffer[read++] = client->read();
-  }
-
-  // Serial.printf("\nResponse: ");
-  // for (int i = 0; i < read; i++)
-  // {
-  //   Serial.printf("%02X", buffer[i]);
-  // }
-
-  pb_istream_t istream;
-  istream = pb_istream_from_buffer(buffer + 10, read - 10);
-
-  GetConfigReqDTO getconfigreqdto = GetConfigReqDTO_init_default;
-
-  pb_decode(&istream, &GetConfigReqDTO_msg, &getconfigreqdto);
-  // Serial.printf("\nsn: %lld, relative_power: %i, total_energy: %i, daily_energy: %i, warning_number: %i\n", appgethistpowerreqdto.serial_number, appgethistpowerreqdto.relative_power, appgethistpowerreqdto.total_energy, appgethistpowerreqdto.daily_energy,appgethistpowerreqdto.warning_number);
-  // Serial.printf("\ndevice_serial_number: %lld", realdatanewreqdto.device_serial_number);
-  // Serial.printf("\n\nwifi_rssi:\t %i %%", getconfigreqdto.wifi_rssi);
-  // Serial.printf("\nserver_send_time:\t %i", getconfigreqdto.server_send_time);
-  // Serial.printf("\nrequest_time (transl):\t %s", getTimeStringByTimestamp(getconfigreqdto.request_time));
-  // Serial.printf("\nlimit_power_mypower:\t %f %%", calcValue(getconfigreqdto.limit_power_mypower));
-
-  Serial.print("\ngot remote (GetConfig):\t " + getTimeStringByTimestamp(getconfigreqdto.server_send_time));
-
-  globalData.powerLimit = int(calcValue(getconfigreqdto.limit_power_mypower));
-  globalData.rssiDtu = getconfigreqdto.wifi_rssi;
-}
-
-void writeReqGetConfig(WiFiClient *client)
-{
-  uint8_t buffer[200];
-  pb_ostream_t stream = pb_ostream_from_buffer(buffer, sizeof(buffer));
-
-  GetConfigResDTO getconfigresdto = GetConfigResDTO_init_default;
-  getconfigresdto.offset = DTU_TIME_OFFSET;
-  getconfigresdto.time = int32_t(localTimeSecond);
-  bool status = pb_encode(&stream, GetConfigResDTO_fields, &getconfigresdto);
-
-  if (!status)
-  {
-    Serial.println(F("Failed to encode"));
-    return;
-  }
-
-  // Serial.print(F("\nencoded: "));
-  for (unsigned int i = 0; i < stream.bytes_written; i++)
-  {
-    // Serial.printf("%02X", buffer[i]);
-    crc.add(buffer[i]);
-  }
-
-  uint8_t header[10];
-  header[0] = 0x48;
-  header[1] = 0x4d;
-  header[2] = 0xa3;
-  header[3] = 0x09; // GetConfig = 0x09
-  header[4] = 0x00;
-  header[5] = 0x01;
-  header[6] = (crc.calc() >> 8) & 0xFF;
-  header[7] = (crc.calc()) & 0xFF;
-  header[8] = ((stream.bytes_written + 10) >> 8) & 0xFF; // suggest parentheses around '+' inside '>>' [-Wparentheses]
-  header[9] = (stream.bytes_written + 10) & 0xFF;        // warning: suggest parentheses around '+' in operand of '&' [-Wparentheses]
-  crc.restart();
-
-  uint8_t message[10 + stream.bytes_written];
-  for (int i = 0; i < 10; i++)
-  {
-    message[i] = header[i];
-  }
-  for (unsigned int i = 0; i < stream.bytes_written; i++)
-  {
-    message[i + 10] = buffer[i];
-  }
-
-  // Serial.print(F("\nRequest: "));
-  // for (int i = 0; i < 10 + stream.bytes_written; i++)
-  // {
-  //   Serial.print(message[i]);
-  // }
-  // Serial.println("");
-
-  client->write(message, 10 + stream.bytes_written);
-  readRespGetConfig(client);
-}
-
-void readRespCommand(WiFiClient *client)
-{
-  unsigned long timeout = millis();
-  while (client->available() == 0)
-  {
-    if (millis() - timeout > 2000)
-    {
-      Serial.println(F(">>> Client Timeout !"));
-      client->stop();
-      return;
-    }
-  }
-  // if there is no timeout, tehn assume limit was successfully changed
-  globalData.powerLimit = globalData.powerLimitSet;
-
-  // Read all the bytes of the reply from server and print them to Serial
-  uint8_t buffer[1024];
-  size_t read = 0;
-  while (client->available())
-  {
-    buffer[read++] = client->read();
-  }
-
-  // Serial.printf("\nResponse: ");
-  // for (int i = 0; i < read; i++)
-  // {
-  //   Serial.printf("%02X", buffer[i]);
-  // }
-
-  pb_istream_t istream;
-  istream = pb_istream_from_buffer(buffer + 10, read - 10);
-
-  CommandReqDTO commandreqdto = CommandReqDTO_init_default;
-
-  Serial.print("\ngot remote (GetConfig):\t " + getTimeStringByTimestamp(commandreqdto.time));
-
-  // pb_decode(&istream, &GetConfigReqDTO_msg, &commandreqdto);
-  // Serial.printf("\ncommand req action: %i", commandreqdto.action);
-  // Serial.printf("\ncommand req: %s", commandreqdto.dtu_sn);
-  // Serial.printf("\ncommand req: %i", commandreqdto.err_code);
-  // Serial.printf("\ncommand req: %i", commandreqdto.package_now);
-  // Serial.printf("\ncommand req: %i", int(commandreqdto.tid));
-  // Serial.printf("\ncommand req time: %i", commandreqdto.time);
-}
-
-void writeReqCommand(WiFiClient *client)
-{
-  // prepare powerLimit
-  uint8_t setPercent = globalData.powerLimitSet;
-  uint16_t limitLevel = setPercent * 10;
-  if (limitLevel > 1000)
-  { // reducing to 2 % -> 100%
-    limitLevel = 1000;
-  }
-  if (limitLevel < 20)
-  {
-    limitLevel = 20;
-  }
-
-  // request message
-  uint8_t buffer[200];
-  pb_ostream_t stream = pb_ostream_from_buffer(buffer, sizeof(buffer));
-
-  CommandResDTO commandresdto = CommandResDTO_init_default;
-  commandresdto.time = int32_t(localTimeSecond);
-  commandresdto.tid = int32_t(localTimeSecond);
-  commandresdto.action = 8;
-  commandresdto.package_nub = 1;
-
-  const int bufferSize = 61;
-  char dataArray[bufferSize];
-  String dataString = "A:" + String(limitLevel) + ",B:0,C:0\r";
-  Serial.print("\nsend limit: " + dataString);
-  dataString.toCharArray(dataArray, bufferSize);
-  strcpy(commandresdto.data, dataArray);
-
-  bool status = pb_encode(&stream, CommandResDTO_fields, &commandresdto);
-
-  if (!status)
-  {
-    Serial.println(F("Failed to encode"));
-    return;
-  }
-
-  // Serial.print(F("\nencoded: "));
-  for (unsigned int i = 0; i < stream.bytes_written; i++)
-  {
-    // Serial.printf("%02X", buffer[i]);
-    crc.add(buffer[i]);
-  }
-
-  uint8_t header[10];
-  header[0] = 0x48;
-  header[1] = 0x4d;
-  header[2] = 0xa3;
-  header[3] = 0x05; // Command = 0x05
-  header[4] = 0x00;
-  header[5] = 0x01;
-  header[6] = (crc.calc() >> 8) & 0xFF;
-  header[7] = (crc.calc()) & 0xFF;
-  header[8] = ((stream.bytes_written + 10) >> 8) & 0xFF; // suggest parentheses around '+' inside '>>' [-Wparentheses]
-  header[9] = (stream.bytes_written + 10) & 0xFF;        // warning: suggest parentheses around '+' in operand of '&' [-Wparentheses]
-  crc.restart();
-
-  uint8_t message[10 + stream.bytes_written];
-  for (int i = 0; i < 10; i++)
-  {
-    message[i] = header[i];
-  }
-  for (unsigned int i = 0; i < stream.bytes_written; i++)
-  {
-    message[i + 10] = buffer[i];
-  }
-
-  // Serial.print(F("\nRequest: "));
-  // for (int i = 0; i < 10 + stream.bytes_written; i++)
-  // {
-  //   Serial.print(message[i]);
-  // }
-  // Serial.println("");
-
-  client->write(message, 10 + stream.bytes_written);
-  readRespCommand(client);
-}
-
-// control functions
-unsigned long lastSwOff = 0;
-void preventCloudErrorTask()
-{
-  // check current DTU time
-  UnixTime stamp(1);
-  stamp.getDateTime(localTimeSecond);
-
-  int min = stamp.minute;
-  int sec = stamp.second;
-  if (sec >= 40 && (min == 59 || min == 14 || min == 29 || min == 44) && !globalControls.dtuActiveOffToCloudUpdate)
-  {
-    Serial.printf("\n\nlocal time: %02i.%02i. - %02i:%02i:%02i\n", stamp.day, stamp.month, stamp.hour, stamp.minute, stamp.second);
-    Serial.print(F("--------> switch OFF DTU server connection to upload data from DTU to Cloud\n\n"));
-    lastSwOff = localTimeSecond;
-    globalControls.dtuActiveOffToCloudUpdate = true;
-    globalControls.dtuConnectState = DTU_STATE_CLOUD_PAUSE;
-    blinkCode = BLINK_PAUSE_CLOUD_UPDATE;
-  }
-  else if (localTimeSecond > lastSwOff + DTU_CLOUD_UPLOAD_SECONDS && globalControls.dtuActiveOffToCloudUpdate)
-  {
-    Serial.printf("\n\nlocal time: %02i.%02i. - %02i:%02i:%02i\n", stamp.day, stamp.month, stamp.hour, stamp.minute, stamp.second);
-    Serial.print(F("--------> switch ON DTU server connection after upload data from DTU to Cloud\n\n"));
-    // reset request timer - starting directly new request after prevent
-    previousMillisMid = 0;
-    globalControls.dtuActiveOffToCloudUpdate = false;
   }
 }
 
@@ -1596,15 +936,6 @@ void blinkCodeTask()
   {
     ledCycle = 0;
   }
-}
-
-String getTimeStringByTimestamp(unsigned long timestamp)
-{
-  UnixTime stamp(1);
-  char buf[30];
-  stamp.getDateTime(localTimeSecond);
-  sprintf(buf, "%02i.%02i.%04i - %02i:%02i:%02i", stamp.day, stamp.month, stamp.year, stamp.hour, stamp.minute, stamp.second);
-  return String(buf);
 }
 
 // serial comm
@@ -1735,12 +1066,12 @@ void getSerialCommand(String cmd, String value)
     Serial.print(F("'setCloudSave' to "));
     if (val == 1)
     {
-      globalControls.preventCloudErrors = true;
+      dtuConnection.preventCloudErrors = true;
       Serial.print(F(" 'ON' "));
     }
     else
     {
-      globalControls.preventCloudErrors = false;
+      dtuConnection.preventCloudErrors = false;
       Serial.print(F(" 'OFF' "));
     }
   }
@@ -1807,36 +1138,35 @@ void loop()
     // Serial.print(" --- NTP: " + timeClient.getFormattedTime() + " --- currentMillis " + String(currentMillis) + " --- ");
     previousMillisShort = currentMillis;
     // -------->
-    // task to check and change for cloud update pause
-    if (globalControls.preventCloudErrors)
-      preventCloudErrorTask();
-    // else
-    //   globalControls.dtuActiveOffToCloudUpdate = true;
+
+    if (dtuConnection.preventCloudErrors)
+    {
+      // task to check and change for cloud update pause
+      if (preventCloudErrorTask(localTimeSecond))
+        blinkCode = BLINK_PAUSE_CLOUD_UPDATE;
+      // disconnet DTU server, if prevention on
+      if (dtuConnection.dtuActiveOffToCloudUpdate)
+        dtuClient.stop();
+    }
 
     if (globalControls.wifiSwitch && !userConfig.wifiAPstart)
       checkWifiTask();
     else
     {
-      client.stop(); // stopping connection to DTU before go wifi offline
-      globalControls.dtuConnectState = DTU_STATE_OFFLINE;
+      dtuClient.stop(); // stopping connection to DTU before go wifi offline
+      dtuConnection.dtuConnectState = DTU_STATE_OFFLINE;
       WiFi.disconnect();
     }
-    // disconnet DTU server, if prevention on
-    if (globalControls.dtuActiveOffToCloudUpdate)
-    {
-      client.stop();
-      globalControls.dtuConnectState = DTU_STATE_CLOUD_PAUSE;
-    }
 
-    if (client.connected())
+    if (dtuClient.connected())
     {
       // direct request of new powerLimit
       if (globalData.powerLimitSet != globalData.powerLimit && globalData.powerLimitSet != 101 && globalData.uptodate)
       {
-        writeReqCommand(&client);
+        writeReqCommand(&dtuClient, globalData.powerLimitSet, localTimeSecond);
         Serial.print("\nsetted new power limit from " + String(globalData.powerLimit) + " to " + String(globalData.powerLimitSet) + "\n");
-        writeReqRealDataNew(&client);
-        writeReqGetConfig(&client); // get approval of setting new value
+        writeReqRealDataNew(&dtuClient, localTimeSecond);
+        writeReqGetConfig(&dtuClient, localTimeSecond); // get approval of setting new value
         updateValueToOpenhab();
       }
     }
@@ -1861,16 +1191,32 @@ void loop()
       Serial.print("RSSI to AP: '" + String(WiFi.SSID()) + "': " + String(globalData.wifi_rssi_gateway) + " %");
 
       // get data from openhab if not connected to DTU
-      if (globalControls.dtuConnectState == DTU_STATE_CONNECTED)
+      if (dtuConnection.dtuConnectState == DTU_STATE_CONNECTED)
       {
-        uint8_t gotLimit = (getMessageFromOpenhab("inverter_PowerLimit_Set")).toInt();
-        if (gotLimit < 2)
-          globalData.powerLimitSet = 2;
-        else if (gotLimit > 100)
-          globalData.powerLimitSet = 2;
-        else
-          globalData.powerLimitSet = gotLimit;
+        uint8_t gotLimit;
+        bool conversionSuccess = false;
 
+        String openhabMessage = getMessageFromOpenhab(String(userConfig.openItemPrefix) + "_PowerLimit_Set");
+        if (openhabMessage.length() > 0)
+        {
+          gotLimit = openhabMessage.toInt();
+          // Check if the conversion was successful by comparing the string with its integer representation, to avoid wronmg interpretations of 0 after toInt by a "no number string"
+          conversionSuccess = (String(gotLimit) == openhabMessage);
+        }
+
+        if (conversionSuccess)
+        {
+          if (gotLimit < 2)
+            globalData.powerLimitSet = 2;
+          else if (gotLimit > 100)
+            globalData.powerLimitSet = 2;
+          else
+            globalData.powerLimitSet = gotLimit;
+        }
+        else
+        {
+          Serial.print("got wrong data for SetLimit: " + openhabMessage);
+        }
         // Serial.print("got SetLimit: " + String(globalData.powerLimitSet) + " - current limit: " + String(globalData.powerLimit) + " %");
       }
     }
@@ -1886,38 +1232,36 @@ void loop()
     // -------->
     if (WiFi.status() == WL_CONNECTED)
     {
-      // ......
-
       // check for server connection
-      if (!client.connected() && !globalControls.dtuActiveOffToCloudUpdate)
+      dtuClient.setTimeout(5000);
+      if (!dtuClient.connected() && !dtuConnection.dtuActiveOffToCloudUpdate)
       {
         Serial.print("\n>>> Client not connected with DTU! - trying to connect to " + String(userConfig.dtuHostIp) + " ... ");
-        if (!client.connect(userConfig.dtuHostIp, dtuPort))
+        if (!dtuClient.connect(userConfig.dtuHostIp, dtuPort))
         {
           Serial.print(F("Connection to DTU failed.\n"));
-          globalControls.dtuConnectState = DTU_STATE_OFFLINE;
+          dtuConnection.dtuConnectState = DTU_STATE_OFFLINE;
         }
         else
         {
           Serial.print(F("DTU connected.\n"));
-          globalControls.dtuConnectState = DTU_STATE_CONNECTED;
+          dtuConnection.dtuConnectState = DTU_STATE_CONNECTED;
         }
       }
 
-      if (client.connected())
+      if (dtuClient.connected())
       {
-        // Serial.print(F("\nrequest new data ... \n"));
-        writeReqRealDataNew(&client);
-        // writeReqAppGetHistPower(&client); // only needed for sum energy daily/ total - but can lead to overflow for history data/ prevent maybe cloud update
-        writeReqGetConfig(&client);
-        // client.stop();
-        // globalControls.dtuConnectState = DTU_STATE_OFFLINE;
+        writeReqRealDataNew(&dtuClient, localTimeSecond);
+        // writeReqAppGetHistPower(&dtuClient); // only needed for sum energy daily/ total - but can lead to overflow for history data/ prevent maybe cloud update
+        writeReqGetConfig(&dtuClient, localTimeSecond);
+        // dtuClient.stop();
+        // dtuConnection.dtuConnectState = DTU_STATE_OFFLINE;
 
         // check for up-to-date - last response timestamp have to not equal the current response timestamp
         if ((globalData.lastRespTimestamp != globalData.respTimestamp) && (globalData.respTimestamp != 0))
         {
           globalData.uptodate = true;
-          globalControls.dtuErrorState = DTU_ERROR_NO_ERROR;
+          dtuConnection.dtuErrorState = DTU_ERROR_NO_ERROR;
           // sync localTimeSecond to DTU time, only if abbrevation about 3 seconds
           if (abs((int(globalData.respTimestamp) - int(localTimeSecond))) > 3)
           {
@@ -1928,21 +1272,21 @@ void loop()
         else
         {
           globalData.uptodate = false;
-          globalControls.dtuErrorState = DTU_ERROR_TIME_DIFF;
-          globalControls.dtuConnectState = DTU_STATE_TRY_RECONNECT;
-          client.stop(); // stopping connection to DTU when response time error - try with reconnect
+          dtuConnection.dtuErrorState = DTU_ERROR_TIME_DIFF;
+          dtuConnection.dtuConnectState = DTU_STATE_TRY_RECONNECT;
+          dtuClient.stop(); // stopping connection to DTU when response time error - try with reconnect
         }
         globalData.lastRespTimestamp = globalData.respTimestamp;
       }
       else
       {
         globalData.uptodate = false;
-        globalControls.dtuErrorState = DTU_ERROR_NO_ERROR;
-        globalControls.dtuConnectState = DTU_STATE_TRY_RECONNECT;
-        client.stop();
+        dtuConnection.dtuErrorState = DTU_ERROR_NO_ERROR;
+        dtuConnection.dtuConnectState = DTU_STATE_TRY_RECONNECT;
+        dtuClient.stop();
       }
 
-      if ((globalControls.getDataAuto || globalControls.getDataOnce) && !globalControls.dtuActiveOffToCloudUpdate && globalData.uptodate)
+      if ((globalControls.getDataAuto || globalControls.getDataOnce) && !dtuConnection.dtuActiveOffToCloudUpdate && globalData.uptodate)
       {
         updateValueToOpenhab();
         if (globalControls.dataFormatJSON)
@@ -1952,7 +1296,7 @@ void loop()
 
           doc["timestamp"] = globalData.respTimestamp;
           doc["uptodate"] = globalData.uptodate;
-          doc["rssiDtu"] = globalData.rssiDtu;
+          doc["dtuRssi"] = globalData.dtuRssi;
           doc["powerLimit"] = globalData.powerLimit;
           doc["powerLimitSet"] = globalData.powerLimitSet;
           doc["inverterTemp"] = globalData.inverterTemp;
@@ -1979,11 +1323,11 @@ void loop()
         else
         {
           Serial.print("\n\nupdate at remote: " + getTimeStringByTimestamp(globalData.respTimestamp) + " - uptodate: " + String(globalData.uptodate) + " \n");
-          Serial.print("wifi rssi: " + String(globalData.rssiDtu) + " % (DTU->Cloud) - " + String(globalData.wifi_rssi_gateway) + " % (Client->AP) \n");
+          Serial.print("wifi rssi: " + String(globalData.dtuRssi) + " % (DTU->Cloud) - " + String(globalData.wifi_rssi_gateway) + " % (Client->AP) \n");
           Serial.print("power limit (set): " + String(globalData.powerLimit) + " % (" + String(globalData.powerLimitSet) + " %) \n");
           Serial.print("inverter temp:\t " + String(globalData.inverterTemp) + " °C \n");
 
-          Serial.print(F("\t |\t current  |\t voltage  |\t power    |        daily      |     total     |\n"));
+          Serial.print(F(" \t |\t current  |\t voltage  |\t power    |        daily      |     total     |\n"));
           // 12341234 |1234 current  |1234 voltage  |1234 power1234|12341234daily 1234|12341234total 1234|
           // grid1234 |1234 123456 A |1234 123456 V |1234 123456 W |1234 12345678 kWh |1234 12345678 kWh |
           // pvO 1234 |1234 123456 A |1234 123456 V |1234 123456 W |1234 12345678 kWh |1234 12345678 kWh |
@@ -2030,7 +1374,7 @@ void loop()
         globalData.pv1.voltage = 0;
 
         updateValueToOpenhab();
-        globalControls.dtuErrorState = DTU_ERROR_LAST_SEND;
+        dtuConnection.dtuErrorState = DTU_ERROR_LAST_SEND;
         Serial.print(F("\n>>>>> TIMEOUT 5 min for DTU -> NIGHT - send zero values\n"));
       }
     }

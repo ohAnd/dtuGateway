@@ -63,10 +63,10 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                 <input type="text" id="openhabIP" class="ipv4Input" name="ipv4" placeholder="xxx.xxx.xxx.xxx">
             </div>
             <div>
-                openHab item for PV0 - Power
+                openHab item prefix for U,I,P,dE,TE per channel:
             </div>
             <div>
-                <input type="text" id="oH_item1" maxlength="32">
+                <input type="text" id="ohItemPrefix" maxlength="32">
             </div>
             <div style="text-align: center;">
                 <b onclick="changeOpenhabData()" id="btnSaveWifiSettings" class="form-button btn">save</b>
@@ -82,7 +82,20 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             </div>
             <hr>
             <div>
-                dtu local wifi:
+                dtu request cycle in seconds (data update):
+            </div>
+            <div>
+                <input type="number" id="dtuDataCycle" min="1" max="60" placeholder="31">
+            </div>
+            <div>
+                dtu cloud update pause (no cycle update every full 15 min):
+            </div>
+            <div>
+                <input type="checkbox" id="dtuCloudPause">
+            </div>
+            <hr>
+            <div>
+                dtu local wireless access point:
             </div>
             <div>
                 <input type="text" id="dtuSsid" value="please type in" required maxlength="32">
@@ -294,7 +307,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                         <b id="gwNTPtime" class="panelValueSmall">00:00:00</b>
                     </div>
                     <div class="panelValueBoxDetail">
-                        <small class="panelHead">DTU connect</small>
+                        <small class="panelHead">DTU</small>
                         <b id="dtu_connect_state" class="panelValueSmall valueText"> offline </b>
                     </div>
                     <div class="panelValueBoxDetail">
@@ -395,6 +408,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             if (id == '#changeSettings') {
                 getWIFIdata();
                 getDTUdata();
+                getOHdata();
             }
         }
 
@@ -514,7 +528,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
 
             var wifiGWPercent = Math.round(data.wifiConnection.rssiGW);
             $('#rssitext_local').html(wifiGWPercent + '%');
-            var wifiDTUPercent = Math.round(data.dtuConnection.rssiDtu);
+            var wifiDTUPercent = Math.round(data.dtuConnection.dtuRssi);
             $('#rssitext_dtu').html(wifiDTUPercent + '%');
 
             $('#firmware').html("fw version: " + data.firmware.version);
@@ -559,9 +573,28 @@ const char INDEX_HTML[] PROGMEM = R"=====(
 
             // get networkdata
             $('#dtuHostIp').val(dtuData.dtuHostIp);
+            $('#dtuDataCycle').val(dtuData.dtuDataCycle);
+            if(dtuData.dtuCloudPause) {
+                $('#dtuCloudPause').prop("checked", true);
+            } else {
+                $('#dtuCloudPause').prop("checked", false);
+            }
+
             $('#dtuSsid').val(dtuData.dtuSsid);
             $('#dtuPassword').val(dtuData.dtuPassword);
 
+        }
+
+        function getOHdata() {
+            // 
+            $('#btnSaveDtuSettings').css('opacity', '1.0');
+            $('#btnSaveDtuSettings').attr('onclick', "changeDtuData();")
+
+            ohData = cacheInfoData.openHabConnection;
+
+            // get networkdata
+            $('#openhabIP').val(ohData.ohHostIp);
+            $('#ohItemPrefix').val(ohData.ohItemPrefix);
         }
 
         $('.passcheck').click(function () {
@@ -623,14 +656,24 @@ const char INDEX_HTML[] PROGMEM = R"=====(
 
         function changeDtuData() {
             var dtuHostIpSend = $('#dtuHostIp').val();
+            var dtuDataCycleSend = $('#dtuDataCycle').val();
+            if($("#dtuCloudPause").is(':checked')) {
+                dtuCloudPauseSend = 1;
+            } else {
+                dtuCloudPauseSend = 0;
+            }
+
             var dtuSsidSend = $('#dtuSsid').val();
             var dtuPasswordSend = $('#dtuPassword').val();
+            
             var data = {};
             data["dtuHostIpSend"] = dtuHostIpSend;
+            data["dtuDataCycleSend"] = dtuDataCycleSend;
+            data["dtuCloudPauseSend"] = dtuCloudPauseSend;
             data["dtuSsidSend"] = dtuSsidSend;
             data["dtuPasswordSend"] = dtuPasswordSend;
 
-            console.log("send to server: dtuHostIp: " + dtuHostIpSend + " - dtuSsid: " + dtuSsidSend + " - pass: " + dtuPasswordSend);
+            console.log("send to server: dtuHostIp: " + dtuHostIpSend + " dtuDataCycle: " + dtuDataCycleSend + " dtuCloudPause: " + dtuCloudPauseSend + " - dtuSsid: " + dtuSsidSend + " - pass: " + dtuPasswordSend);
 
             const urlEncodedDataPairs = [];
 
@@ -669,6 +712,50 @@ const char INDEX_HTML[] PROGMEM = R"=====(
 
             //$('#btnSaveDtuSettings').css('opacity', '0.3');
             //$('#btnSaveDtuSettings').attr('onclick', "")
+
+            hide('#changeSettings');
+            return;
+        }
+
+        function changeOpenhabData() {
+            var openhabHostIpSend = $('#openhabIP').val();
+            var data = {};
+            data["openhabHostIpSend"] = openhabHostIpSend;
+
+            console.log("send to server: openhabHostIpSend: " + openhabHostIpSend);
+
+            const urlEncodedDataPairs = [];
+
+            // Turn the data object into an array of URL-encoded key/value pairs.
+            for (const [name, value] of Object.entries(data)) {
+                urlEncodedDataPairs.push(
+                    `${encodeURIComponent(name)}=${encodeURIComponent(value)}`,
+                );
+                console.log("push: " + name);
+            }
+
+            // Combine the pairs into a single string and replace all %-encoded spaces to
+            // the '+' character; matches the behavior of browser form submissions.
+            const urlEncodedData = urlEncodedDataPairs.join("&").replace(/%20/g, "+");
+
+
+            var xmlHttp = new XMLHttpRequest();
+            xmlHttp.open("POST", "/updateOHSettings", false); // false for synchronous request
+            xmlHttp.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+
+            // Finally, send our data.
+            xmlHttp.send(urlEncodedData);
+
+            strResult = JSON.parse(xmlHttp.responseText);
+            console.log("got from server: " + strResult);
+            console.log("got from server - strResult.dtuHostIp: " + strResult.openhabHostIp + " - cmp with: " + openhabHostIp);
+
+            if (strResult.dtuHostIp == dtuHostIpSend && strResult.dtuSsid == dtuSsidSend && strResult.dtuPassword == dtuPasswordSend) {
+                console.log("check saved data - OK");
+                alert("openhab Settings change\n__________________________________\n\nYour settings were successfully changed.\n\nClient connection will be reconnected to the new IP.");
+            } else {
+                alert("openhab Settings change\n__________________________________\n\nSome error occured! Checking data from gateway are not as excpeted after sending to save.\n\nPlease try again!");
+            }
 
             hide('#changeSettings');
             return;
@@ -787,7 +874,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
         function startUpdate() {
             hide('#updateMenu');
             show('#updateProgress');
-            $('#newVersionProgress').html(cacheInfoData.versionServer);
+            $('#newVersionProgress').html(cacheInfoData.firmware.versionServer);
 
             var timeoutStart = 50.0;
             var timeout = timeoutStart;
@@ -852,7 +939,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
         function getTime(unix_timestamp, dateTime = "time") {
             var date = new Date(unix_timestamp * 1000);
             var day = ("0" + date.getDate()).substr(-2);
-            var mon = ("0" + date.getMonth() + 1).substr(-2);
+            var mon = ("0" + (date.getMonth() + 1)).substr(-2);
             var year = date.getFullYear();
             var hours = ("0" + date.getHours()).substr(-2);
             var minutes = ("0" + date.getMinutes()).substr(-2);
