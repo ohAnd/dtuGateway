@@ -140,6 +140,10 @@ On a manual way you can be back on track if you logging in to the local access p
     "dtuCloudPause": 1,
     "dtuCloudPauseTime": 40
   },
+  "openHabConnection": {
+    "ohHostIp": "192.168.1.100",
+    "ohItemPrefix": "inverter"
+  },
   "wifiConnection": {
     "networkCount": 2,
     "foundNetworks": [
@@ -238,7 +242,7 @@ https://github.com/ohAnd/dtuGateway/releases/tag/snapshot
 ### set values - frequency
 (not fully investigated yet)
 
-If there to much requests of setting the power limit minutes later the connection is broken and cannot be directly established again - with current experience the dtu resets after ~ 30 min and is accessable again.
+If there to much requests of setting the power limit minutes later the connection is broken and cannot be directly established again - with current experience the dtu resets itself after ~ 30 min and is accessable again.
 
 With the manual login to dtu access point and forcing the storing of local wifi connect data again, then dtu is back online and accessable in your local network. (This is a possible feature that can be implemented in future - needed protocol sequence has to be investigated)
 
