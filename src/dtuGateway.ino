@@ -84,7 +84,7 @@ ESP8266Timer ITimer;
 const long interval100ms = 100; // interval (milliseconds)
 const long intervalShort = 1;   // interval (milliseconds)
 const long interval5000ms = 5;  // interval (milliseconds)
-unsigned long intervalMid = 15; // interval (milliseconds)
+unsigned long intervalMid = 32; // interval (milliseconds)
 const long intervalLong = 60;   // interval (milliseconds)
 unsigned long previousMillis100ms = 0;
 unsigned long previousMillisShort = 1704063600;
@@ -349,17 +349,30 @@ void handleUpdateWifiSettings()
 void handleUpdateDtuSettings()
 {
   String dtuHostIpUser = server.arg("dtuHostIpSend"); // retrieve message from webserver
+  String dtuDataCycle = server.arg("dtuDataCycleSend"); // retrieve message from webserver
+  String dtuCloudPause = server.arg("dtuCloudPauseSend"); // retrieve message from webserver
   String dtuSSIDUser = server.arg("dtuSsidSend");     // retrieve message from webserver
   String dtuPassUser = server.arg("dtuPasswordSend"); // retrieve message from webserver
-  Serial.println("\nhandleUpdateDtuSettings - got dtu ip: " + dtuHostIpUser + "- got dtu ssid: " + dtuSSIDUser + " - got WifiPass: " + dtuPassUser);
+  Serial.println("\nhandleUpdateDtuSettings - got dtu ip: " + dtuHostIpUser + "- got dtuDataCycle: " + dtuDataCycle + "- got dtu dtuCloudPause: " + dtuCloudPause);
+  Serial.println("handleUpdateDtuSettings - got dtu ssid: " + dtuSSIDUser + " - got WifiPass: " + dtuPassUser);
 
   dtuHostIpUser.toCharArray(userConfig.dtuHostIp, sizeof(userConfig.dtuHostIp));
+  userConfig.dtuUpdateTime = dtuDataCycle.toInt();
+  if(dtuCloudPause)
+    userConfig.dtuCloudPauseActive = true;
+  else
+    userConfig.dtuCloudPauseActive = false;
   dtuSSIDUser.toCharArray(userConfig.dtuSsid, sizeof(userConfig.dtuSsid));
   dtuPassUser.toCharArray(userConfig.dtuPassword, sizeof(userConfig.dtuPassword));
 
   saveConfigToEEPROM();
   delay(500);
 
+  intervalMid = userConfig.dtuUpdateTime;
+  dtuConnection.preventCloudErrors = userConfig.dtuCloudPauseActive;
+  Serial.println("\nhandleUpdateDtuSettings - setting dtu cycle to:" + String(intervalMid));
+  
+  
   String JSON = "{";
   JSON = JSON + "\"dtuHostIp\": \"" + userConfig.dtuHostIp + "\",";
   JSON = JSON + "\"dtuSsid\": \"" + userConfig.dtuSsid + "\",";
@@ -373,8 +386,6 @@ void handleUpdateDtuSettings()
   // stopping connection to DTU and set right state - to force reconnect with new data
   dtuClient.stop();
   dtuConnection.dtuConnectState = DTU_STATE_OFFLINE;
-
-  Serial.println("handleUpdateDtuSettings - send JSON: " + String(JSON));
 }
 
 void handleUpdateOpenhabSettings()
@@ -827,6 +838,14 @@ void setup()
 
   // CRC for protobuf
   initializeCRC();
+
+  // setting startup interval for dtucylce
+  intervalMid = userConfig.dtuUpdateTime;
+  Serial.print(F("\nsetup - setting dtu cycle to:"));
+  Serial.println(intervalMid);
+
+  // setting startup for dtu cloud pause
+  dtuConnection.preventCloudErrors = userConfig.dtuCloudPauseActive;
 
   // Interval in microsecs
   if (ITimer.setInterval(TIMER_INTERVAL_MS * 1000, timer1000MilliSeconds))

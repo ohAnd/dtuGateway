@@ -82,7 +82,20 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             </div>
             <hr>
             <div>
-                dtu local wifi:
+                dtu request cycle in seconds (data update):
+            </div>
+            <div>
+                <input type="number" id="dtuDataCycle" min="1" max="60" placeholder="31">
+            </div>
+            <div>
+                dtu cloud update pause (no cycle update every full 15 min):
+            </div>
+            <div>
+                <input type="checkbox" id="dtuCloudPause">
+            </div>
+            <hr>
+            <div>
+                dtu local wireless access point:
             </div>
             <div>
                 <input type="text" id="dtuSsid" value="please type in" required maxlength="32">
@@ -560,6 +573,13 @@ const char INDEX_HTML[] PROGMEM = R"=====(
 
             // get networkdata
             $('#dtuHostIp').val(dtuData.dtuHostIp);
+            $('#dtuDataCycle').val(dtuData.dtuDataCycle);
+            if(dtuData.dtuCloudPause) {
+                $('#dtuCloudPause').prop("checked", true);
+            } else {
+                $('#dtuCloudPause').prop("checked", false);
+            }
+
             $('#dtuSsid').val(dtuData.dtuSsid);
             $('#dtuPassword').val(dtuData.dtuPassword);
 
@@ -636,14 +656,24 @@ const char INDEX_HTML[] PROGMEM = R"=====(
 
         function changeDtuData() {
             var dtuHostIpSend = $('#dtuHostIp').val();
+            var dtuDataCycleSend = $('#dtuDataCycle').val();
+            if($("#dtuCloudPause").is(':checked')) {
+                dtuCloudPauseSend = 1;
+            } else {
+                dtuCloudPauseSend = 0;
+            }
+
             var dtuSsidSend = $('#dtuSsid').val();
             var dtuPasswordSend = $('#dtuPassword').val();
+            
             var data = {};
             data["dtuHostIpSend"] = dtuHostIpSend;
+            data["dtuDataCycleSend"] = dtuDataCycleSend;
+            data["dtuCloudPauseSend"] = dtuCloudPauseSend;
             data["dtuSsidSend"] = dtuSsidSend;
             data["dtuPasswordSend"] = dtuPasswordSend;
 
-            console.log("send to server: dtuHostIp: " + dtuHostIpSend + " - dtuSsid: " + dtuSsidSend + " - pass: " + dtuPasswordSend);
+            console.log("send to server: dtuHostIp: " + dtuHostIpSend + " dtuDataCycle: " + dtuDataCycleSend + " dtuCloudPause: " + dtuCloudPauseSend + " - dtuSsid: " + dtuSsidSend + " - pass: " + dtuPasswordSend);
 
             const urlEncodedDataPairs = [];
 
@@ -691,7 +721,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             var openhabHostIpSend = $('#openhabIP').val();
             var data = {};
             data["openhabHostIpSend"] = openhabHostIpSend;
-            
+
             console.log("send to server: openhabHostIpSend: " + openhabHostIpSend);
 
             const urlEncodedDataPairs = [];
@@ -844,7 +874,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
         function startUpdate() {
             hide('#updateMenu');
             show('#updateProgress');
-            $('#newVersionProgress').html(cacheInfoData.versionServer);
+            $('#newVersionProgress').html(cacheInfoData.firmware.versionServer);
 
             var timeoutStart = 50.0;
             var timeout = timeoutStart;

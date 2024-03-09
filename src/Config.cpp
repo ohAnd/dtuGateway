@@ -78,7 +78,13 @@ void printEEPROMdata()
         Serial.print(F("openhab item prefix: \t"));
         Serial.println(userConfig.openItemPrefix);
 
-        Serial.print(F("cloud pause: \t"));
+        Serial.print(F("dtu update time: \t"));
+        Serial.println(userConfig.dtuUpdateTime);
+
+        Serial.print(F("cloud pause active: \t"));
+        Serial.println(userConfig.dtuCloudPauseActive);
+
+        Serial.print(F("cloud pause time: \t"));
         Serial.println(userConfig.dtuCloudPauseTime);
 
         Serial.print(F("update channel: \t"));
