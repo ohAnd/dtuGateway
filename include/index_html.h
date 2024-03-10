@@ -357,7 +357,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
 
     <script>
         let timerRemainingProgess = 0;
-        const waitTime = 31000;
+        let waitTime = 31000;
         let remainingTime = waitTime;
 
         let timerInfoUpdate = 0;
@@ -536,6 +536,9 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             if (data.firmware.selectedUpdateChannel == 0) { $("#relChanStable").addClass("selected"); $("#relChanSnapshot").removeClass("selected"); }
             else { $("#relChanStable").removeClass("selected"); $("#relChanSnapshot").addClass("selected"); }
 
+            // setting timer value according to user setting
+            waitTime = data.dtuConnection.dtuDataCycle * 1000;
+            
             return true;
         }
 

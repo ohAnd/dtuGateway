@@ -5,7 +5,6 @@ CRC16 crc;
 struct connectionControl dtuConnection;
 struct inverterData globalData;
 
-
 // control functions
 
 void initializeCRC()
@@ -37,32 +36,32 @@ String getTimeStringByTimestamp(unsigned long timestamp)
 unsigned long lastSwOff = 0;
 boolean preventCloudErrorTask(unsigned long locTimeSec)
 {
-  // check current DTU time
-  UnixTime stamp(1);
-  stamp.getDateTime(locTimeSec);
+    // check current DTU time
+    UnixTime stamp(1);
+    stamp.getDateTime(locTimeSec);
 
-  int min = stamp.minute;
-  int sec = stamp.second;
+    int min = stamp.minute;
+    int sec = stamp.second;
 
-  if (sec >= 40 && (min == 59 || min == 14 || min == 29 || min == 44) && !dtuConnection.dtuActiveOffToCloudUpdate)
-  {
-    Serial.printf("\n\n<<< preventCloudErrorTask >>>");
-    Serial.printf("\nlocal time: %02i.%02i. - %02i:%02i:%02i\n", stamp.day, stamp.month, stamp.hour, stamp.minute, stamp.second);
-    Serial.print(F("----> switch ''OFF'' DTU server connection to upload data from DTU to Cloud\n\n"));
-    lastSwOff = locTimeSec;
-    dtuConnection.dtuActiveOffToCloudUpdate = true;
-    dtuConnection.dtuConnectState = DTU_STATE_CLOUD_PAUSE;
-  }
-  else if (locTimeSec > lastSwOff + DTU_CLOUD_UPLOAD_SECONDS && dtuConnection.dtuActiveOffToCloudUpdate)
-  {
-    Serial.printf("\n\n<<< preventCloudErrorTask >>>");
-    Serial.printf("\nlocal time: %02i.%02i. - %02i:%02i:%02i\n", stamp.day, stamp.month, stamp.hour, stamp.minute, stamp.second);
-    Serial.print(F("----> switch ''ON'' DTU server connection after upload data from DTU to Cloud\n\n"));
-    // reset request timer - starting directly new request after prevent
-    // previousMillisMid = 0;
-    dtuConnection.dtuActiveOffToCloudUpdate = false;
-  }
-  return dtuConnection.dtuActiveOffToCloudUpdate;
+    if (sec >= 40 && (min == 59 || min == 14 || min == 29 || min == 44) && !dtuConnection.dtuActiveOffToCloudUpdate)
+    {
+        Serial.printf("\n\n<<< preventCloudErrorTask >>> --- ");
+        Serial.printf("local time: %02i.%02i. - %02i:%02i:%02i ", stamp.day, stamp.month, stamp.hour, stamp.minute, stamp.second);
+        Serial.print(F("----> switch ''OFF'' DTU server connection to upload data from DTU to Cloud\n\n"));
+        lastSwOff = locTimeSec;
+        dtuConnection.dtuActiveOffToCloudUpdate = true;
+        dtuConnection.dtuConnectState = DTU_STATE_CLOUD_PAUSE;
+    }
+    else if (locTimeSec > lastSwOff + DTU_CLOUD_UPLOAD_SECONDS && dtuConnection.dtuActiveOffToCloudUpdate)
+    {
+        Serial.printf("\n\n<<< preventCloudErrorTask >>> --- ");
+        Serial.printf("local time: %02i.%02i. - %02i:%02i:%02i ", stamp.day, stamp.month, stamp.hour, stamp.minute, stamp.second);
+        Serial.print(F("----> switch ''ON'' DTU server connection after upload data from DTU to Cloud\n\n"));
+        // reset request timer - starting directly new request after prevent
+        // previousMillisMid = 0;
+        dtuConnection.dtuActiveOffToCloudUpdate = false;
+    }
+    return dtuConnection.dtuActiveOffToCloudUpdate;
 }
 
 // // protobuf functions
@@ -228,8 +227,8 @@ void readRespRealDataNew(WiFiClient *localDtuClient)
     PvMO pvData1 = PvMO_init_zero;
 
     pb_decode(&istream, &RealDataNewReqDTO_msg, &realdatanewreqdto);
-    Serial.print("\nrealData - got remote:\t" + getTimeStringByTimestamp(realdatanewreqdto.timestamp));
-    
+    Serial.print("\nrealData  - got remote (" + String(realdatanewreqdto.timestamp) + "):\t" + getTimeStringByTimestamp(realdatanewreqdto.timestamp));
+
     if (realdatanewreqdto.timestamp != 0)
     {
         globalData.respTimestamp = uint32_t(realdatanewreqdto.timestamp);
@@ -402,7 +401,13 @@ void readRespGetConfig(WiFiClient *localDtuClient)
     // Serial.printf("\nrequest_time (transl):\t %s", getTimeStringByTimestamp(getconfigreqdto.request_time));
     // Serial.printf("\nlimit_power_mypower:\t %f %%", calcValue(getconfigreqdto.limit_power_mypower));
 
-    Serial.print("\nGetConfig - got remote:\t" + getTimeStringByTimestamp(getconfigreqdto.request_time));
+    Serial.print("\nGetConfig - got remote (" + String(getconfigreqdto.request_time) + "):\t" + getTimeStringByTimestamp(getconfigreqdto.request_time));
+
+    if (getconfigreqdto.request_time != 0 && dtuConnection.dtuErrorState == DTU_ERROR_NO_TIME)
+    {
+        globalData.respTimestamp = uint32_t(getconfigreqdto.request_time);
+        Serial.print(" --> redundant remote time takeover to local");
+    }
 
     globalData.powerLimit = int(calcValue(getconfigreqdto.limit_power_mypower));
     globalData.dtuRssi = getconfigreqdto.wifi_rssi;
@@ -465,7 +470,7 @@ void writeReqGetConfig(WiFiClient *localDtuClient, unsigned long locTimeSec)
     readRespGetConfig(localDtuClient);
 }
 
-void readRespCommand(WiFiClient *localDtuClient)
+boolean readRespCommand(WiFiClient *localDtuClient)
 {
     unsigned long timeout = millis();
     while (localDtuClient->available() == 0)
@@ -474,7 +479,7 @@ void readRespCommand(WiFiClient *localDtuClient)
         {
             Serial.println(F(">>> Client Timeout !"));
             localDtuClient->stop();
-            return;
+            return false;
         }
     }
     // if there is no timeout, tehn assume limit was successfully changed
@@ -499,7 +504,7 @@ void readRespCommand(WiFiClient *localDtuClient)
 
     CommandReqDTO commandreqdto = CommandReqDTO_init_default;
 
-    Serial.print("\nrespCommand - got remote:\t " + getTimeStringByTimestamp(commandreqdto.time));
+    // Serial.print(" --> respCommand - got remote: " + getTimeStringByTimestamp(commandreqdto.time));
 
     // pb_decode(&istream, &GetConfigReqDTO_msg, &commandreqdto);
     // Serial.printf("\ncommand req action: %i", commandreqdto.action);
@@ -508,10 +513,13 @@ void readRespCommand(WiFiClient *localDtuClient)
     // Serial.printf("\ncommand req: %i", commandreqdto.package_now);
     // Serial.printf("\ncommand req: %i", int(commandreqdto.tid));
     // Serial.printf("\ncommand req time: %i", commandreqdto.time);
+    return true;
 }
 
-void writeReqCommand(WiFiClient *localDtuClient, uint8_t setPercent, unsigned long locTimeSec)
+boolean writeReqCommand(WiFiClient *localDtuClient, uint8_t setPercent, unsigned long locTimeSec)
 {
+    if (!localDtuClient->connected())
+        return false;
     // prepare powerLimit
     // uint8_t setPercent = globalData.powerLimitSet;
     uint16_t limitLevel = setPercent * 10;
@@ -537,7 +545,7 @@ void writeReqCommand(WiFiClient *localDtuClient, uint8_t setPercent, unsigned lo
     const int bufferSize = 61;
     char dataArray[bufferSize];
     String dataString = "A:" + String(limitLevel) + ",B:0,C:0\r";
-    Serial.print("\nsend limit: " + dataString);
+    // Serial.print("\n+++ send limit: " + dataString);
     dataString.toCharArray(dataArray, bufferSize);
     strcpy(commandresdto.data, dataArray);
 
@@ -546,7 +554,7 @@ void writeReqCommand(WiFiClient *localDtuClient, uint8_t setPercent, unsigned lo
     if (!status)
     {
         Serial.println(F("Failed to encode"));
-        return;
+        return false;
     }
 
     // Serial.print(F("\nencoded: "));
@@ -587,5 +595,7 @@ void writeReqCommand(WiFiClient *localDtuClient, uint8_t setPercent, unsigned lo
     // Serial.println("");
 
     localDtuClient->write(message, 10 + stream.bytes_written);
-    readRespCommand(localDtuClient);
+    if (!readRespCommand(localDtuClient))
+        return false;
+    return true;
 }
