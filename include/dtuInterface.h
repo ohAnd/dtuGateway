@@ -85,8 +85,8 @@ void writeReqRealDataNew(WiFiClient *localDtuClient, unsigned long locTimeSec);
 void readRespGetConfig(WiFiClient *localDtuClient);
 void writeReqGetConfig(WiFiClient *localDtuClient, unsigned long locTimeSec);
 
-void readRespCommand(WiFiClient *localDtuClient);
-void writeReqCommand(WiFiClient *localDtuClient, uint8_t setPercent, unsigned long locTimeSec);
+boolean readRespCommand(WiFiClient *localDtuClient);
+boolean writeReqCommand(WiFiClient *localDtuClient, uint8_t setPercent, unsigned long locTimeSec);
 
 
 #endif // DTUINTERFACE_H

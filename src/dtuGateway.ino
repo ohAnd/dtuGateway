@@ -186,7 +186,7 @@ boolean scanNetworksResult(int networksFound)
   if (networksFound > 0)
   {
     Serial.print(F("\nscan for wifi networks done: "));
-    Serial.println(String(networksFound) + " wifi's found\n");
+    Serial.println(String(networksFound) + " wifi's found");
     networkCount = networksFound;
     foundNetworks = "[";
     for (int i = 0; i < networksFound; i++)
@@ -348,17 +348,17 @@ void handleUpdateWifiSettings()
 
 void handleUpdateDtuSettings()
 {
-  String dtuHostIpUser = server.arg("dtuHostIpSend"); // retrieve message from webserver
-  String dtuDataCycle = server.arg("dtuDataCycleSend"); // retrieve message from webserver
+  String dtuHostIpUser = server.arg("dtuHostIpSend");     // retrieve message from webserver
+  String dtuDataCycle = server.arg("dtuDataCycleSend");   // retrieve message from webserver
   String dtuCloudPause = server.arg("dtuCloudPauseSend"); // retrieve message from webserver
-  String dtuSSIDUser = server.arg("dtuSsidSend");     // retrieve message from webserver
-  String dtuPassUser = server.arg("dtuPasswordSend"); // retrieve message from webserver
+  String dtuSSIDUser = server.arg("dtuSsidSend");         // retrieve message from webserver
+  String dtuPassUser = server.arg("dtuPasswordSend");     // retrieve message from webserver
   Serial.println("\nhandleUpdateDtuSettings - got dtu ip: " + dtuHostIpUser + "- got dtuDataCycle: " + dtuDataCycle + "- got dtu dtuCloudPause: " + dtuCloudPause);
   Serial.println("handleUpdateDtuSettings - got dtu ssid: " + dtuSSIDUser + " - got WifiPass: " + dtuPassUser);
 
   dtuHostIpUser.toCharArray(userConfig.dtuHostIp, sizeof(userConfig.dtuHostIp));
   userConfig.dtuUpdateTime = dtuDataCycle.toInt();
-  if(dtuCloudPause)
+  if (dtuCloudPause)
     userConfig.dtuCloudPauseActive = true;
   else
     userConfig.dtuCloudPauseActive = false;
@@ -371,8 +371,7 @@ void handleUpdateDtuSettings()
   intervalMid = userConfig.dtuUpdateTime;
   dtuConnection.preventCloudErrors = userConfig.dtuCloudPauseActive;
   Serial.println("\nhandleUpdateDtuSettings - setting dtu cycle to:" + String(intervalMid));
-  
-  
+
   String JSON = "{";
   JSON = JSON + "\"dtuHostIp\": \"" + userConfig.dtuHostIp + "\",";
   JSON = JSON + "\"dtuSsid\": \"" + userConfig.dtuSsid + "\",";
@@ -749,6 +748,42 @@ String getMessageFromOpenhab(String key)
   }
 }
 
+boolean getPowerSetDataFromOpenHab()
+{
+  // get data from openhab if connected to DTU
+  if (dtuConnection.dtuConnectState == DTU_STATE_CONNECTED)
+  {
+    uint8_t gotLimit;
+    bool conversionSuccess = false;
+
+    String openhabMessage = getMessageFromOpenhab(String(userConfig.openItemPrefix) + "_PowerLimit_Set");
+    if (openhabMessage.length() > 0)
+    {
+      gotLimit = openhabMessage.toInt();
+      // Check if the conversion was successful by comparing the string with its integer representation, to avoid wronmg interpretations of 0 after toInt by a "no number string"
+      conversionSuccess = (String(gotLimit) == openhabMessage);
+    }
+
+    if (conversionSuccess)
+    {
+      if (gotLimit < 2)
+        globalData.powerLimitSet = 2;
+      else if (gotLimit > 100)
+        globalData.powerLimitSet = 2;
+      else
+        globalData.powerLimitSet = gotLimit;
+    }
+    else
+    {
+      Serial.print("got wrong data for SetLimit: " + openhabMessage);
+      return false;
+    }
+    // Serial.print("got SetLimit: " + String(globalData.powerLimitSet) + " - current limit: " + String(globalData.powerLimit) + " %");
+    return true;
+  }
+  return false;
+}
+
 boolean updateValueToOpenhab()
 {
   boolean sendOk = postMessageToOpenhab(String(userConfig.openItemPrefix) + "Grid_U", (String)globalData.grid.voltage);
@@ -784,6 +819,7 @@ boolean updateValueToOpenhab()
     postMessageToOpenhab(String(userConfig.openItemPrefix) + "_PowerLimit", (String)globalData.powerLimit);
     postMessageToOpenhab(String(userConfig.openItemPrefix) + "_WifiRSSI", (String)globalData.dtuRssi);
   }
+  Serial.println("\nsent values to openHAB");
   return true;
 }
 
@@ -1105,6 +1141,46 @@ void getSerialCommand(String cmd, String value)
 
 // main
 
+void getDtuDataUpdate(WiFiClient *localDtuClient)
+{
+  if (localDtuClient->connected())
+  {
+    writeReqRealDataNew(localDtuClient, localTimeSecond);
+    // writeReqAppGetHistPower(&dtuClient); // only needed for sum energy daily/ total - but can lead to overflow for history data/ prevent maybe cloud update
+    writeReqGetConfig(localDtuClient, localTimeSecond);
+    // dtuClient.stop();
+    // dtuConnection.dtuConnectState = DTU_STATE_OFFLINE;
+
+    // check for up-to-date - last response timestamp have to not equal the current response timestamp
+    if ((globalData.lastRespTimestamp != globalData.respTimestamp) && (globalData.respTimestamp != 0))
+    {
+      globalData.uptodate = true;
+      dtuConnection.dtuErrorState = DTU_ERROR_NO_ERROR;
+      // sync localTimeSecond to DTU time, only if abbrevation about 3 seconds
+      if (abs((int(globalData.respTimestamp) - int(localTimeSecond))) > 3)
+      {
+        localTimeSecond = globalData.respTimestamp;
+        Serial.print(F("\n>--> synced local time with DTU time <--<\n"));
+      }
+    }
+    else
+    {
+      globalData.uptodate = false;
+      dtuConnection.dtuErrorState = DTU_ERROR_TIME_DIFF;
+      dtuConnection.dtuConnectState = DTU_STATE_TRY_RECONNECT;
+      localDtuClient->stop(); // stopping connection to DTU when response time error - try with reconnect
+    }
+    globalData.lastRespTimestamp = globalData.respTimestamp;
+  }
+  else
+  {
+    globalData.uptodate = false;
+    dtuConnection.dtuErrorState = DTU_ERROR_NO_ERROR;
+    dtuConnection.dtuConnectState = DTU_STATE_TRY_RECONNECT;
+    dtuClient.stop();
+  }
+}
+
 // get precise localtime - increment
 void IRAM_ATTR timer1000MilliSeconds()
 {
@@ -1158,16 +1234,17 @@ void loop()
       WiFi.disconnect();
     }
 
-    if (dtuClient.connected())
+    // direct request of new powerLimit
+    if (globalData.powerLimitSet != globalData.powerLimit && globalData.powerLimitSet != 101 && globalData.uptodate)
     {
-      // direct request of new powerLimit
-      if (globalData.powerLimitSet != globalData.powerLimit && globalData.powerLimitSet != 101 && globalData.uptodate)
+      Serial.print("\n----- ----- set new power limit from " + String(globalData.powerLimit) + " to " + String(globalData.powerLimitSet));
+      if (writeReqCommand(&dtuClient, globalData.powerLimitSet, localTimeSecond))
       {
-        writeReqCommand(&dtuClient, globalData.powerLimitSet, localTimeSecond);
-        Serial.print("\nsetted new power limit from " + String(globalData.powerLimit) + " to " + String(globalData.powerLimitSet) + "\n");
-        writeReqRealDataNew(&dtuClient, localTimeSecond);
-        writeReqGetConfig(&dtuClient, localTimeSecond); // get approval of setting new value
-        updateValueToOpenhab();
+        Serial.print(" --- done");
+        // set next normal request in 5 seconds from now on
+        previousMillisMid = currentMillis - (intervalMid - 5);
+      } else {
+        Serial.print(" --- error");
       }
     }
   }
@@ -1177,7 +1254,8 @@ void loop()
   {
     Serial.printf("\n>>>>> %02is task - state --> ", int(interval5000ms));
     Serial.print("local: " + getTimeStringByTimestamp(localTimeSecond));
-    Serial.print(" --- NTP: " + timeClient.getFormattedTime() + " --- currentMillis " + String(currentMillis) + " --- ");
+    Serial.print(" --- NTP: " + timeClient.getFormattedTime());
+    // Serial.print(" --- currentMillis " + String(currentMillis) + " --- ");
     previousMillis5000ms = currentMillis;
     // -------->
     if (WiFi.status() == WL_CONNECTED)
@@ -1188,37 +1266,9 @@ void loop()
       if (wifiPercent > 100)
         wifiPercent = 100;
       globalData.wifi_rssi_gateway = wifiPercent;
-      Serial.print("RSSI to AP: '" + String(WiFi.SSID()) + "': " + String(globalData.wifi_rssi_gateway) + " %");
+      Serial.print(" --- RSSI to AP: '" + String(WiFi.SSID()) + "': " + String(globalData.wifi_rssi_gateway) + " %");
 
-      // get data from openhab if not connected to DTU
-      if (dtuConnection.dtuConnectState == DTU_STATE_CONNECTED)
-      {
-        uint8_t gotLimit;
-        bool conversionSuccess = false;
-
-        String openhabMessage = getMessageFromOpenhab(String(userConfig.openItemPrefix) + "_PowerLimit_Set");
-        if (openhabMessage.length() > 0)
-        {
-          gotLimit = openhabMessage.toInt();
-          // Check if the conversion was successful by comparing the string with its integer representation, to avoid wronmg interpretations of 0 after toInt by a "no number string"
-          conversionSuccess = (String(gotLimit) == openhabMessage);
-        }
-
-        if (conversionSuccess)
-        {
-          if (gotLimit < 2)
-            globalData.powerLimitSet = 2;
-          else if (gotLimit > 100)
-            globalData.powerLimitSet = 2;
-          else
-            globalData.powerLimitSet = gotLimit;
-        }
-        else
-        {
-          Serial.print("got wrong data for SetLimit: " + openhabMessage);
-        }
-        // Serial.print("got SetLimit: " + String(globalData.powerLimitSet) + " - current limit: " + String(globalData.powerLimit) + " %");
-      }
+      getPowerSetDataFromOpenHab();
     }
   }
 
@@ -1249,42 +1299,7 @@ void loop()
         }
       }
 
-      if (dtuClient.connected())
-      {
-        writeReqRealDataNew(&dtuClient, localTimeSecond);
-        // writeReqAppGetHistPower(&dtuClient); // only needed for sum energy daily/ total - but can lead to overflow for history data/ prevent maybe cloud update
-        writeReqGetConfig(&dtuClient, localTimeSecond);
-        // dtuClient.stop();
-        // dtuConnection.dtuConnectState = DTU_STATE_OFFLINE;
-
-        // check for up-to-date - last response timestamp have to not equal the current response timestamp
-        if ((globalData.lastRespTimestamp != globalData.respTimestamp) && (globalData.respTimestamp != 0))
-        {
-          globalData.uptodate = true;
-          dtuConnection.dtuErrorState = DTU_ERROR_NO_ERROR;
-          // sync localTimeSecond to DTU time, only if abbrevation about 3 seconds
-          if (abs((int(globalData.respTimestamp) - int(localTimeSecond))) > 3)
-          {
-            localTimeSecond = globalData.respTimestamp;
-            Serial.print(F("\n>--> synced local time with DTU time <--<\n"));
-          }
-        }
-        else
-        {
-          globalData.uptodate = false;
-          dtuConnection.dtuErrorState = DTU_ERROR_TIME_DIFF;
-          dtuConnection.dtuConnectState = DTU_STATE_TRY_RECONNECT;
-          dtuClient.stop(); // stopping connection to DTU when response time error - try with reconnect
-        }
-        globalData.lastRespTimestamp = globalData.respTimestamp;
-      }
-      else
-      {
-        globalData.uptodate = false;
-        dtuConnection.dtuErrorState = DTU_ERROR_NO_ERROR;
-        dtuConnection.dtuConnectState = DTU_STATE_TRY_RECONNECT;
-        dtuClient.stop();
-      }
+      getDtuDataUpdate(&dtuClient);
 
       if ((globalControls.getDataAuto || globalControls.getDataOnce) && !dtuConnection.dtuActiveOffToCloudUpdate && globalData.uptodate)
       {
@@ -1322,10 +1337,10 @@ void loop()
         }
         else
         {
-          Serial.print("\n\nupdate at remote: " + getTimeStringByTimestamp(globalData.respTimestamp) + " - uptodate: " + String(globalData.uptodate) + " \n");
+          Serial.print("\n+++ update at remote: " + getTimeStringByTimestamp(globalData.respTimestamp) + " - uptodate: " + String(globalData.uptodate) + " --- ");
           Serial.print("wifi rssi: " + String(globalData.dtuRssi) + " % (DTU->Cloud) - " + String(globalData.wifi_rssi_gateway) + " % (Client->AP) \n");
-          Serial.print("power limit (set): " + String(globalData.powerLimit) + " % (" + String(globalData.powerLimitSet) + " %) \n");
-          Serial.print("inverter temp:\t " + String(globalData.inverterTemp) + " °C \n");
+          Serial.print("power limit (set): " + String(globalData.powerLimit) + " % (" + String(globalData.powerLimitSet) + " %) --- ");
+          Serial.print("inverter temp: " + String(globalData.inverterTemp) + " °C \n");
 
           Serial.print(F(" \t |\t current  |\t voltage  |\t power    |        daily      |     total     |\n"));
           // 12341234 |1234 current  |1234 voltage  |1234 power1234|12341234daily 1234|12341234total 1234|

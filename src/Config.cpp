@@ -35,10 +35,12 @@ void initializeEEPROM()
         strcpy(userConfig.wifiSsid, "mySSID");
         strcpy(userConfig.wifiPassword, "myPassword");
         strcpy(userConfig.dtuHostIp, "192.168.0.254");
-        strcpy(userConfig.openhabHostIp, "192.168.1.30");
+        strcpy(userConfig.openhabHostIp, "192.168.1.100");
         strcpy(userConfig.openItemPrefix, "inverter");
         userConfig.selectedUpdateChannel = 0; // default - release channel
+        userConfig.dtuCloudPauseActive = 1;
         userConfig.dtuCloudPauseTime = 40;
+        userConfig.dtuUpdateTime = 31;
         userConfig.wifiAPstart = true;
 
         // Mark EEPROM as initialized
@@ -64,15 +66,15 @@ void printEEPROMdata()
         // Configuration has been written before
         Serial.print(F("\n--------------------------------------\n"));
         Serial.print(F("Configuration loaded from EEPROM:\n"));
-        Serial.print(F("init phase: \t"));
+        Serial.print(F("init phase: \t\t"));
         Serial.println(userConfig.wifiAPstart);
 
-        Serial.print(F("wifi ssid: \t"));
+        Serial.print(F("wifi ssid: \t\t"));
         Serial.println(userConfig.wifiSsid);
-        Serial.print(F("wifi pass: \t"));
+        Serial.print(F("wifi pass: \t\t"));
         Serial.println(userConfig.wifiPassword);
 
-        Serial.print(F("openhab host: \t"));
+        Serial.print(F("openhab host: \t\t"));
         Serial.println(userConfig.openhabHostIp);
 
         Serial.print(F("openhab item prefix: \t"));
@@ -87,14 +89,14 @@ void printEEPROMdata()
         Serial.print(F("cloud pause time: \t"));
         Serial.println(userConfig.dtuCloudPauseTime);
 
-        Serial.print(F("update channel: \t"));
+        Serial.print(F("update channel: \t\t"));
         Serial.println(userConfig.selectedUpdateChannel);
 
-        Serial.print(F("dtu host: \t"));
+        Serial.print(F("dtu host: \t\t"));
         Serial.println(userConfig.dtuHostIp);
-        Serial.print(F("dtu ssid: \t"));
+        Serial.print(F("dtu ssid: \t\t"));
         Serial.println(userConfig.dtuSsid);
-        Serial.print(F("dtu pass: \t"));
+        Serial.print(F("dtu pass: \t\t"));
         Serial.println(userConfig.dtuPassword);
         Serial.print(F("--------------------------------------\n"));
     }
