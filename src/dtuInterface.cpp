@@ -5,7 +5,156 @@ CRC16 crc;
 struct connectionControl dtuConnection;
 struct inverterData globalData;
 
-// control functions
+// connection handling
+
+// Function to check and establish the server connection
+void dtuConnectionEstablish(WiFiClient *localDtuClient, char localDtuHostIp[16], uint16_t localDtuPort)
+{
+    if (!localDtuClient->connected() && !dtuConnection.dtuActiveOffToCloudUpdate)
+    {
+        localDtuClient->setTimeout(5000);
+        Serial.print("\n>>> Client not connected with DTU! - trying to connect to " + String(localDtuHostIp) + " ... ");
+        if (!localDtuClient->connect(localDtuHostIp, localDtuPort))
+        {
+            Serial.print(F("Connection to DTU failed. Setting try to reconnect.\n"));
+            dtuConnection.dtuConnectState = DTU_STATE_TRY_RECONNECT;
+        }
+        else
+        {
+            Serial.print(F("DTU connected.\n"));
+            dtuConnection.dtuConnectState = DTU_STATE_CONNECTED;
+        }
+    }
+}
+
+// Function to stop the server connection
+void dtuConnectionStop(WiFiClient *localDtuClient)
+{
+    if (localDtuClient->connected())
+    {
+        localDtuClient->stop();
+        dtuConnection.dtuConnectState = DTU_STATE_OFFLINE;
+        Serial.print(F("+++ DTU Connection --- stopped\n"));
+    }
+}
+
+// Function to handle connection errors
+void dtuConnectionHandleError(WiFiClient *localDtuClient, uint8_t errorState)
+{
+    if (localDtuClient->connected())
+    {
+        dtuConnection.dtuErrorState = errorState;
+        dtuConnection.dtuConnectState = DTU_STATE_TRY_RECONNECT;
+        localDtuClient->stop();
+        Serial.print(F("\n+++ DTU Connection --- ERROR - stopped client and set try to reconnect - error state: "));
+        Serial.println(errorState);
+    }
+}
+
+// data handling
+
+unsigned long getDtuRemoteTimeAndDataUpdate(WiFiClient *localDtuClient, unsigned long locTimeSec)
+{
+    unsigned long newLocTimeSec = locTimeSec;
+    if (localDtuClient->connected())
+    {
+        writeReqRealDataNew(localDtuClient, locTimeSec);
+        // writeReqAppGetHistPower(localDtuClient, locTimeSec); // only needed for sum energy daily/ total - but can lead to overflow for history data/ prevent maybe cloud update
+        writeReqGetConfig(localDtuClient, locTimeSec);
+
+        // check for up-to-date - last response timestamp have to not equal the current response timestamp
+        if ((globalData.lastRespTimestamp != globalData.respTimestamp) && (globalData.respTimestamp != 0))
+        {
+            globalData.uptodate = true;
+            dtuConnection.dtuErrorState = DTU_ERROR_NO_ERROR;
+            // sync local time (in seconds) to DTU time, only if abbrevation about 3 seconds
+            if (abs((int(globalData.respTimestamp) - int(locTimeSec))) > 3)
+            {
+                newLocTimeSec = globalData.respTimestamp;
+                Serial.print(F("\n>--> synced local time with DTU time <--<\n"));
+            }
+        }
+        else
+        {
+            globalData.uptodate = false;
+            // stopping connection to DTU when response time error - try with reconnect
+            dtuConnectionHandleError(localDtuClient, DTU_ERROR_TIME_DIFF);
+        }
+        globalData.lastRespTimestamp = globalData.respTimestamp;
+    }
+    else
+    {
+        globalData.uptodate = false;
+        dtuConnectionHandleError(localDtuClient);
+    }
+    return newLocTimeSec;
+}
+
+void printDataAsTextToSerial()
+{
+    Serial.print("power limit (set): " + String(globalData.powerLimit) + " % (" + String(globalData.powerLimitSet) + " %) --- ");
+    Serial.print("inverter temp: " + String(globalData.inverterTemp) + " °C \n");
+
+    Serial.print(F(" \t |\t current  |\t voltage  |\t power    |        daily      |     total     |\n"));
+    // 12341234 |1234 current  |1234 voltage  |1234 power1234|12341234daily 1234|12341234total 1234|
+    // grid1234 |1234 123456 A |1234 123456 V |1234 123456 W |1234 12345678 kWh |1234 12345678 kWh |
+    // pvO 1234 |1234 123456 A |1234 123456 V |1234 123456 W |1234 12345678 kWh |1234 12345678 kWh |
+    // pvI 1234 |1234 123456 A |1234 123456 V |1234 123456 W |1234 12345678 kWh |1234 12345678 kWh |
+    Serial.print(F("grid\t"));
+    Serial.printf(" |\t %6.2f A", globalData.grid.current);
+    Serial.printf(" |\t %6.2f V", globalData.grid.voltage);
+    Serial.printf(" |\t %6.2f W", globalData.grid.power);
+    Serial.printf(" |\t %8.3f kWh", globalData.grid.dailyEnergy);
+    Serial.printf(" |\t %8.3f kWh |\n", globalData.grid.totalEnergy);
+
+    Serial.print(F("pv0\t"));
+    Serial.printf(" |\t %6.2f A", globalData.pv0.current);
+    Serial.printf(" |\t %6.2f V", globalData.pv0.voltage);
+    Serial.printf(" |\t %6.2f W", globalData.pv0.power);
+    Serial.printf(" |\t %8.3f kWh", globalData.pv0.dailyEnergy);
+    Serial.printf(" |\t %8.3f kWh |\n", globalData.pv0.totalEnergy);
+
+    Serial.print(F("pv1\t"));
+    Serial.printf(" |\t %6.2f A", globalData.pv1.current);
+    Serial.printf(" |\t %6.2f V", globalData.pv1.voltage);
+    Serial.printf(" |\t %6.2f W", globalData.pv1.power);
+    Serial.printf(" |\t %8.3f kWh", globalData.pv1.dailyEnergy);
+    Serial.printf(" |\t %8.3f kWh |\n", globalData.pv1.totalEnergy);
+}
+
+void printDataAsJsonToSerial()
+{
+    Serial.print(F("\nJSONObject:"));
+    JsonDocument doc;
+
+    doc["timestamp"] = globalData.respTimestamp;
+    doc["uptodate"] = globalData.uptodate;
+    doc["dtuRssi"] = globalData.dtuRssi;
+    doc["powerLimit"] = globalData.powerLimit;
+    doc["powerLimitSet"] = globalData.powerLimitSet;
+    doc["inverterTemp"] = globalData.inverterTemp;
+
+    doc["grid"]["current"] = globalData.grid.current;
+    doc["grid"]["voltage"] = globalData.grid.voltage;
+    doc["grid"]["power"] = globalData.grid.power;
+    doc["grid"]["dailyEnergy"] = globalData.grid.dailyEnergy;
+    doc["grid"]["totalEnergy"] = globalData.grid.totalEnergy;
+
+    doc["pv0"]["current"] = globalData.pv0.current;
+    doc["pv0"]["voltage"] = globalData.pv0.voltage;
+    doc["pv0"]["power"] = globalData.pv0.power;
+    doc["pv0"]["dailyEnergy"] = globalData.pv0.dailyEnergy;
+    doc["pv0"]["totalEnergy"] = globalData.pv0.totalEnergy;
+
+    doc["pv1"]["current"] = globalData.pv1.current;
+    doc["pv1"]["voltage"] = globalData.pv1.voltage;
+    doc["pv1"]["power"] = globalData.pv1.power;
+    doc["pv1"]["dailyEnergy"] = globalData.pv1.dailyEnergy;
+    doc["pv1"]["totalEnergy"] = globalData.pv1.totalEnergy;
+    serializeJson(doc, Serial);
+}
+
+// base functions
 
 void initializeCRC()
 {
@@ -34,7 +183,7 @@ String getTimeStringByTimestamp(unsigned long timestamp)
 }
 
 unsigned long lastSwOff = 0;
-boolean preventCloudErrorTask(unsigned long locTimeSec)
+boolean dtuCloudPauseActiveControl(unsigned long locTimeSec)
 {
     // check current DTU time
     UnixTime stamp(1);
@@ -45,7 +194,7 @@ boolean preventCloudErrorTask(unsigned long locTimeSec)
 
     if (sec >= 40 && (min == 59 || min == 14 || min == 29 || min == 44) && !dtuConnection.dtuActiveOffToCloudUpdate)
     {
-        Serial.printf("\n\n<<< preventCloudErrorTask >>> --- ");
+        Serial.printf("\n\n<<< dtuCloudPauseActiveControl >>> --- ");
         Serial.printf("local time: %02i.%02i. - %02i:%02i:%02i ", stamp.day, stamp.month, stamp.hour, stamp.minute, stamp.second);
         Serial.print(F("----> switch ''OFF'' DTU server connection to upload data from DTU to Cloud\n\n"));
         lastSwOff = locTimeSec;
@@ -54,7 +203,7 @@ boolean preventCloudErrorTask(unsigned long locTimeSec)
     }
     else if (locTimeSec > lastSwOff + DTU_CLOUD_UPLOAD_SECONDS && dtuConnection.dtuActiveOffToCloudUpdate)
     {
-        Serial.printf("\n\n<<< preventCloudErrorTask >>> --- ");
+        Serial.printf("\n\n<<< dtuCloudPauseActiveControl >>> --- ");
         Serial.printf("local time: %02i.%02i. - %02i:%02i:%02i ", stamp.day, stamp.month, stamp.hour, stamp.minute, stamp.second);
         Serial.print(F("----> switch ''ON'' DTU server connection after upload data from DTU to Cloud\n\n"));
         // reset request timer - starting directly new request after prevent

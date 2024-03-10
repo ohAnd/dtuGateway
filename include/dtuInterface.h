@@ -5,6 +5,7 @@
 #include <Arduino.h>
 #include <UnixTime.h>
 #include <ESP8266WiFi.h>
+#include <ArduinoJson.h>
 
 #include "pb_encode.h"
 #include "pb_decode.h"
@@ -70,11 +71,18 @@ struct inverterData
 extern inverterData globalData;
 
 extern CRC16 crc;
+void dtuConnectionEstablish(WiFiClient *localDtuClient, char localDtuHostIp[16], uint16_t localDtuPort = 10081);
+void dtuConnectionStop(WiFiClient *localDtuClient);
+void dtuConnectionHandleError(WiFiClient *localDtuClient, uint8_t errorState = DTU_ERROR_NO_ERROR);
+
+unsigned long getDtuRemoteTimeAndDataUpdate(WiFiClient *localDtuClient, unsigned long locTimeSec);
+void printDataAsTextToSerial();
+void printDataAsJsonToSerial();
 
 void initializeCRC();
 float calcValue(int32_t value, int32_t divider = 10);
 String getTimeStringByTimestamp(unsigned long timestamp);
-boolean preventCloudErrorTask(unsigned long locTimeSec);
+boolean dtuCloudPauseActiveControl(unsigned long locTimeSec);
 
 void readRespAppGetHistPower(WiFiClient *localDtuClient);
 void writeReqAppGetHistPower(WiFiClient *localDtuClient, unsigned long locTimeSec);

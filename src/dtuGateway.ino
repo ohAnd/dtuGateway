@@ -91,7 +91,7 @@ unsigned long previousMillisShort = 1704063600;
 unsigned long previousMillis5000ms = 1704063600;
 unsigned long previousMillisMid = 1704063600;
 unsigned long previousMillisLong = 1704063600;
-unsigned long localTimeSecond = 1704063600;
+unsigned long timeStampInSecondsDtuSynced = 1704063600;
 
 struct controls
 {
@@ -224,7 +224,7 @@ void handleRoot()
 void handleDataJson()
 {
   String JSON = "{";
-  JSON = JSON + "\"localtime\": " + String(localTimeSecond) + ",";
+  JSON = JSON + "\"localtime\": " + String(timeStampInSecondsDtuSynced) + ",";
   JSON = JSON + "\"ntpStamp\": " + String(timeClient.getEpochTime() - CLIENT_TIME_OFFSET) + ",";
 
   JSON = JSON + "\"lastResponse\": " + globalData.lastRespTimestamp + ",";
@@ -382,9 +382,8 @@ void handleUpdateDtuSettings()
 
   delay(2000); // give time for the json response
 
-  // stopping connection to DTU and set right state - to force reconnect with new data
-  dtuClient.stop();
-  dtuConnection.dtuConnectState = DTU_STATE_OFFLINE;
+  // stopping connection to DTU - to force reconnect with new data
+  dtuConnectionStop(&dtuClient);
 }
 
 void handleUpdateOpenhabSettings()
@@ -404,10 +403,6 @@ void handleUpdateOpenhabSettings()
   server.send(200, "application/json", JSON);
 
   delay(2000); // give time for the json response
-
-  // stopping connection to DTU and set right state - to force reconnect with new data
-  dtuClient.stop();
-  dtuConnection.dtuConnectState = DTU_STATE_OFFLINE;
 
   Serial.println("handleUpdateOpenhabSettings - send JSON: " + String(JSON));
 }
@@ -1141,51 +1136,11 @@ void getSerialCommand(String cmd, String value)
 
 // main
 
-void getDtuDataUpdate(WiFiClient *localDtuClient)
-{
-  if (localDtuClient->connected())
-  {
-    writeReqRealDataNew(localDtuClient, localTimeSecond);
-    // writeReqAppGetHistPower(&dtuClient); // only needed for sum energy daily/ total - but can lead to overflow for history data/ prevent maybe cloud update
-    writeReqGetConfig(localDtuClient, localTimeSecond);
-    // dtuClient.stop();
-    // dtuConnection.dtuConnectState = DTU_STATE_OFFLINE;
-
-    // check for up-to-date - last response timestamp have to not equal the current response timestamp
-    if ((globalData.lastRespTimestamp != globalData.respTimestamp) && (globalData.respTimestamp != 0))
-    {
-      globalData.uptodate = true;
-      dtuConnection.dtuErrorState = DTU_ERROR_NO_ERROR;
-      // sync localTimeSecond to DTU time, only if abbrevation about 3 seconds
-      if (abs((int(globalData.respTimestamp) - int(localTimeSecond))) > 3)
-      {
-        localTimeSecond = globalData.respTimestamp;
-        Serial.print(F("\n>--> synced local time with DTU time <--<\n"));
-      }
-    }
-    else
-    {
-      globalData.uptodate = false;
-      dtuConnection.dtuErrorState = DTU_ERROR_TIME_DIFF;
-      dtuConnection.dtuConnectState = DTU_STATE_TRY_RECONNECT;
-      localDtuClient->stop(); // stopping connection to DTU when response time error - try with reconnect
-    }
-    globalData.lastRespTimestamp = globalData.respTimestamp;
-  }
-  else
-  {
-    globalData.uptodate = false;
-    dtuConnection.dtuErrorState = DTU_ERROR_NO_ERROR;
-    dtuConnection.dtuConnectState = DTU_STATE_TRY_RECONNECT;
-    dtuClient.stop();
-  }
-}
-
 // get precise localtime - increment
 void IRAM_ATTR timer1000MilliSeconds()
 {
   // localtime counter - increase every second
-  localTimeSecond++;
+  timeStampInSecondsDtuSynced++;
 }
 
 void loop()
@@ -1204,13 +1159,13 @@ void loop()
   }
 
   // CHANGE to precise 1 second timer increment
-  currentMillis = localTimeSecond;
+  currentMillis = timeStampInSecondsDtuSynced;
 
   // short task
   if (currentMillis - previousMillisShort >= intervalShort)
   {
     // Serial.printf("\n>>>>> %02is task - state --> ", int(intervalShort));
-    // Serial.print("local: " + getTimeStringByTimestamp(localTimeSecond));
+    // Serial.print("local: " + getTimeStringByTimestamp(timeStampInSecondsDtuSynced));
     // Serial.print(" --- NTP: " + timeClient.getFormattedTime() + " --- currentMillis " + String(currentMillis) + " --- ");
     previousMillisShort = currentMillis;
     // -------->
@@ -1218,19 +1173,20 @@ void loop()
     if (dtuConnection.preventCloudErrors)
     {
       // task to check and change for cloud update pause
-      if (preventCloudErrorTask(localTimeSecond))
+      if (dtuCloudPauseActiveControl(timeStampInSecondsDtuSynced))
+      {
+        globalData.uptodate = false;
         blinkCode = BLINK_PAUSE_CLOUD_UPDATE;
-      // disconnet DTU server, if prevention on
-      if (dtuConnection.dtuActiveOffToCloudUpdate)
-        dtuClient.stop();
+        dtuConnectionStop(&dtuClient); // disconnet DTU server, if prevention on
+      }
     }
 
     if (globalControls.wifiSwitch && !userConfig.wifiAPstart)
       checkWifiTask();
     else
     {
-      dtuClient.stop(); // stopping connection to DTU before go wifi offline
-      dtuConnection.dtuConnectState = DTU_STATE_OFFLINE;
+      // stopping connection to DTU before go wifi offline
+      dtuConnectionStop(&dtuClient);
       WiFi.disconnect();
     }
 
@@ -1238,12 +1194,14 @@ void loop()
     if (globalData.powerLimitSet != globalData.powerLimit && globalData.powerLimitSet != 101 && globalData.uptodate)
     {
       Serial.print("\n----- ----- set new power limit from " + String(globalData.powerLimit) + " to " + String(globalData.powerLimitSet));
-      if (writeReqCommand(&dtuClient, globalData.powerLimitSet, localTimeSecond))
+      if (writeReqCommand(&dtuClient, globalData.powerLimitSet, timeStampInSecondsDtuSynced))
       {
         Serial.print(" --- done");
         // set next normal request in 5 seconds from now on
         previousMillisMid = currentMillis - (intervalMid - 5);
-      } else {
+      }
+      else
+      {
         Serial.print(" --- error");
       }
     }
@@ -1253,7 +1211,7 @@ void loop()
   if (currentMillis - previousMillis5000ms >= interval5000ms)
   {
     Serial.printf("\n>>>>> %02is task - state --> ", int(interval5000ms));
-    Serial.print("local: " + getTimeStringByTimestamp(localTimeSecond));
+    Serial.print("local: " + getTimeStringByTimestamp(timeStampInSecondsDtuSynced));
     Serial.print(" --- NTP: " + timeClient.getFormattedTime());
     // Serial.print(" --- currentMillis " + String(currentMillis) + " --- ");
     previousMillis5000ms = currentMillis;
@@ -1276,121 +1234,51 @@ void loop()
   if (currentMillis - previousMillisMid >= intervalMid)
   {
     Serial.printf("\n>>>>> %02is task - state --> ", int(intervalMid));
-    Serial.print("local: " + getTimeStringByTimestamp(localTimeSecond));
+    Serial.print("local: " + getTimeStringByTimestamp(timeStampInSecondsDtuSynced));
     Serial.print(" --- NTP: " + timeClient.getFormattedTime() + "\n");
     previousMillisMid = currentMillis;
     // -------->
     if (WiFi.status() == WL_CONNECTED)
     {
-      // check for server connection
-      dtuClient.setTimeout(5000);
-      if (!dtuClient.connected() && !dtuConnection.dtuActiveOffToCloudUpdate)
+      dtuConnectionEstablish(&dtuClient, userConfig.dtuHostIp);
+      timeStampInSecondsDtuSynced = getDtuRemoteTimeAndDataUpdate(&dtuClient, timeStampInSecondsDtuSynced);
+
+      if (!dtuConnection.dtuActiveOffToCloudUpdate)
       {
-        Serial.print("\n>>> Client not connected with DTU! - trying to connect to " + String(userConfig.dtuHostIp) + " ... ");
-        if (!dtuClient.connect(userConfig.dtuHostIp, dtuPort))
+        if ((globalControls.getDataAuto || globalControls.getDataOnce) && globalData.uptodate)
         {
-          Serial.print(F("Connection to DTU failed.\n"));
-          dtuConnection.dtuConnectState = DTU_STATE_OFFLINE;
+          updateValueToOpenhab();
+          if (globalControls.dataFormatJSON)
+          {
+            printDataAsJsonToSerial();
+          }
+          else
+          {
+            Serial.print("\n+++ update at remote: " + getTimeStringByTimestamp(globalData.respTimestamp) + " - uptodate: " + String(globalData.uptodate) + " --- ");
+            Serial.print("wifi rssi: " + String(globalData.dtuRssi) + " % (DTU->Cloud) - " + String(globalData.wifi_rssi_gateway) + " % (Client->AP) \n");
+            printDataAsTextToSerial();
+          }
+          if (globalControls.getDataOnce)
+            globalControls.getDataOnce = false;
         }
-        else
+        else if ((timeStampInSecondsDtuSynced - globalData.lastRespTimestamp) > (5 * 60) && globalData.grid.voltage > 0) // globalData.grid.voltage > 0 indicates dtu/ inverter working
         {
-          Serial.print(F("DTU connected.\n"));
-          dtuConnection.dtuConnectState = DTU_STATE_CONNECTED;
+          globalData.grid.power = 0;
+          globalData.grid.current = 0;
+          globalData.grid.voltage = 0;
+
+          globalData.pv0.power = 0;
+          globalData.pv0.current = 0;
+          globalData.pv0.voltage = 0;
+
+          globalData.pv1.power = 0;
+          globalData.pv1.current = 0;
+          globalData.pv1.voltage = 0;
+
+          updateValueToOpenhab();
+          dtuConnection.dtuErrorState = DTU_ERROR_LAST_SEND;
+          Serial.print(F("\n>>>>> TIMEOUT 5 min for DTU -> NIGHT - send zero values\n"));
         }
-      }
-
-      getDtuDataUpdate(&dtuClient);
-
-      if ((globalControls.getDataAuto || globalControls.getDataOnce) && !dtuConnection.dtuActiveOffToCloudUpdate && globalData.uptodate)
-      {
-        updateValueToOpenhab();
-        if (globalControls.dataFormatJSON)
-        {
-          Serial.print(F("\nJSONObject:"));
-          JsonDocument doc;
-
-          doc["timestamp"] = globalData.respTimestamp;
-          doc["uptodate"] = globalData.uptodate;
-          doc["dtuRssi"] = globalData.dtuRssi;
-          doc["powerLimit"] = globalData.powerLimit;
-          doc["powerLimitSet"] = globalData.powerLimitSet;
-          doc["inverterTemp"] = globalData.inverterTemp;
-
-          doc["grid"]["current"] = globalData.grid.current;
-          doc["grid"]["voltage"] = globalData.grid.voltage;
-          doc["grid"]["power"] = globalData.grid.power;
-          doc["grid"]["dailyEnergy"] = globalData.grid.dailyEnergy;
-          doc["grid"]["totalEnergy"] = globalData.grid.totalEnergy;
-
-          doc["pv0"]["current"] = globalData.pv0.current;
-          doc["pv0"]["voltage"] = globalData.pv0.voltage;
-          doc["pv0"]["power"] = globalData.pv0.power;
-          doc["pv0"]["dailyEnergy"] = globalData.pv0.dailyEnergy;
-          doc["pv0"]["totalEnergy"] = globalData.pv0.totalEnergy;
-
-          doc["pv1"]["current"] = globalData.pv1.current;
-          doc["pv1"]["voltage"] = globalData.pv1.voltage;
-          doc["pv1"]["power"] = globalData.pv1.power;
-          doc["pv1"]["dailyEnergy"] = globalData.pv1.dailyEnergy;
-          doc["pv1"]["totalEnergy"] = globalData.pv1.totalEnergy;
-          serializeJson(doc, Serial);
-        }
-        else
-        {
-          Serial.print("\n+++ update at remote: " + getTimeStringByTimestamp(globalData.respTimestamp) + " - uptodate: " + String(globalData.uptodate) + " --- ");
-          Serial.print("wifi rssi: " + String(globalData.dtuRssi) + " % (DTU->Cloud) - " + String(globalData.wifi_rssi_gateway) + " % (Client->AP) \n");
-          Serial.print("power limit (set): " + String(globalData.powerLimit) + " % (" + String(globalData.powerLimitSet) + " %) --- ");
-          Serial.print("inverter temp: " + String(globalData.inverterTemp) + " °C \n");
-
-          Serial.print(F(" \t |\t current  |\t voltage  |\t power    |        daily      |     total     |\n"));
-          // 12341234 |1234 current  |1234 voltage  |1234 power1234|12341234daily 1234|12341234total 1234|
-          // grid1234 |1234 123456 A |1234 123456 V |1234 123456 W |1234 12345678 kWh |1234 12345678 kWh |
-          // pvO 1234 |1234 123456 A |1234 123456 V |1234 123456 W |1234 12345678 kWh |1234 12345678 kWh |
-          // pvI 1234 |1234 123456 A |1234 123456 V |1234 123456 W |1234 12345678 kWh |1234 12345678 kWh |
-          Serial.print(F("grid\t"));
-          Serial.printf(" |\t %6.2f A", globalData.grid.current);
-          Serial.printf(" |\t %6.2f V", globalData.grid.voltage);
-          Serial.printf(" |\t %6.2f W", globalData.grid.power);
-          Serial.printf(" |\t %8.3f kWh", globalData.grid.dailyEnergy);
-          Serial.printf(" |\t %8.3f kWh |\n", globalData.grid.totalEnergy);
-
-          Serial.print(F("pv0\t"));
-          Serial.printf(" |\t %6.2f A", globalData.pv0.current);
-          Serial.printf(" |\t %6.2f V", globalData.pv0.voltage);
-          Serial.printf(" |\t %6.2f W", globalData.pv0.power);
-          Serial.printf(" |\t %8.3f kWh", globalData.pv0.dailyEnergy);
-          Serial.printf(" |\t %8.3f kWh |\n", globalData.pv0.totalEnergy);
-
-          Serial.print(F("pv1\t"));
-          Serial.printf(" |\t %6.2f A", globalData.pv1.current);
-          Serial.printf(" |\t %6.2f V", globalData.pv1.voltage);
-          Serial.printf(" |\t %6.2f W", globalData.pv1.power);
-          Serial.printf(" |\t %8.3f kWh", globalData.pv1.dailyEnergy);
-          Serial.printf(" |\t %8.3f kWh |\n", globalData.pv1.totalEnergy);
-        }
-        // switch off after get once
-        if (globalControls.getDataOnce)
-        {
-          globalControls.getDataOnce = false;
-        }
-      }
-      else if ((localTimeSecond - globalData.lastRespTimestamp) > (5 * 60) && globalData.grid.voltage > 0) // globalData.grid.voltage > 0 indicates dtu/ inverter working
-      {
-        globalData.grid.power = 0;
-        globalData.grid.current = 0;
-        globalData.grid.voltage = 0;
-
-        globalData.pv0.power = 0;
-        globalData.pv0.current = 0;
-        globalData.pv0.voltage = 0;
-
-        globalData.pv1.power = 0;
-        globalData.pv1.current = 0;
-        globalData.pv1.voltage = 0;
-
-        updateValueToOpenhab();
-        dtuConnection.dtuErrorState = DTU_ERROR_LAST_SEND;
-        Serial.print(F("\n>>>>> TIMEOUT 5 min for DTU -> NIGHT - send zero values\n"));
       }
     }
   }
@@ -1399,7 +1287,7 @@ void loop()
   if (currentMillis - previousMillisLong >= intervalLong)
   {
     // Serial.printf("\n>>>>> %02is task - state --> ", int(interval5000ms));
-    // Serial.print("local: " + getTimeStringByTimestamp(localTimeSecond));
+    // Serial.print("local: " + getTimeStringByTimestamp(timeStampInSecondsDtuSynced));
     // Serial.print(" --- NTP: " + timeClient.getFormattedTime() + " --- currentMillis " + String(currentMillis) + " --- ");
 
     previousMillisLong = currentMillis;
