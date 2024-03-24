@@ -297,6 +297,7 @@ void handleInfojson()
   JSON = JSON + "\"dtuPassword\": \"" + String(userConfig.dtuPassword) + "\",";
   JSON = JSON + "\"dtuRssi\": " + globalData.dtuRssi + ",";
   JSON = JSON + "\"dtuDataCycle\": " + userConfig.dtuUpdateTime + ",";
+  JSON = JSON + "\"dtuResetRequested\": " + globalData.dtuResetRequested + ",";
   JSON = JSON + "\"dtuCloudPause\": " + userConfig.dtuCloudPauseActive + ",";
   JSON = JSON + "\"dtuCloudPauseTime\": " + userConfig.dtuCloudPauseTime;
   JSON = JSON + "},";
@@ -383,7 +384,7 @@ void handleUpdateDtuSettings()
   delay(2000); // give time for the json response
 
   // stopping connection to DTU - to force reconnect with new data
-  dtuConnectionStop(&dtuClient);
+  dtuConnectionStop(&dtuClient, DTU_STATE_TRY_RECONNECT);
 }
 
 void handleUpdateOpenhabSettings()
@@ -703,7 +704,7 @@ boolean postMessageToOpenhab(String key, String value)
     if (httpCode == HTTPC_ERROR_CONNECTION_REFUSED || httpCode == HTTPC_ERROR_SEND_HEADER_FAILED ||
         httpCode == HTTPC_ERROR_SEND_PAYLOAD_FAILED)
     {
-      Serial.print("\n[HTTP] postMessageToOpenhab Timeout error: " + String(httpCode) + "\n");
+      Serial.print("\n[HTTP] postMessageToOpenhab (" + key + ") Timeout error: " + String(httpCode) + "\n");
       http.end();
       return false; // Return timeout error
     }
@@ -1127,6 +1128,15 @@ void getSerialCommand(String cmd, String value)
       ESP.restart();
     }
   }
+  else if (cmd == "rebootDTU")
+  {
+    Serial.print(F(" rebootDTU "));
+    if (val == 1)
+    {
+      Serial.print(F(" send reboot request "));
+      writeCommandRestartDevice(&dtuClient, timeStampInSecondsDtuSynced);
+    }
+  }
   else
   {
     Serial.print(F("Cmd not recognized\n"));
@@ -1177,7 +1187,7 @@ void loop()
       {
         globalData.uptodate = false;
         blinkCode = BLINK_PAUSE_CLOUD_UPDATE;
-        dtuConnectionStop(&dtuClient); // disconnet DTU server, if prevention on
+        dtuConnectionStop(&dtuClient, DTU_STATE_CLOUD_PAUSE); // disconnet DTU server, if prevention on
       }
     }
 
@@ -1186,7 +1196,7 @@ void loop()
     else
     {
       // stopping connection to DTU before go wifi offline
-      dtuConnectionStop(&dtuClient);
+      dtuConnectionStop(&dtuClient, DTU_STATE_OFFLINE);
       WiFi.disconnect();
     }
 
@@ -1197,8 +1207,9 @@ void loop()
       if (writeReqCommand(&dtuClient, globalData.powerLimitSet, timeStampInSecondsDtuSynced))
       {
         Serial.print(" --- done");
-        // set next normal request in 5 seconds from now on
-        previousMillisMid = currentMillis - (intervalMid - 5);
+        // set next normal request in 5 seconds from now on, only if last data updated within last 2 times of user setted update rate
+        if (currentMillis - globalData.lastRespTimestamp < (intervalMid * 2))
+          previousMillisMid = currentMillis - (intervalMid - 5);
       }
       else
       {

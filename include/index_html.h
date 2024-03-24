@@ -315,6 +315,10 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                         <b id="dtu_error_state" class="panelValueSmall valueText"> ok </b>
                     </div>
                     <div class="panelValueBoxDetail">
+                        <small class="panelHead">DTU reboots</small>
+                        <b id="dtu_reboots_no" class="panelValueSmall valueText"> 0 </b>
+                    </div>
+                    <div class="panelValueBoxDetail">
                         <small class="panelHead">temperature</small>
                         <b id="inverterTemp" class="panelValueSmall valueText">--.- &deg;C</b>
                     </div>
@@ -496,8 +500,11 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                 case 3:
                     dtuConnect = "try reconnect";
                     break;
+                case 4:
+                    dtuConnect = "dtu rebooting";
+                    break;
                 default:
-                    dtuConnect = "no_info";
+                    dtuConnect = "not known";
             }
             checkValueUpdate('#dtu_connect_state', dtuConnect);
             var dtuState = "";
@@ -538,7 +545,9 @@ const char INDEX_HTML[] PROGMEM = R"=====(
 
             // setting timer value according to user setting
             waitTime = data.dtuConnection.dtuDataCycle * 1000;
-            
+
+            checkValueUpdate('#dtu_reboots_no', data.dtuConnection.dtuResetRequested );
+
             return true;
         }
 
@@ -577,7 +586,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             // get networkdata
             $('#dtuHostIp').val(dtuData.dtuHostIp);
             $('#dtuDataCycle').val(dtuData.dtuDataCycle);
-            if(dtuData.dtuCloudPause) {
+            if (dtuData.dtuCloudPause) {
                 $('#dtuCloudPause').prop("checked", true);
             } else {
                 $('#dtuCloudPause').prop("checked", false);
@@ -660,7 +669,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
         function changeDtuData() {
             var dtuHostIpSend = $('#dtuHostIp').val();
             var dtuDataCycleSend = $('#dtuDataCycle').val();
-            if($("#dtuCloudPause").is(':checked')) {
+            if ($("#dtuCloudPause").is(':checked')) {
                 dtuCloudPauseSend = 1;
             } else {
                 dtuCloudPauseSend = 0;
@@ -668,7 +677,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
 
             var dtuSsidSend = $('#dtuSsid').val();
             var dtuPasswordSend = $('#dtuPassword').val();
-            
+
             var data = {};
             data["dtuHostIpSend"] = dtuHostIpSend;
             data["dtuDataCycleSend"] = dtuDataCycleSend;

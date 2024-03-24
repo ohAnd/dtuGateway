@@ -25,6 +25,7 @@ const uint16_t dtuPort = 10081;
 #define DTU_STATE_CONNECTED 1
 #define DTU_STATE_CLOUD_PAUSE 2
 #define DTU_STATE_TRY_RECONNECT 3
+#define DTU_STATE_DTU_REBOOT 4
 
 #define DTU_ERROR_NO_ERROR 0
 #define DTU_ERROR_NO_TIME 1
@@ -66,14 +67,15 @@ struct inverterData
   uint32_t respTimestamp = 1704063600;     // init with start time stamp > 0
   uint32_t lastRespTimestamp = 1704063600; // init with start time stamp > 0
   boolean uptodate = false;
+  int dtuResetRequested = 0;
 };
 
 extern inverterData globalData;
 
 extern CRC16 crc;
 void dtuConnectionEstablish(WiFiClient *localDtuClient, char localDtuHostIp[16], uint16_t localDtuPort = 10081);
-void dtuConnectionStop(WiFiClient *localDtuClient);
-void dtuConnectionHandleError(WiFiClient *localDtuClient, uint8_t errorState = DTU_ERROR_NO_ERROR);
+void dtuConnectionStop(WiFiClient *localDtuClient, uint8_t tgtState);
+void dtuConnectionHandleError(WiFiClient *localDtuClient, unsigned long locTimeSec, uint8_t errorState = DTU_ERROR_NO_ERROR);
 
 unsigned long getDtuRemoteTimeAndDataUpdate(WiFiClient *localDtuClient, unsigned long locTimeSec);
 void printDataAsTextToSerial();
@@ -87,7 +89,7 @@ boolean dtuCloudPauseActiveControl(unsigned long locTimeSec);
 void readRespAppGetHistPower(WiFiClient *localDtuClient);
 void writeReqAppGetHistPower(WiFiClient *localDtuClient, unsigned long locTimeSec);
 
-void readRespRealDataNew(WiFiClient *localDtuClient);
+void readRespRealDataNew(WiFiClient *localDtuClient, unsigned long locTimeSec);
 void writeReqRealDataNew(WiFiClient *localDtuClient, unsigned long locTimeSec);
 
 void readRespGetConfig(WiFiClient *localDtuClient);
@@ -96,5 +98,7 @@ void writeReqGetConfig(WiFiClient *localDtuClient, unsigned long locTimeSec);
 boolean readRespCommand(WiFiClient *localDtuClient);
 boolean writeReqCommand(WiFiClient *localDtuClient, uint8_t setPercent, unsigned long locTimeSec);
 
+boolean readRespCommandRestartDevice(WiFiClient *localDtuClient);
+boolean writeCommandRestartDevice(WiFiClient *localDtuClient, unsigned long locTimeSec);
 
 #endif // DTUINTERFACE_H

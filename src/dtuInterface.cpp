@@ -1,5 +1,6 @@
 // // dtuInterface.cpp
 #include "dtuInterface.h"
+#include "dtuConst.h"
 
 CRC16 crc;
 struct connectionControl dtuConnection;
@@ -28,30 +29,35 @@ void dtuConnectionEstablish(WiFiClient *localDtuClient, char localDtuHostIp[16],
 }
 
 // Function to stop the server connection
-void dtuConnectionStop(WiFiClient *localDtuClient)
+void dtuConnectionStop(WiFiClient *localDtuClient, uint8_t tgtState)
 {
     if (localDtuClient->connected())
     {
         localDtuClient->stop();
-        dtuConnection.dtuConnectState = DTU_STATE_OFFLINE;
+        dtuConnection.dtuConnectState = tgtState;
         Serial.print(F("+++ DTU Connection --- stopped\n"));
     }
 }
 
 // Function to handle connection errors
-void dtuConnectionHandleError(WiFiClient *localDtuClient, uint8_t errorState)
+void dtuConnectionHandleError(WiFiClient *localDtuClient, unsigned long locTimeSec, uint8_t errorState)
 {
     if (localDtuClient->connected())
     {
         dtuConnection.dtuErrorState = errorState;
-        dtuConnection.dtuConnectState = DTU_STATE_TRY_RECONNECT;
-        localDtuClient->stop();
-        Serial.print(F("\n+++ DTU Connection --- ERROR - stopped client and set try to reconnect - error state: "));
+        dtuConnection.dtuConnectState = DTU_STATE_DTU_REBOOT;
+        Serial.print(F("\n+++ DTU Connection --- ERROR - try with reboot of DTU - error state: "));
         Serial.println(errorState);
+        writeCommandRestartDevice(localDtuClient, locTimeSec);
+        globalData.dtuResetRequested = globalData.dtuResetRequested + 1;
+        localDtuClient->stop();
     }
 }
 
 // data handling
+
+float gridVoltHist[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+uint8_t gridVoltCnt = 0;
 
 unsigned long getDtuRemoteTimeAndDataUpdate(WiFiClient *localDtuClient, unsigned long locTimeSec)
 {
@@ -61,6 +67,31 @@ unsigned long getDtuRemoteTimeAndDataUpdate(WiFiClient *localDtuClient, unsigned
         writeReqRealDataNew(localDtuClient, locTimeSec);
         // writeReqAppGetHistPower(localDtuClient, locTimeSec); // only needed for sum energy daily/ total - but can lead to overflow for history data/ prevent maybe cloud update
         writeReqGetConfig(localDtuClient, locTimeSec);
+
+        //getRealDataNew(localDtuClient, locTimeSec);
+
+        // checking for hanging values on DTU side
+        gridVoltHist[gridVoltCnt++] = globalData.grid.voltage;
+        if (gridVoltCnt > 9)
+            gridVoltCnt = 0;
+
+        Serial.println("");
+        bool gridVoltValueHanging = true;
+        for (uint8_t i = 1; i < 10; i++)
+        {
+            Serial.println("GridV check - " + String(i) + " : " + String(gridVoltHist[i]) + " V - with: " + String(gridVoltHist[0]));
+            if (gridVoltHist[i] != gridVoltHist[0])
+            {
+                gridVoltValueHanging = false;
+                break;
+            }
+        }
+        Serial.println("GridV check result: " + String(gridVoltValueHanging));
+        if (gridVoltValueHanging)
+        {
+            dtuConnectionHandleError(localDtuClient, locTimeSec, DTU_ERROR_DATA_NO_CHANGE);
+            globalData.uptodate = false;
+        }
 
         // check for up-to-date - last response timestamp have to not equal the current response timestamp
         if ((globalData.lastRespTimestamp != globalData.respTimestamp) && (globalData.respTimestamp != 0))
@@ -78,14 +109,15 @@ unsigned long getDtuRemoteTimeAndDataUpdate(WiFiClient *localDtuClient, unsigned
         {
             globalData.uptodate = false;
             // stopping connection to DTU when response time error - try with reconnect
-            dtuConnectionHandleError(localDtuClient, DTU_ERROR_TIME_DIFF);
+            dtuConnectionHandleError(localDtuClient, locTimeSec, DTU_ERROR_TIME_DIFF);
         }
         globalData.lastRespTimestamp = globalData.respTimestamp;
     }
     else
     {
         globalData.uptodate = false;
-        dtuConnectionHandleError(localDtuClient);
+        // dtuConnectionHandleError(localDtuClient, locTimeSec);
+        // dtuConnection.dtuConnectState = DTU_STATE_TRY_RECONNECT;
     }
     return newLocTimeSec;
 }
@@ -199,7 +231,6 @@ boolean dtuCloudPauseActiveControl(unsigned long locTimeSec)
         Serial.print(F("----> switch ''OFF'' DTU server connection to upload data from DTU to Cloud\n\n"));
         lastSwOff = locTimeSec;
         dtuConnection.dtuActiveOffToCloudUpdate = true;
-        dtuConnection.dtuConnectState = DTU_STATE_CLOUD_PAUSE;
     }
     else if (locTimeSec > lastSwOff + DTU_CLOUD_UPLOAD_SECONDS && dtuConnection.dtuActiveOffToCloudUpdate)
     {
@@ -338,7 +369,7 @@ void writeReqAppGetHistPower(WiFiClient *localDtuClient, unsigned long locTimeSe
     readRespAppGetHistPower(localDtuClient);
 }
 
-void readRespRealDataNew(WiFiClient *localDtuClient)
+void readRespRealDataNew(WiFiClient *localDtuClient, unsigned long locTimeSec)
 {
 
     unsigned long timeout = millis();
@@ -449,7 +480,8 @@ void readRespRealDataNew(WiFiClient *localDtuClient)
     }
     else
     {
-        dtuConnection.dtuErrorState = DTU_ERROR_NO_TIME;
+        // dtuConnection.dtuErrorState = DTU_ERROR_NO_TIME;
+        dtuConnectionHandleError(localDtuClient, locTimeSec, DTU_ERROR_NO_TIME);
     }
 }
 
@@ -507,7 +539,7 @@ void writeReqRealDataNew(WiFiClient *localDtuClient, unsigned long locTimeSec)
     // Serial.println("");
 
     localDtuClient->write(message, 10 + stream.bytes_written);
-    readRespRealDataNew(localDtuClient);
+    readRespRealDataNew(localDtuClient, locTimeSec);
 }
 
 void readRespGetConfig(WiFiClient *localDtuClient)
@@ -631,7 +663,7 @@ boolean readRespCommand(WiFiClient *localDtuClient)
             return false;
         }
     }
-    // if there is no timeout, tehn assume limit was successfully changed
+    // if there is no timeout, then assume limit was successfully changed
     globalData.powerLimit = globalData.powerLimitSet;
 
     // Read all the bytes of the reply from server and print them to Serial
@@ -687,9 +719,9 @@ boolean writeReqCommand(WiFiClient *localDtuClient, uint8_t setPercent, unsigned
 
     CommandResDTO commandresdto = CommandResDTO_init_default;
     commandresdto.time = int32_t(locTimeSec);
-    commandresdto.tid = int32_t(locTimeSec);
-    commandresdto.action = 8;
+    commandresdto.action = CMD_ACTION_LIMIT_POWER;
     commandresdto.package_nub = 1;
+    commandresdto.tid = int32_t(locTimeSec);
 
     const int bufferSize = 61;
     char dataArray[bufferSize];
@@ -748,3 +780,115 @@ boolean writeReqCommand(WiFiClient *localDtuClient, uint8_t setPercent, unsigned
         return false;
     return true;
 }
+
+boolean readRespCommandRestartDevice(WiFiClient *localDtuClient)
+{
+    unsigned long timeout = millis();
+    while (localDtuClient->available() == 0)
+    {
+        if (millis() - timeout > 2000)
+        {
+            Serial.println(F(">>> Client Timeout !"));
+            localDtuClient->stop();
+            return false;
+        }
+    }
+
+    // Read all the bytes of the reply from server and print them to Serial
+    uint8_t buffer[1024];
+    size_t read = 0;
+    while (localDtuClient->available())
+    {
+        buffer[read++] = localDtuClient->read();
+    }
+
+    // Serial.printf("\nResponse: ");
+    // for (int i = 0; i < read; i++)
+    // {
+    //   Serial.printf("%02X", buffer[i]);
+    // }
+
+    pb_istream_t istream;
+    istream = pb_istream_from_buffer(buffer + 10, read - 10);
+
+    CommandReqDTO commandreqdto = CommandReqDTO_init_default;
+
+    Serial.print(" --> respCommand Restart - got remote: " + getTimeStringByTimestamp(commandreqdto.time));
+
+    pb_decode(&istream, &GetConfigReqDTO_msg, &commandreqdto);
+    Serial.printf("\ncommand req action: %i", commandreqdto.action);
+    Serial.printf("\ncommand req: %s", commandreqdto.dtu_sn);
+    Serial.printf("\ncommand req: %i", commandreqdto.err_code);
+    Serial.printf("\ncommand req: %i", commandreqdto.package_now);
+    Serial.printf("\ncommand req: %i", int(commandreqdto.tid));
+    Serial.printf("\ncommand req time: %i", commandreqdto.time);
+    return true;
+}
+
+boolean writeCommandRestartDevice(WiFiClient *localDtuClient, unsigned long locTimeSec)
+{
+    if (!localDtuClient->connected())
+        return false;
+
+    // request message
+    uint8_t buffer[200];
+    pb_ostream_t stream = pb_ostream_from_buffer(buffer, sizeof(buffer));
+
+    CommandResDTO commandresdto = CommandResDTO_init_default;
+    // commandresdto.time = int32_t(locTimeSec);
+
+    commandresdto.action = CMD_ACTION_DTU_REBOOT;
+    commandresdto.package_nub = 1;
+    commandresdto.tid = int32_t(locTimeSec);
+
+    bool status = pb_encode(&stream, CommandResDTO_fields, &commandresdto);
+
+    if (!status)
+    {
+        Serial.println(F("Failed to encode"));
+        return false;
+    }
+
+    // Serial.print(F("\nencoded: "));
+    for (unsigned int i = 0; i < stream.bytes_written; i++)
+    {
+        // Serial.printf("%02X", buffer[i]);
+        crc.add(buffer[i]);
+    }
+
+    uint8_t header[10];
+    header[0] = 0x48;
+    header[1] = 0x4d;
+    header[2] = 0x23; // Command = 0x03 - CMD_CLOUD_COMMAND_RES_DTO = b"\x23\x05"   => 0x23
+    header[3] = 0x05; // Command = 0x05                                             => 0x05
+    header[4] = 0x00;
+    header[5] = 0x01;
+    header[6] = (crc.calc() >> 8) & 0xFF;
+    header[7] = (crc.calc()) & 0xFF;
+    header[8] = ((stream.bytes_written + 10) >> 8) & 0xFF; // suggest parentheses around '+' inside '>>' [-Wparentheses]
+    header[9] = (stream.bytes_written + 10) & 0xFF;        // warning: suggest parentheses around '+' in operand of '&' [-Wparentheses]
+    crc.restart();
+
+    uint8_t message[10 + stream.bytes_written];
+    for (int i = 0; i < 10; i++)
+    {
+        message[i] = header[i];
+    }
+    for (unsigned int i = 0; i < stream.bytes_written; i++)
+    {
+        message[i + 10] = buffer[i];
+    }
+
+    // Serial.print(F("\nRequest: "));
+    // for (int i = 0; i < 10 + stream.bytes_written; i++)
+    // {
+    //   Serial.print(message[i]);
+    // }
+    // Serial.println("");
+
+    localDtuClient->write(message, 10 + stream.bytes_written);
+    if (!readRespCommandRestartDevice(localDtuClient))
+        return false;
+    return true;
+}
+
