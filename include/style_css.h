@@ -112,6 +112,7 @@ hr {
 
 .panelHead {
     padding-bottom: 2px;
+    font-size: x-small;
 }
 
 /* animated change of color if value chnaged */
