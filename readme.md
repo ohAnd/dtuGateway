@@ -30,19 +30,19 @@
 ## problem
 The new series of Hoymiles inverter with internal wireless access point and wireless client have no direct API to include this endpoint in smarthome installations/ IFTT environments.
 
-Usually there should be no need for an extra device to "translate" the connection to common APIs or bindings. Unfortunately the interface on the dtu is unlikey unstable/ or not really stable.
+Usually there should be no need for an extra device to "translate" the connection to common APIs or bindings. Unfortunately the interface on the dtu is unlikely unstable/ or not really stable.
 
 E.g. there is a treshhold of ~ 31 seconds before you can send new data to the dtu (e.g. new power limit), otherwise the connection hangs and an internal restart/ reboot (???) leads to an offline time of ~ 30 minutes. 
 Data from dtu can be read in a very short time, but it has to be tested how often a request leads to the problem before.
 
-On a manual way you can be back on track if you logging in to the local access point of the dtu and resend your local wifi login data to (it seems) initiate a reboot. With this way you can be back online in ~ 1:30 minutes.
+On a manual way you can be back on track, if you are logging in to the local access point of the dtu and resend your local wifi login data to (it seems) initiate a reboot. With this way you can be back online in ~ 1:30 minutes.
 
 
 > *hint: the whole project could be also implemented on a small server and translated to e.g. python [see here for an example](https://github.com/henkwiedig/Hoymiles-DTU-Proto) and also the sources below*
 
 ## goal
-1. Abstract the interface to the dtu (inverter connection endpoint) with different possibilities to connect other systems. (push/ pull)
-2. Very stable interface with no dependencies to a environment system with a stand alone application based on a arduino board (ESP8266).
+1. Abstract the interface to the dtu (inverter connection endpoint) with different possibilities to connect to other systems. (push/ pull)
+2. Very stable interface with no dependencies to an environment/ a system with a stand alone application based on an arduino board (ESP8266).
 3. TODO: Ability to change running wifi to connect to dtu over local network or direct access point.
 4. Use this need to create a full enivronment for an ESP based project. (see features below)
 
@@ -59,7 +59,8 @@ On a manual way you can be back on track if you logging in to the local access p
 - updating openHab instance with readed data and pulling set data from the instance
 - for testing purposes the time between each request is adjustable (default 31 seconds) 
 - syncing time of gateway with the local time of the dtu to prevent wrong restart counters
-- configurable 'cloud pause' - see [experiences](#-experiences-with-the-hoymiles-HMS-800W-2T) - to prevent missing updates by the dtu to the hoymiles cloud 
+- configurable 'cloud pause' - see [experiences](#-experiences-with-the-hoymiles-HMS-800W-2T) - to prevent missing updates by the dtu to the hoymiles cloud
+- automatic reboot of DTU, if there is an error detected (e.g. inplausible not changed values)
 
 ### regarding environment
 
@@ -137,6 +138,7 @@ On a manual way you can be back on track if you logging in to the local access p
     "dtuPassword": "dtubiPassword",
     "dtuRssi": 0,
     "dtuDataCycle": 32,
+    "dtuResetRequested": 0,
     "dtuCloudPause": 1,
     "dtuCloudPauseTime": 40
   },
@@ -198,7 +200,7 @@ On a manual way you can be back on track if you logging in to the local access p
       - "<openItemPrefix>_WifiRSSI"
 
 ## known bugs
-- ...
+- sometimes out-of-memory resets with instant reboots (rare after some hours or more often after some days)
 
 ## releases
 ### installation / update
@@ -245,6 +247,13 @@ https://github.com/ohAnd/dtuGateway/releases/tag/snapshot
 If there to much requests of setting the power limit minutes later the connection is broken and cannot be directly established again - with current experience the dtu resets itself after ~ 30 min and is accessable again.
 
 With the manual login to dtu access point and forcing the storing of local wifi connect data again, then dtu is back online and accessable in your local network. (This is a possible feature that can be implemented in future - needed protocol sequence has to be investigated)
+
+[2024-03-24] 
+- lot of single updates for power setting within few seconds (< 2-3) without any reading of values (e.g. realdata) -> it seems this creating no problems
+- therefore current setup -> no time limit for power setting, but reading data only every 31 seconds is running fine
+- sometimes hanging or full shutdown/ break of DTU will be prevented by sending an active reboot request to dtu (hanging detection at this time over grid voltage, should be changing at least within 10 consecutive incoming data)
+- with this setup: now the device is running for days without any stops (overall system point of view: target settings will be performed everytime, readed data will be available, no manual steps needed to recover the dtu connection)
+
 
 ### hoymiles cloud update
 - everey 15 min (0,15,30,45) -> timestamp update
