@@ -39,13 +39,13 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                 connect to wifi:
             </div>
             <div>
-                <input type="text" id="wifiSSIDsend" value="please choose above or type in" required maxlength="32">
+                <input type="text" id="wifiSSIDsend" value="please choose above or type in" required maxlength="64">
             </div>
             <div>
                 wifi password (<i class="passcheck" value="invisible">show</i>):
             </div>
             <div>
-                <input type="password" id="wifiPASSsend" value="admin12345" required maxlength="32">
+                <input type="password" id="wifiPASSsend" value="admin12345" required maxlength="64">
             </div>
             <div style="text-align: center;">
                 <b onclick="changeWifiData()" id="btnSaveWifiSettings" class="form-button btn">save</b>
@@ -98,13 +98,13 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                 dtu local wireless access point:
             </div>
             <div>
-                <input type="text" id="dtuSsid" value="please type in" required maxlength="32">
+                <input type="text" id="dtuSsid" value="please type in" required maxlength="64">
             </div>
             <div>
                 dtu wifi password (<i class="passcheck" value="invisible">show</i>):
             </div>
             <div>
-                <input type="password" id="dtuPassword" value="admin12345" required maxlength="32">
+                <input type="password" id="dtuPassword" value="admin12345" required maxlength="64">
             </div>
 
             <div style="text-align: center;">
@@ -423,10 +423,11 @@ const char INDEX_HTML[] PROGMEM = R"=====(
 
         function checkInitToSettings(data) {
             // if not configured then start directly with settings dialogue
-            if (data.initMode == 1) {
+            var startUptext = "settings --- startup config mode";
+            if (data.initMode == 1 && $('.popupHeaderTitle').html() != startUptext) {
                 show("#changeSettings");
                 remainingTime = 0.1; // no countdown on top of the site
-                $('#settingsTitle').html("settings - in startup config mode");
+                $('.popupHeaderTitle').html(startUptext);
                 // disable close button
                 $('#btnSettingsClose').css('opacity', '0.3');
                 $('#btnSettingsClose').attr('onclick', "")

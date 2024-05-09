@@ -15,7 +15,9 @@
   - [known bugs](#known-bugs)
   - [releases](#releases)
     - [installation / update](#installation--update)
-    - [first setup with access point](#first-setup-with-access-point)
+      - [first installation to the ESP device](#first-installation-to-the-esp-device)
+      - [first setup with access point](#first-setup-with-access-point)
+      - [return to factory mode](#return-to-factory-mode)
     - [main](#main)
     - [snapshot](#snapshot)
   - [experiences with the hoymiles HMS-800W-2T](#experiences-with-the-hoymiles-hms-800w-2t)
@@ -204,6 +206,7 @@ On a manual way you can be back on track, if you are logging in to the local acc
 
 ## releases
 ### installation / update
+#### first installation to the ESP device
 1. download the preferred release as binary (see below)
 2. **HAS TO BE VERIFIED** [only once] flash the esp8266 board with the (esp download tool)[https://www.espressif.com/en/support/download/other-tools]
    1. choose bin file at address 0x0
@@ -215,11 +218,18 @@ On a manual way you can be back on track, if you are logging in to the local acc
    7. press start ;-)
 3. all further updates are done by OTA (see chapters above) 
 
-### first setup with access point
+#### first setup with access point
 1. connect with the AP hoymilesGW_<chipID> (on smartphone sometimes you have to accept the connection explicitly with the knowledge there is no internet connectivity)
 2. open the website http://192.168.4.1 (or http://hoymilesGW.local) for the first configuration
 3. choose your wifi
 4. type in the wifi password - save
+
+#### return to factory mode
+1. connect your ESP with serial (115200 baud) in a COM terminal
+2. check if receive some debug data from the device
+3. type in `resetToFactory 1`
+4. response of the device will be `reinitialize EEPROM data and reboot ...`
+5. after reboot the device starting again in AP mode for first setup
 
 ### main
 latest release - changes will documented by commit messages
@@ -270,6 +280,11 @@ With the manual login to dtu access point and forcing the storing of local wifi 
 fully covered with github actions
 
 building on push to develop and serving as a snapshot release with direct connection to the device - available updates will be locally checked and offered to the user for installation 
+
+hint: referring to [Error Build in platform.io - buildnumber file not found #6](https://github.com/ohAnd/dtuGateway/issues/6) for local building: 
+> For automatic versioning there is a file called ../include/buildnumber.txt expected. With the content "localDev" or versionnumber e.g. "1.0.0" in first line. (File is blocked by .gitignore for GitHub actions to run.)
+
+
 
 ### platformio
 - https://docs.platformio.org/en/latest/core/installation/methods/installer-script.html#local-download-macos-linux-windows

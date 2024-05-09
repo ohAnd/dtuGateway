@@ -18,7 +18,7 @@ void loadConfigFromEEPROM()
 void initializeEEPROM()
 {
     // EEPROM initialize
-    EEPROM.begin(256); // emulate 512 Byte pf EEPROM
+    EEPROM.begin(512); // emulate 512 Byte pf EEPROM
 
     // Check if EEPROM has been initialized before
     EEPROM.get(0, userConfig);
