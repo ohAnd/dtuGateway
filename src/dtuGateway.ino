@@ -13,6 +13,8 @@
 #include <WiFiUdp.h>
 #include <NTPClient.h>
 
+#include <PubSubClient.h>
+
 #include <ArduinoJson.h>
 
 #include <EEPROM.h>
@@ -65,6 +67,8 @@ WiFiUDP ntpUDP;
 WiFiClient dtuClient;
 NTPClient timeClient(ntpUDP); // By default 'pool.ntp.org' is used with 60 seconds update interval
 #define CLIENT_TIME_OFFSET 3600
+
+PubSubClient mqttClient(dtuClient);
 
 ESP8266WebServer server(80);
 
@@ -819,6 +823,49 @@ boolean updateValueToOpenhab()
   return true;
 }
 
+// mqtt client
+
+const char *mqtt_server = "192.168.1.30";
+
+void initMqttClient()
+{
+  mqttClient.setServer(mqtt_server, 1883);
+}
+
+void reconnectMqttClient()
+{
+  // Loop until we're reconnected
+  // while (!mqttClient.connected()) {
+  if (!mqttClient.connected())
+  {
+    Serial.print("Attempting MQTT connection...");
+    // Attempt to connect
+    if (mqttClient.connect("dtuGaterway"))
+    {
+      Serial.println("connected");
+    }
+    else
+    {
+      Serial.print("failed, rc=");
+      Serial.print(mqttClient.state());
+      Serial.println(" try again in 5 seconds");
+      // Wait 5 seconds before retrying
+      // delay(5000);
+    }
+  }
+}
+
+boolean postMessageToMQTTbroker(String topic, String value)
+{
+  const char *charTopic = topic.c_str();
+  const char *charValue = value.c_str();
+
+  mqttClient.publish(charTopic, charValue);
+  return true;
+}
+
+// ****
+
 void setup()
 {
   // switch off SCK LED
@@ -916,6 +963,7 @@ void startServices()
     Serial.println(String(starttime));
 
     initializeWebServer();
+    initMqttClient();
   }
   else
   {
@@ -1238,6 +1286,8 @@ void loop()
       Serial.print(" --- RSSI to AP: '" + String(WiFi.SSID()) + "': " + String(globalData.wifi_rssi_gateway) + " %");
 
       getPowerSetDataFromOpenHab();
+
+      reconnectMqttClient();
     }
   }
 
