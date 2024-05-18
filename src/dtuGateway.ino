@@ -300,6 +300,7 @@ void handleInfojson()
   JSON = JSON + "\"mqttConnection\": {";
   JSON = JSON + "\"mqttActive\": " + userConfig.mqttActive + ",";
   JSON = JSON + "\"mqttIp\": \"" + String(userConfig.mqttBrokerIp) + "\",";
+  JSON = JSON + "\"mqttPort\": " + String(userConfig.mqttBrokerPort) + ",";
   JSON = JSON + "\"mqttUser\": \"" + String(userConfig.mqttBrokerUser) + "\",";
   JSON = JSON + "\"mqttPass\": \"" + String(userConfig.mqttBrokerPassword) + "\",";
   JSON = JSON + "\"mqttMainTopic\": \"" + String(userConfig.mqttBrokerMainTopic) + "\"";
@@ -404,14 +405,15 @@ void handleUpdateDtuSettings()
 void handleUpdateBindingsSettings()
 {
   String openhabHostIpUser = server.arg("openhabHostIpSend"); // retrieve message from webserver
-  String openhabPrefix = server.arg("openhabPrefixSend");     // retrieve message from webserver
-  String openhabActive = server.arg("openhabActiveSend");     // retrieve message from webserver
+  String openhabPrefix = server.arg("openhabPrefixSend");
+  String openhabActive = server.arg("openhabActiveSend");
 
-  String mqttIP = server.arg("mqttIpSend");               // retrieve message from webserver
-  String mqttUser = server.arg("mqttUserSend");           // retrieve message from webserver
-  String mqttPass = server.arg("mqttPassSend");           // retrieve message from webserver
-  String mqttMainTopic = server.arg("mqttMainTopicSend"); // retrieve message from webserver
-  String mqttActive = server.arg("mqttActiveSend");       // retrieve message from webserver
+  String mqttIP = server.arg("mqttIpSend");
+  String mqttPort = server.arg("mqttPortSend");
+  String mqttUser = server.arg("mqttUserSend");
+  String mqttPass = server.arg("mqttPassSend");
+  String mqttMainTopic = server.arg("mqttMainTopicSend");
+  String mqttActive = server.arg("mqttActiveSend");
 
   openhabHostIpUser.toCharArray(userConfig.openhabHostIp, sizeof(userConfig.openhabHostIp));
   openhabPrefix.toCharArray(userConfig.openItemPrefix, sizeof(userConfig.openItemPrefix));
@@ -422,6 +424,7 @@ void handleUpdateBindingsSettings()
     userConfig.openhabActive = false;
 
   mqttIP.toCharArray(userConfig.mqttBrokerIp, sizeof(userConfig.mqttBrokerIp));
+  userConfig.mqttBrokerPort = mqttPort.toInt();
   mqttUser.toCharArray(userConfig.mqttBrokerUser, sizeof(userConfig.mqttBrokerUser));
   mqttPass.toCharArray(userConfig.mqttBrokerPassword, sizeof(userConfig.mqttBrokerPassword));
   mqttMainTopic.toCharArray(userConfig.mqttBrokerMainTopic, sizeof(userConfig.mqttBrokerMainTopic));
@@ -434,15 +437,19 @@ void handleUpdateBindingsSettings()
   saveConfigToEEPROM();
   delay(500);
 
+  // reintialize mqtt with new settings
+  initMqttClient();
+
   String JSON = "{";
   JSON = JSON + "\"openhabActive\": " + userConfig.openhabActive + ",";
   JSON = JSON + "\"openhabHostIp\": \"" + userConfig.openhabHostIp + "\",";
   JSON = JSON + "\"openItemPrefix\": \"" + userConfig.openItemPrefix + "\",";
   JSON = JSON + "\"mqttActive\": " + userConfig.mqttActive + ",";
   JSON = JSON + "\"mqttBrokerIp\": \"" + userConfig.mqttBrokerIp + "\",";
+  JSON = JSON + "\"mqttBrokerPort\": " + String(userConfig.mqttBrokerPort) + ",";
   JSON = JSON + "\"mqttBrokerUser\": \"" + userConfig.mqttBrokerUser + "\",";
   JSON = JSON + "\"mqttBrokerPassword\": \"" + userConfig.mqttBrokerPassword + "\",";
-  JSON = JSON + "\"mqttBrokerMainTopic\": \"" + userConfig.mqttBrokerMainTopic;
+  JSON = JSON + "\"mqttBrokerMainTopic\": \"" + userConfig.mqttBrokerMainTopic+ "\"";
   JSON = JSON + "}";
 
   server.send(200, "application/json", JSON);
@@ -867,8 +874,8 @@ boolean updateValueToOpenhab()
 
 void initMqttClient()
 {
-  mqttClient.setServer(userConfig.mqttBrokerIp, 1883);
-  Serial.print("\ninitialized MQTT client ... to broker: " + String(userConfig.mqttBrokerIp) + "\n");
+  mqttClient.setServer(userConfig.mqttBrokerIp, userConfig.mqttBrokerPort);
+  Serial.print("\ninitialized MQTT client ... to broker: " + String(userConfig.mqttBrokerIp) + ":" + String(userConfig.mqttBrokerPort) + "\n");
 }
 
 void reconnectMqttClient()

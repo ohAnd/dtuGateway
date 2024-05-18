@@ -42,6 +42,7 @@ void initializeEEPROM()
         userConfig.openhabActive = 0;
         
         strcpy(userConfig.mqttBrokerIp, "192.168.1.100");
+        userConfig.mqttBrokerPort = 1883;
         strcpy(userConfig.mqttBrokerUser, "dtuuser");
         strcpy(userConfig.mqttBrokerPassword, "dtupass");
         strcpy(userConfig.mqttBrokerMainTopic, "dtu1");
@@ -93,6 +94,8 @@ void printEEPROMdata()
 
         Serial.print(F("mqtt host: \t\t"));
         Serial.println(userConfig.mqttBrokerIp);
+        Serial.print(F("mqtt port: \t\t"));
+        Serial.println(userConfig.mqttBrokerPort);
         Serial.print(F("mqtt user: \t\t"));
         Serial.println(userConfig.mqttBrokerUser);
         Serial.print(F("mqtt pass: \t\t"));

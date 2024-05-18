@@ -78,7 +78,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                     <p>publish all data to a specific mqtt broker and subscribing to the requested powersetting</p>
                 </div>
                 <div>
-                    IP to mqtt broker:
+                    IP/port to mqtt broker (e.g. 192.168.178.100:1883):
                 </div>
                 <div>
                     <input type="text" id="mqttIP" class="ipv4Input" name="ipv4" placeholder="xxx.xxx.xxx.xxx">
@@ -667,7 +667,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                 $('#mqttActive').prop("checked", false);
                 $('#mqttSection').css('color', 'grey');
             }
-            $('#mqttIP').val(mqttData.mqttIp);
+            $('#mqttIP').val(mqttData.mqttIp+":"+mqttData.mqttPort);
             $('#mqttUser').val(mqttData.mqttUser);
             $('#mqttPassword').val(mqttData.mqttPass);
             $('#mqttMainTopic').val(mqttData.mqttMainTopic);
@@ -804,7 +804,14 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                 openhabActiveSend = 0;
             }
 
-            var mqttIpSend = $('#mqttIP').val();
+            var mqttIpPortString = $('#mqttIP').val().split(":");
+
+
+            var mqttIpSend = mqttIpPortString[0];
+            var mqttPortSend = "1883";
+            if(mqttIpPortString[1] != undefined && !isNaN(mqttIpPortString[1])) {
+                mqttPortSend = mqttIpPortString[1];
+            }            
             var mqttUserSend = $('#mqttUser').val();
             var mqttPassSend = $('#mqttPassword').val();
             var mqttMainTopicSend = $('#mqttMainTopic').val();
@@ -820,6 +827,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             data["openhabActiveSend"] = openhabActiveSend;
 
             data["mqttIpSend"] = mqttIpSend;
+            data["mqttPortSend"] = mqttPortSend;
             data["mqttUserSend"] = mqttUserSend;
             data["mqttPassSend"] = mqttPassSend;
             data["mqttMainTopicSend"] = mqttMainTopicSend;
@@ -834,7 +842,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                 urlEncodedDataPairs.push(
                     `${encodeURIComponent(name)}=${encodeURIComponent(value)}`,
                 );
-                console.log("push: " + name);
+                console.log("push: " + name + " - value: " + value);
             }
 
             // Combine the pairs into a single string and replace all %-encoded spaces to
@@ -851,9 +859,9 @@ const char INDEX_HTML[] PROGMEM = R"=====(
 
             strResult = JSON.parse(xmlHttp.responseText);
             console.log("got from server: " + strResult);
-            console.log("got from server - strResult.dtuHostIp: " + strResult.openhabHostIp + " - cmp with: " + openhabHostIp);
+            console.log("got from server - strResult.dtuHostIp: " + strResult.openhabHostIp + " - cmp with: " + openhabHostIpSend);
 
-            if (strResult.dtuHostIp == dtuHostIpSend && strResult.dtuSsid == dtuSsidSend && strResult.dtuPassword == dtuPasswordSend) {
+            if (strResult.openhabHostIp == openhabHostIpSend && strResult.mqttBrokerIp == mqttIpSend && strResult.mqttBrokerUser == mqttUserSend) {
                 console.log("check saved data - OK");
                 alert("bindings Settings change\n__________________________________\n\nYour settings were successfully changed.\n\nChanges will be applied.");
             } else {

@@ -18,6 +18,7 @@ struct UserConfig
     char openItemPrefix[32];
     boolean openhabActive;
     char mqttBrokerIp[16];
+    int mqttBrokerPort;
     char mqttBrokerUser[64];
     char mqttBrokerPassword[64];
     char mqttBrokerMainTopic[32];
