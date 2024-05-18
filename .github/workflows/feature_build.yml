@@ -1,0 +1,49 @@
+name: PlatformIO CI feature branch build
+
+on:
+  push:
+    branches:
+      - '*'
+      - '!develop'
+      - '!main'
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.platformio/.cache
+          key: ${{ runner.os }}-pio
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      - name: Install PlatformIO Core
+        run: pip install --upgrade platformio
+
+      - name: write temp file with build number and set to env variable
+        run: |
+          touch ${{ github.workspace }}/include/buildnumber.txt
+          printf -v BUILDNUMBER "%04d" ${{github.run_number}}
+          echo $BUILDNUMBER >> ${{ github.workspace }}/include/buildnumber.txt
+          echo "got current buildnumber and saved: "
+          cat ${{ github.workspace }}/include/buildnumber.txt
+          echo "CURRENT_BUILDNUMBER=$BUILDNUMBER" >> $GITHUB_ENV
+
+      - name: Build PlatformIO Project
+        run: pio run
+
+      - name: got current version and changing firmware name after building
+        run: |
+            VERSIONNUMBER=$(python ${{ github.workspace }}/version_inc.py getversion 2>&1)
+            echo "got versionnumber: " $VERSIONNUMBER
+            echo "CURRENT_VERSIONNUMBER=$VERSIONNUMBER" >> $GITHUB_ENV
+            mv .pio/build/esp12e/firmware.bin .pio/build/esp12e/dtuGateway_snapshot_$VERSIONNUMBER.bin
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          path: .pio/build/esp12e/dtuGateway_snapshot_${{ env.CURRENT_VERSIONNUMBER }}.bin
