@@ -49,6 +49,6 @@ jobs:
             mv .pio/build/esp12e/firmware.bin .pio/build/esp12e/dtuGateway_snapshot_$VERSIONNUMBER.bin
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           path: .pio/build/esp12e/dtuGateway_snapshot_${{ env.CURRENT_VERSIONNUMBER }}.bin
