@@ -12,6 +12,7 @@
     - [data - http://\<ip\_to\_your\_device\>/api/data](#data---httpip_to_your_deviceapidata)
     - [info - http://\<ip\_to\_your\_device\>/api/info](#info---httpip_to_your_deviceapiinfo)
   - [openhab integration/ configuration](#openhab-integration-configuration)
+  - [mqqt integration/ configuration](#mqqt-integration-configuration)
   - [known bugs](#known-bugs)
   - [releases](#releases)
     - [installation / update](#installation--update)
@@ -58,7 +59,9 @@ On a manual way you can be back on track, if you are logging in to the local acc
   - temperature and wifi rssi of the dtu
 - setting the target inverter power limit dynamically
 - serving the readed data per /api/data
-- updating openHab instance with readed data and pulling set data from the instance
+- binding configuration with seperate activation and login data setting
+- binding: updating openHab instance with readed data and pulling set data from the instance
+- binding: updating to a MQTT broker with readed data [OPEN: and pulling set data from the instance]
 - for testing purposes the time between each request is adjustable (default 31 seconds) 
 - syncing time of gateway with the local time of the dtu to prevent wrong restart counters
 - configurable 'cloud pause' - see [experiences](#-experiences-with-the-hoymiles-HMS-800W-2T) - to prevent missing updates by the dtu to the hoymiles cloud
@@ -200,6 +203,39 @@ On a manual way you can be back on track, if you are logging in to the local acc
       - "<openItemPrefix>_Temp"
       - "<openItemPrefix>_PowerLimit" //current read power limit from dtu
       - "<openItemPrefix>_WifiRSSI"
+
+## mqqt integration/ configuration
+
+- set the IP to your MQTT broker
+- set the MQTT user and MQTT password
+- set the main topic e.g. 'dtu1' for the pubished data
+- data will be published as following ('dtu1' is configurable in the settings):
+  
+  ```
+  dtu1/timestamp
+
+  dtu1/grid/U
+  dtu1/grid/I
+  dtu1/grid/P
+  dtu1/grid/dailyEnergy
+  dtu1/grid/totalEnergy
+  
+  dtu1/pv0/U
+  dtu1/pv0/I
+  dtu1/pv0/P
+  dtu1/pv0/dailyEnergy
+  dtu1/pv0/totalEnergy
+  
+  dtu1/pv1/U
+  dtu1/pv1/I
+  dtu1/pv1/P
+  dtu1/pv1/dailyEnergy
+  dtu1/pv1/totalEnergy
+
+  dtu1/inverter/Temp
+  dtu1/inverter/PowerLimit
+  dtu1/inverter/WifiRSSI
+  ```
 
 ## known bugs
 - sometimes out-of-memory resets with instant reboots (rare after some hours or more often after some days)

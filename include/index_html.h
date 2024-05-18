@@ -23,7 +23,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                 <!-- <h2>settings</h2> -->
             </div>
             <div class="popupHeaderTabs">
-                <div>openhab</div>
+                <div>bindings</div>
                 <div>dtu</div>
                 <div class="selected">wifi</div>
             </div>
@@ -52,24 +52,58 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                 <b onclick="hide('#changeSettings')" id="btnSettingsClose" class="form-button btn">close</b>
             </div>
         </div>
-        <div class="popupContent" id="openhab">
-            <div>
-                <p>define your openhab instance</p>
+        <div class="popupContent" id="bindings">
+            <div id="openhabSection">
+                <h3 id="test"><input type="checkbox" id="openhabActive"> openhab</h3>
+                <div>
+                    <p>define your openhab instance</p>
+                </div>
+                <div>
+                    IP to openhab:
+                </div>
+                <div>
+                    <input type="text" id="openhabIP" class="ipv4Input" name="ipv4" placeholder="xxx.xxx.xxx.xxx">
+                </div>
+                <div>
+                    openHab item prefix for U,I,P,dE,TE per channel:
+                </div>
+                <div>
+                    <input type="text" id="ohItemPrefix" maxlength="32">
+                </div>
             </div>
-            <div>
-                IP to openhab:
-            </div>
-            <div>
-                <input type="text" id="openhabIP" class="ipv4Input" name="ipv4" placeholder="xxx.xxx.xxx.xxx">
-            </div>
-            <div>
-                openHab item prefix for U,I,P,dE,TE per channel:
-            </div>
-            <div>
-                <input type="text" id="ohItemPrefix" maxlength="32">
+            <hr>
+            <div id="mqttSection">
+                <h3><input type="checkbox" id="mqttActive"> mqtt publishing</h3>
+                <div>
+                    <p>publish all data to a specific mqtt broker and subscribing to the requested powersetting</p>
+                </div>
+                <div>
+                    IP to mqtt broker:
+                </div>
+                <div>
+                    <input type="text" id="mqttIP" class="ipv4Input" name="ipv4" placeholder="xxx.xxx.xxx.xxx">
+                </div>
+                <div>
+                    specific user on your mqtt broker instance:
+                </div>
+                <div>
+                    <input type="text" id="mqttUser" value="please type in" required maxlength="64">
+                </div>
+                <div>
+                    password for the given mqtt user (<i class="passcheck" value="invisible">show</i>):
+                </div>
+                <div>
+                    <input type="password" id="mqttPassword" value="admin12345" required maxlength="64">
+                </div>
+                <div>
+                    mqtt main topic for this dtu (e.g. dtu1 will appear as 'dtu1/grid/U' in the broker):
+                </div>
+                <div>
+                    <input type="text" id="mqttMainTopic" maxlength="32">
+                </div>
             </div>
             <div style="text-align: center;">
-                <b onclick="changeOpenhabData()" id="btnSaveWifiSettings" class="form-button btn">save</b>
+                <b onclick="changeBindingsData()" id="btnSaveWifiSettings" class="form-button btn">save</b>
                 <b onclick="hide('#changeSettings')" id="btnSettingsClose" class="form-button btn">close</b>
             </div>
         </div>
@@ -89,8 +123,6 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             </div>
             <div>
                 dtu cloud update pause (no cycle update every full 15 min):
-            </div>
-            <div>
                 <input type="checkbox" id="dtuCloudPause">
             </div>
             <hr>
@@ -393,7 +425,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             }, 100);
         });
 
-        // switchung in popups between tabs
+        // switching in popups between tabs
         $(document).on("click", ".popupHeaderTabs>div", function (event) {
             $('.popupHeaderTabs>div').each(function () {
                 $(this).removeClass("selected");
@@ -406,13 +438,24 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             });
         })
 
+        // grey'ing the bindings sections according to activation
+        $("input[type='checkbox']").change(function () {
+            if ($(this).closest('div').get(0).id != '') {
+                if (this.checked) {
+                    $(this).closest('div').css('color', '');
+                } else {
+                    $(this).closest('div').css('color', 'grey');
+                }
+            }
+        });
+
         var show = function (id) {
             console.log("show " + id)
             $(id).show(200);
             if (id == '#changeSettings') {
                 getWIFIdata();
                 getDTUdata();
-                getOHdata();
+                getBindingsData();
             }
         }
 
@@ -425,7 +468,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             // if not configured then start directly with settings dialogue
             var startUptext = "settings --- startup config mode";
             if (data.initMode == 1 && $('.popupHeaderTitle').html() != startUptext) {
-                show("#changeSettings");
+                show('#changeSettings');
                 remainingTime = 0.1; // no countdown on top of the site
                 $('.popupHeaderTitle').html(startUptext);
                 // disable close button
@@ -547,7 +590,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             // setting timer value according to user setting
             waitTime = data.dtuConnection.dtuDataCycle * 1000;
 
-            checkValueUpdate('#dtu_reboots_no', data.dtuConnection.dtuResetRequested );
+            checkValueUpdate('#dtu_reboots_no', data.dtuConnection.dtuResetRequested);
 
             return true;
         }
@@ -598,16 +641,36 @@ const char INDEX_HTML[] PROGMEM = R"=====(
 
         }
 
-        function getOHdata() {
+        function getBindingsData() {
             // 
             $('#btnSaveDtuSettings').css('opacity', '1.0');
             $('#btnSaveDtuSettings').attr('onclick', "changeDtuData();")
 
             ohData = cacheInfoData.openHabConnection;
+            mqttData = cacheInfoData.mqttConnection;
 
             // get networkdata
+            if (ohData.ohActive) {
+                $('#openhabActive').prop("checked", true);
+                $('#openhabSection').css('color', '');
+            } else {
+                $('#openhabActive').prop("checked", false);
+                $('#openhabSection').css('color', 'grey');
+            }
             $('#openhabIP').val(ohData.ohHostIp);
             $('#ohItemPrefix').val(ohData.ohItemPrefix);
+
+            if (mqttData.mqttActive) {
+                $('#mqttActive').prop("checked", true);
+                $('#mqttSection').css('color', '');
+            } else {
+                $('#mqttActive').prop("checked", false);
+                $('#mqttSection').css('color', 'grey');
+            }
+            $('#mqttIP').val(mqttData.mqttIp);
+            $('#mqttUser').val(mqttData.mqttUser);
+            $('#mqttPassword').val(mqttData.mqttPass);
+            $('#mqttMainTopic').val(mqttData.mqttMainTopic);
         }
 
         $('.passcheck').click(function () {
@@ -615,11 +678,13 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             if ($(this).attr("value") == 'invisible') {
                 $('#wifiPASSsend').attr('type', 'text');
                 $('#dtuPassword').attr('type', 'text');
+                $('#mqttPassword').attr('type', 'text');
                 $('.passcheck').attr('value', 'visibile');
                 $('.passcheck').html("hide");
             } else {
                 $('#wifiPASSsend').attr('type', 'password');
                 $('#dtuPassword').attr('type', 'password');
+                $('#mqttPassword').attr('type', 'password');
                 $('.passcheck').attr('value', 'invisible');
                 $('.passcheck').html("show");
             }
@@ -730,10 +795,35 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             return;
         }
 
-        function changeOpenhabData() {
+        function changeBindingsData() {
             var openhabHostIpSend = $('#openhabIP').val();
+            var openhabPrefixSend = $('#ohItemPrefix').val();
+            if ($("#openhabActive").is(':checked')) {
+                openhabActiveSend = 1;
+            } else {
+                openhabActiveSend = 0;
+            }
+
+            var mqttIpSend = $('#mqttIP').val();
+            var mqttUserSend = $('#mqttUser').val();
+            var mqttPassSend = $('#mqttPassword').val();
+            var mqttMainTopicSend = $('#mqttMainTopic').val();
+            if ($("#mqttActive").is(':checked')) {
+                mqttActiveSend = 1;
+            } else {
+                mqttActiveSend = 0;
+            }
+
             var data = {};
             data["openhabHostIpSend"] = openhabHostIpSend;
+            data["openhabPrefixSend"] = openhabPrefixSend;
+            data["openhabActiveSend"] = openhabActiveSend;
+
+            data["mqttIpSend"] = mqttIpSend;
+            data["mqttUserSend"] = mqttUserSend;
+            data["mqttPassSend"] = mqttPassSend;
+            data["mqttMainTopicSend"] = mqttMainTopicSend;
+            data["mqttActiveSend"] = mqttActiveSend;
 
             console.log("send to server: openhabHostIpSend: " + openhabHostIpSend);
 
@@ -753,7 +843,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
 
 
             var xmlHttp = new XMLHttpRequest();
-            xmlHttp.open("POST", "/updateOHSettings", false); // false for synchronous request
+            xmlHttp.open("POST", "/updateBindingsSettings", false); // false for synchronous request
             xmlHttp.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
 
             // Finally, send our data.
@@ -765,9 +855,9 @@ const char INDEX_HTML[] PROGMEM = R"=====(
 
             if (strResult.dtuHostIp == dtuHostIpSend && strResult.dtuSsid == dtuSsidSend && strResult.dtuPassword == dtuPasswordSend) {
                 console.log("check saved data - OK");
-                alert("openhab Settings change\n__________________________________\n\nYour settings were successfully changed.\n\nClient connection will be reconnected to the new IP.");
+                alert("bindings Settings change\n__________________________________\n\nYour settings were successfully changed.\n\nChanges will be applied.");
             } else {
-                alert("openhab Settings change\n__________________________________\n\nSome error occured! Checking data from gateway are not as excpeted after sending to save.\n\nPlease try again!");
+                alert("bindings Settings change\n__________________________________\n\nSome error occured! Checking data from gateway are not as excpeted after sending to save.\n\nPlease try again!");
             }
 
             hide('#changeSettings');

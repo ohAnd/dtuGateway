@@ -359,6 +359,14 @@ input {
     padding: 0 15px
 }
 
+input[type=checkbox] {
+    width:1.5em;
+    height:1.5em;
+    display:inline;
+    position: relative;
+    top: 0.3em;
+}
+
 #frame {
     background: #000000;
     /* max-width: 100%; */

@@ -16,6 +16,12 @@ struct UserConfig
     char dtuHostIp[16];
     char openhabHostIp[16];
     char openItemPrefix[32];
+    boolean openhabActive;
+    char mqttBrokerIp[16];
+    char mqttBrokerUser[64];
+    char mqttBrokerPassword[64];
+    char mqttBrokerMainTopic[32];
+    boolean mqttActive;
     int dtuCloudPauseTime;
     boolean dtuCloudPauseActive;
     int dtuUpdateTime;
