@@ -9,14 +9,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/cache@v3
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
         with:
           path: |
             ~/.cache/pip
             ~/.platformio/.cache
           key: ${{ runner.os }}-pio
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.9'
       - name: Install PlatformIO Core
@@ -42,7 +42,7 @@ jobs:
             mv .pio/build/esp12e/firmware.bin .pio/build/esp12e/dtuGateway_release_$VERSIONNUMBER.bin
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           path: .pio/build/esp12e/dtuGateway_release_${{ env.CURRENT_VERSIONNUMBER }}.bin
 
