@@ -887,11 +887,11 @@ void initMqttClient()
   Serial.print("\ninitialized MQTT client ... to broker: " + String(userConfig.mqttBrokerIp) + ":" + String(userConfig.mqttBrokerPort) + "\n");
 }
 
-void reconnectMqttClient()
+void connectCheckMqttClient()
 {
   if (!mqttClient.connected())
   {
-    Serial.print("\nAttempting MQTT connection... ");
+    Serial.print("\nMQTT not connected, try to connect ... ");
     // Attempt to connect
     if (mqttClient.connect("dtuGateway", userConfig.mqttBrokerUser, userConfig.mqttBrokerPassword))
     {
@@ -903,6 +903,8 @@ void reconnectMqttClient()
       Serial.print(mqttClient.state());
       Serial.println(" try again in 5 seconds");
     }
+  } else {
+    mqttClient.loop();
   }
 }
 
@@ -918,7 +920,7 @@ boolean postMessageToMQTTbroker(String topic, String value)
 
 boolean updateValuesToMqtt()
 {
-  reconnectMqttClient();
+  connectCheckMqttClient();
   if (mqttClient.connected())
   {
     boolean sendOk = postMessageToMQTTbroker(String(userConfig.mqttBrokerMainTopic) + "/timestamp", (String)timeStampInSecondsDtuSynced);
@@ -1318,6 +1320,10 @@ void loop()
   server.handleClient();
   // serving domain name
   MDNS.update();
+
+  if(userConfig.mqttActive) {
+    mqttClient.loop();
+  }
 
   unsigned long currentMillis = millis();
   // 100ms task
