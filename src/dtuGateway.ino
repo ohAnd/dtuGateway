@@ -622,29 +622,30 @@ boolean getUpdateInfo()
         {
           // for special versions: develop, feature, localDev the version has to be truncated
           String localVersion = String(VERSION);
-          if(localVersion.indexOf("_")) {
-            localVersion = localVersion.substring(0,localVersion.indexOf("_"));
+          if (localVersion.indexOf("_"))
+          {
+            localVersion = localVersion.substring(0, localVersion.indexOf("_"));
           }
 
           if (userConfig.selectedUpdateChannel == 0)
           {
-            // versionServerRelease = String(doc["version"]);
             strcpy(versionServerRelease, (const char *)(doc["version"]));
-            // versiondateServerRelease = String(doc["versiondate"]);
             strcpy(versiondateServerRelease, (const char *)(doc["versiondate"]));
-            // updateURLRelease = String(doc["link"]);
             strcpy(updateURLRelease, (const char *)(doc["link"]));
             updateAvailable = checkVersion(localVersion, versionServerRelease);
           }
           else
           {
-            // versionServer = String(doc["version"]);
             strcpy(versionServer, (const char *)(doc["version"]));
-            // versiondateServer = String(doc["versiondate"]);
+            String versionSnapshot = versionServer;
+            if (versionSnapshot.indexOf("_"))
+            {
+              versionSnapshot = versionSnapshot.substring(0, versionSnapshot.indexOf("_"));
+            }
+
             strcpy(versiondateServer, (const char *)(doc["versiondate"]));
-            // updateURL = String(doc["linksnapshot"]);
             strcpy(updateURL, (const char *)(doc["linksnapshot"]));
-            updateAvailable = checkVersion(localVersion, versionServer);
+            updateAvailable = checkVersion(localVersion, versionSnapshot);
           }
 
           server.sendHeader("Connection", "close");
