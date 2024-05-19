@@ -13,7 +13,7 @@ void dtuConnectionEstablish(WiFiClient *localDtuClient, char localDtuHostIp[16],
 {
     if (!localDtuClient->connected() && !dtuConnection.dtuActiveOffToCloudUpdate)
     {
-        localDtuClient->setTimeout(5000);
+        localDtuClient->setTimeout(1500);
         Serial.print("\n>>> Client not connected with DTU! - trying to connect to " + String(localDtuHostIp) + " ... ");
         if (!localDtuClient->connect(localDtuHostIp, localDtuPort))
         {

@@ -185,8 +185,10 @@ boolean checkWifiTask()
 // scan network for first settings or change
 int networkCount = 0;
 String foundNetworks = "[{\"name\":\"empty\",\"wifi\":0,\"chan\":0}]";
-boolean scanNetworksResult(int networksFound)
+
+boolean scanNetworksResult()
 {
+  int networksFound = WiFi.scanComplete();
   // print out Wi-Fi network scan result upon completion
   if (networksFound > 0)
   {
@@ -209,13 +211,14 @@ boolean scanNetworksResult(int networksFound)
       }
     }
     foundNetworks = foundNetworks + "]";
-    // WiFi.scanDelete();
+    WiFi.scanDelete();
+    return true;
   }
   else
   {
-    Serial.println(F("no networks found after scanning!"));
+    // Serial.println(F("no networks found after scanning!"));
+    return false;
   }
-  return true;
 }
 
 // web page
@@ -449,7 +452,7 @@ void handleUpdateBindingsSettings()
   JSON = JSON + "\"mqttBrokerPort\": " + String(userConfig.mqttBrokerPort) + ",";
   JSON = JSON + "\"mqttBrokerUser\": \"" + userConfig.mqttBrokerUser + "\",";
   JSON = JSON + "\"mqttBrokerPassword\": \"" + userConfig.mqttBrokerPassword + "\",";
-  JSON = JSON + "\"mqttBrokerMainTopic\": \"" + userConfig.mqttBrokerMainTopic+ "\"";
+  JSON = JSON + "\"mqttBrokerMainTopic\": \"" + userConfig.mqttBrokerMainTopic + "\"";
   JSON = JSON + "}";
 
   server.send(200, "application/json", JSON);
@@ -474,13 +477,12 @@ void handleUpdateOTASettings()
   JSON = JSON + "}";
 
   server.send(200, "application/json", JSON);
+  Serial.println("handleUpdateDtuSettings - send JSON: " + String(JSON));
 
-  // delay(2000); // give time for the json response
+  yield();
 
   // trigger new update info with changed release channel
   getUpdateInfo();
-
-  Serial.println("handleUpdateDtuSettings - send JSON: " + String(JSON));
 }
 
 // webserver port 80
@@ -588,20 +590,20 @@ boolean getUpdateInfo()
 
   // Initializing an HTTPS communication using the secure client
   if (https.begin(*secClient, versionUrl))
-  {                                                          // HTTPS
+  { // HTTPS
+    Serial.print(F("\n---> getUpdateInfo - https connected\n"));
     https.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS); // Enable automatic following of redirects
     int httpCode = https.GET();
+    Serial.print(F("\n---> getUpdateInfo - got http ret code\n"));
 
     // httpCode will be negative on error
     if (httpCode > 0)
     {
       // HTTP header has been send and Server response header has been handled
-      // Serial.printf("\n[HTTPS] GET... code: %d\n", httpCode);
       // file found at server
       if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY)
       {
         String payload = https.getString();
-        // Serial.println(payload);
 
         // Parse JSON using ArduinoJson library
         DynamicJsonDocument doc(1024);
@@ -618,6 +620,12 @@ boolean getUpdateInfo()
         }
         else
         {
+          // for special versions: develop, feature, localDev the version has to be truncated
+          String localVersion = String(VERSION);
+          if(localVersion.indexOf("_")) {
+            localVersion = localVersion.substring(0,localVersion.indexOf("_"));
+          }
+
           if (userConfig.selectedUpdateChannel == 0)
           {
             // versionServerRelease = String(doc["version"]);
@@ -626,7 +634,7 @@ boolean getUpdateInfo()
             strcpy(versiondateServerRelease, (const char *)(doc["versiondate"]));
             // updateURLRelease = String(doc["link"]);
             strcpy(updateURLRelease, (const char *)(doc["link"]));
-            updateAvailable = checkVersion(String(VERSION), versionServerRelease);
+            updateAvailable = checkVersion(localVersion, versionServerRelease);
           }
           else
           {
@@ -636,7 +644,7 @@ boolean getUpdateInfo()
             strcpy(versiondateServer, (const char *)(doc["versiondate"]));
             // updateURL = String(doc["linksnapshot"]);
             strcpy(updateURL, (const char *)(doc["linksnapshot"]));
-            updateAvailable = checkVersion(String(VERSION), versionServer);
+            updateAvailable = checkVersion(localVersion, versionServer);
           }
 
           server.sendHeader("Connection", "close");
@@ -648,21 +656,21 @@ boolean getUpdateInfo()
     {
       Serial.printf("[HTTPS] GET... failed, error: %s\n", https.errorToString(httpCode).c_str());
     }
-
+    secClient->stop();
     https.end();
   }
   else
   {
     Serial.println(F("\ngetUpdateInfo - [HTTPS] Unable to connect to server"));
   }
-
+  secClient->stopAll();
   return true;
 }
 
 // check version local with remote
 boolean checkVersion(String v1, String v2)
 {
-  Serial.println("\nstart compare: " + String(v1) + " - " + String(v2));
+  Serial.println("\ncompare versions: " + String(v1) + " - " + String(v2));
   // Method to compare two versions.
   // Returns 1 if v2 is smaller, -1
   // if v1 is smaller, 0 if equal
@@ -987,7 +995,10 @@ void setup()
   {
     Serial.println(F("\n+++ device in 'first start' mode - have to be initialized over own served wifi +++\n"));
     // first scan of networks - synchronous
-    scanNetworksResult(WiFi.scanNetworks());
+    // scanNetworksResult(WiFi.scanNetworks());
+
+    WiFi.scanNetworks();
+    scanNetworksResult();
 
     // Connect to Wi-Fi as AP
     WiFi.mode(WIFI_AP);
@@ -1042,10 +1053,10 @@ void startServices()
     Serial.print(F("IP address of gateway: "));
     Serial.println(WiFi.gatewayIP());
     host = "hoymilesGW_" + String(chipID);
-    MDNS.begin(host);
 
     httpUpdater.setup(&server);
 
+    MDNS.begin(host);
     MDNS.addService("http", "tcp", 80);
     Serial.println("Ready! Open http://" + String(host) + ".local in your browser");
 
@@ -1057,6 +1068,9 @@ void startServices()
     starttime = timeClient.getEpochTime();
     Serial.print(F("got time from time server: "));
     Serial.println(String(starttime));
+
+    // start first search for available wifi networks
+    WiFi.scanNetworks(true);
 
     initializeWebServer();
     initMqttClient();
@@ -1301,6 +1315,8 @@ void loop()
 {
   // web server runner
   server.handleClient();
+  // serving domain name
+  MDNS.update();
 
   unsigned long currentMillis = millis();
   // 100ms task
@@ -1322,7 +1338,26 @@ void loop()
     // Serial.print("local: " + getTimeStringByTimestamp(timeStampInSecondsDtuSynced));
     // Serial.print(" --- NTP: " + timeClient.getFormattedTime() + " --- currentMillis " + String(currentMillis) + " --- ");
     previousMillisShort = currentMillis;
+    // Serial.print(F("free mem: "));
+    // Serial.print(ESP.getFreeHeap());
+    // Serial.print(F(" - heap fragm: "));
+    // Serial.print(ESP.getHeapFragmentation());
+    // Serial.print(F(" - max free block size: "));
+    // Serial.print(ESP.getMaxFreeBlockSize());
+    // Serial.print(F(" - free cont stack: "));
+    // Serial.print(ESP.getFreeContStack());
+    // Serial.print(F(" \n"));
+
     // -------->
+
+    if (globalControls.wifiSwitch && !userConfig.wifiAPstart)
+      checkWifiTask();
+    else
+    {
+      // stopping connection to DTU before go wifi offline
+      dtuConnectionStop(&dtuClient, DTU_STATE_OFFLINE);
+      WiFi.disconnect();
+    }
 
     if (dtuConnection.preventCloudErrors)
     {
@@ -1333,15 +1368,6 @@ void loop()
         blinkCode = BLINK_PAUSE_CLOUD_UPDATE;
         dtuConnectionStop(&dtuClient, DTU_STATE_CLOUD_PAUSE); // disconnet DTU server, if prevention on
       }
-    }
-
-    if (globalControls.wifiSwitch && !userConfig.wifiAPstart)
-      checkWifiTask();
-    else
-    {
-      // stopping connection to DTU before go wifi offline
-      dtuConnectionStop(&dtuClient, DTU_STATE_OFFLINE);
-      WiFi.disconnect();
     }
 
     // direct request of new powerLimit
@@ -1367,19 +1393,19 @@ void loop()
   {
     Serial.printf("\n>>>>> %02is task - state --> ", int(interval5000ms));
     Serial.print("local: " + getTimeStringByTimestamp(timeStampInSecondsDtuSynced));
-    Serial.print(" --- NTP: " + timeClient.getFormattedTime());
+    Serial.print(" --- NTP: " + timeClient.getFormattedTime() + "\n");
+
     // Serial.print(" --- currentMillis " + String(currentMillis) + " --- ");
     previousMillis5000ms = currentMillis;
     // -------->
     if (WiFi.status() == WL_CONNECTED)
     {
-      timeClient.update();
       // get current RSSI to AP
       int wifiPercent = 2 * (WiFi.RSSI() + 100);
       if (wifiPercent > 100)
         wifiPercent = 100;
       globalData.wifi_rssi_gateway = wifiPercent;
-      Serial.print(" --- RSSI to AP: '" + String(WiFi.SSID()) + "': " + String(globalData.wifi_rssi_gateway) + " %");
+      // Serial.print(" --- RSSI to AP: '" + String(WiFi.SSID()) + "': " + String(globalData.wifi_rssi_gateway) + " %");
 
       if (userConfig.openhabActive)
         getPowerSetDataFromOpenHab();
@@ -1392,6 +1418,7 @@ void loop()
     Serial.printf("\n>>>>> %02is task - state --> ", int(intervalMid));
     Serial.print("local: " + getTimeStringByTimestamp(timeStampInSecondsDtuSynced));
     Serial.print(" --- NTP: " + timeClient.getFormattedTime() + "\n");
+
     previousMillisMid = currentMillis;
     // -------->
     if (WiFi.status() == WL_CONNECTED)
@@ -1455,8 +1482,13 @@ void loop()
 
     previousMillisLong = currentMillis;
     // -------->
+    if (WiFi.status() == WL_CONNECTED)
+    {
+      timeClient.update();
+    }
     // start async scan for wifi'S
-    // WiFi.scanNetworksAsync(scanNetworksResult);
-    scanNetworksResult(WiFi.scanNetworks());
+    Serial.print(F("\nstart scan for wifi's\n"));
+    WiFi.scanNetworks(true);
   }
+  scanNetworksResult();
 }

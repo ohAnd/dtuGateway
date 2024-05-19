@@ -34,7 +34,8 @@ else:
                 print(f"got buildnumber to use: ->{build_string}<-")
     except FileNotFoundError:
         print('ERROR: buildnumber file not found. For automatic versioning there is a file called ../include/buildnumber.txt expected. With the content "localDev" or versionnumber e.g. "1.0.0" in first line. (File is blocked by .gitignore for GitHub actions to run.)')
-
+    if "_" in version_string:
+        version_string = version_string.split('_')[0]
     major, minor, patch = map(int, version_string.split('.'))
 
     if build_string != "localDev":        
@@ -43,7 +44,7 @@ else:
     else:
         # Increment to the new version string
         # patch += 1
-        version_string_new = f"{major}.{minor}.{patch}"
+        version_string_new = f"{major}.{minor}.{patch}_{build_string}"
     
     print(f"set new version: {version_string_new}")
     

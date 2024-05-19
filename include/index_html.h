@@ -418,7 +418,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             // check every minute (62,5s) for an available update
             window.setInterval(function () {
                 requestVersionData();
-            }, 62500);
+            }, 300000);
 
             timerRemainingProgess = window.setInterval(function () {
                 remainingResponse();
@@ -1096,7 +1096,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                 type: 'GET',
                 contentType: false,
                 processData: false,
-                timeout: 1000,
+                timeout: 2000,
                 success: function (data) {
                     refreshData(data);
                 },
@@ -1114,7 +1114,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                 type: 'GET',
                 contentType: false,
                 processData: false,
-                timeout: 1000,
+                timeout: 2000,
                 success: function (info) {
                     cacheInfoData = info;
                     checkInitToSettings(info);
