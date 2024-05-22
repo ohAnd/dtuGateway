@@ -40,6 +40,7 @@ Data from dtu can be read in a very short time, but it has to be tested how ofte
 
 On a manual way you can be back on track, if you are logging in to the local access point of the dtu and resend your local wifi login data to (it seems) initiate a reboot. With this way you can be back online in ~ 1:30 minutes.
 
+So I decided to put this abstraction in an **ESP8266** to have a stable abstraction to an existing smart home environment.
 
 > *hint: the whole project could be also implemented on a small server and translated to e.g. python [see here for an example](https://github.com/henkwiedig/Hoymiles-DTU-Proto) and also the sources below*
 
@@ -47,7 +48,7 @@ On a manual way you can be back on track, if you are logging in to the local acc
 1. Abstract the interface to the dtu (inverter connection endpoint) with different possibilities to connect to other systems. (push/ pull)
 2. Very stable interface with no dependencies to an environment/ a system with a stand alone application based on an arduino board (ESP8266).
 3. TODO: Ability to change running wifi to connect to dtu over local network or direct access point.
-4. Use this need to create a full enivronment for an ESP based project. (see features below)
+4. Use this need to create a full enivronment for an ESP8266 based project. (see features below)
 
 ## features
 
@@ -61,7 +62,7 @@ On a manual way you can be back on track, if you are logging in to the local acc
 - serving the readed data per /api/data
 - binding configuration with seperate activation and login data setting
 - binding: updating openHab instance with readed data and pulling set data from the instance
-- binding: updating to a MQTT broker with readed data [OPEN: and pulling set data from the instance]
+- binding: updating to a MQTT broker with readed data [OPEN: pulling set power data from the mqtt instance]
 - for testing purposes the time between each request is adjustable (default 31 seconds) 
 - syncing time of gateway with the local time of the dtu to prevent wrong restart counters
 - configurable 'cloud pause' - see [experiences](#-experiences-with-the-hoymiles-HMS-800W-2T) - to prevent missing updates by the dtu to the hoymiles cloud
@@ -259,6 +260,11 @@ On a manual way you can be back on track, if you are logging in to the local acc
 2. open the website http://192.168.4.1 (or http://hoymilesGW.local) for the first configuration
 3. choose your wifi
 4. type in the wifi password - save
+5. in webfrontend setting your DTU IP adress within your local network (currently the user and password for dtu are not needed, for later integration relevant for a direct connection to the dtu over their access point)
+6. then you can configure your needed binding
+   1. openhab -> set the IP of your openhab instance and the prefix for the dtu items according to your configured item file in openhab
+   2. mqtt -> set the IP and port (e.g. 192.178.0.42:1883) of your mqtt broker and the user and passwort that your hacve for this instance
+7. after this one time configuration the connection to the dtu should be established and the data displayed in the webfrontend and according to your setup transmitted to the target instance
 
 #### return to factory mode
 1. connect your ESP with serial (115200 baud) in a COM terminal
@@ -270,6 +276,8 @@ On a manual way you can be back on track, if you are logging in to the local acc
 ### main
 latest release - changes will documented by commit messages
 https://github.com/ohAnd/dtuGateway/releases/latest
+
+(to be fair, the amount of downloads is the count of requests from the client to check for new firmware for the OTA update)
 
 ![GitHub Downloads (all assets, latest release)](https://img.shields.io/github/downloads/ohand/dtuGateway/latest/total)
 ![GitHub (Pre-)Release Date](https://img.shields.io/github/release-date/ohand/dtuGateway)

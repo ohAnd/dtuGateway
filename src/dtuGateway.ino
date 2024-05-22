@@ -40,11 +40,13 @@ char updateInfoWebPathRelease[128] = "https://github.com/ohAnd/dtuGateway/releas
 
 char versionServer[32] = "checking";
 char versiondateServer[32] = "...";
-char updateURL[128] = ""; // will be read by getting -> updateInfoWebPath
+char updateURL[196] = ""; // will be read by getting -> updateInfoWebPath
 char versionServerRelease[32] = "checking";
 char versiondateServerRelease[32] = "...";
-char updateURLRelease[128] = ""; // will be read by getting -> updateInfoWebPath
+char updateURLRelease[196] = ""; // will be read by getting -> updateInfoWebPath
 boolean updateAvailable = false;
+boolean updateRunning = false;
+boolean updateInfoRequested = false;
 float updateProgress = 0;
 char updateState[16] = "waiting";
 
@@ -354,9 +356,7 @@ void handleUpdateWifiSettings()
   JSON = JSON + "}";
 
   server.send(200, "application/json", JSON);
-
-  delay(2000); // give time for the json response
-
+  
   // reconnect with new values
   WiFi.disconnect();
   WiFi.mode(WIFI_STA);
@@ -398,8 +398,6 @@ void handleUpdateDtuSettings()
   JSON = JSON + "}";
 
   server.send(200, "application/json", JSON);
-
-  delay(2000); // give time for the json response
 
   // stopping connection to DTU - to force reconnect with new data
   dtuConnectionStop(&dtuClient, DTU_STATE_TRY_RECONNECT);
@@ -456,9 +454,6 @@ void handleUpdateBindingsSettings()
   JSON = JSON + "}";
 
   server.send(200, "application/json", JSON);
-
-  delay(2000); // give time for the json response
-
   Serial.println("handleUpdateBindingsSettings - send JSON: " + String(JSON));
 }
 
@@ -479,13 +474,16 @@ void handleUpdateOTASettings()
   server.send(200, "application/json", JSON);
   Serial.println("handleUpdateDtuSettings - send JSON: " + String(JSON));
 
-  yield();
-
   // trigger new update info with changed release channel
-  getUpdateInfo();
+  // getUpdateInfo(AsyncWebServerRequest *request);
+  updateInfoRequested = true;
 }
 
 // webserver port 80
+// void initializeWebServer()
+// {
+//   server.on("/", HTTP_GET, handleRoot);
+
 void initializeWebServer()
 {
   server.on("/", HTTP_GET, handleRoot);
@@ -510,7 +508,7 @@ void initializeWebServer()
   server.on("/api/info", handleInfojson);
 
   // OTA update
-  server.on("/updateGetInfo", getUpdateInfo);
+  server.on("/updateGetInfo", requestUpdateInfo);
   server.on("/updateRequest", handleUpdateRequest);
 
   server.begin();
@@ -550,15 +548,33 @@ void handleUpdateRequest()
   ESPhttpUpdate.onError(update_error);
   ESPhttpUpdate.closeConnectionsOnUpdate(false);
 
-  // // ESPhttpUpdate.rebootOnUpdate(false); // remove automatic update
+  // ESPhttpUpdate.rebootOnUpdate(false); // remove automatic update
+
+  Serial.println(F("[update] starting update"));
   ESPhttpUpdate.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
+  updateRunning = true;
+
+  // stopping all services to prevent OOM/ stackoverflow
+  timeClient.end();
+  ntpUDP.stopAll();
+  mqttClient.disconnect();
+  puSubClient.stopAll();
+  dtuClient.stopAll();
+  MDNS.close();
+  server.stop();
+  server.close();
+
   t_httpUpdate_return ret = ESPhttpUpdate.update(updateclient, urlToBin);
 
   switch (ret)
   {
   case HTTP_UPDATE_FAILED:
-    Serial.printf("HTTP_UPDATE_FAILD Error (%d): %s\n", ESPhttpUpdate.getLastError(), ESPhttpUpdate.getLastErrorString().c_str());
+    Serial.printf("HTTP_UPDATE_FAILED Error (%d): %s\n", ESPhttpUpdate.getLastError(), ESPhttpUpdate.getLastErrorString().c_str());
     Serial.println(F("[update] Update failed."));
+    // restart all services if failed
+    initializeWebServer(); // starting server again
+    startServices();
+    updateRunning = false;
     break;
   case HTTP_UPDATE_NO_UPDATES:
     Serial.println(F("[update] Update no Update."));
@@ -569,6 +585,13 @@ void handleUpdateRequest()
   }
   Serial.println("[update] Update routine done - ReturnCode: " + String(ret));
 }
+
+// 
+void requestUpdateInfo() {
+  updateInfoRequested = true;
+  server.send(200, "application/json", "{\"updateInfoRequested\": \"done\"}");
+}
+
 // get the info about update from remote
 boolean getUpdateInfo()
 {
@@ -585,6 +608,8 @@ boolean getUpdateInfo()
     versionUrl = updateInfoWebPath;
   }
 
+  Serial.print("\n---> getUpdateInfo - check for: " + versionUrl + "\n");
+
   // create an HTTPClient instance
   HTTPClient https;
 
@@ -594,79 +619,82 @@ boolean getUpdateInfo()
     Serial.print(F("\n---> getUpdateInfo - https connected\n"));
     https.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS); // Enable automatic following of redirects
     int httpCode = https.GET();
-    Serial.print(F("\n---> getUpdateInfo - got http ret code\n"));
+    Serial.println("\n---> getUpdateInfo - got http ret code:" + String(httpCode));
 
-    // httpCode will be negative on error
-    if (httpCode > 0)
-    {
-      // HTTP header has been send and Server response header has been handled
-      // file found at server
-      if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY)
+      // httpCode will be negative on error
+      if (httpCode > 0)
       {
-        String payload = https.getString();
-
-        // Parse JSON using ArduinoJson library
-        DynamicJsonDocument doc(1024);
-        DeserializationError error = deserializeJson(doc, payload);
-
-        // Test if parsing succeeds.
-        if (error)
+        // HTTP header has been send and Server response header has been handled
+        // file found at server
+        if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY)
         {
-          Serial.print(F("deserializeJson() failed: "));
-          Serial.println(error.f_str());
+          String payload = https.getString();
+
+          // Parse JSON using ArduinoJson library
+          DynamicJsonDocument doc(1024);
+          DeserializationError error = deserializeJson(doc, payload);
+
+          // Test if parsing succeeds.
+          if (error)
+          {
+            Serial.print(F("deserializeJson() failed: "));
+            Serial.println(error.f_str());
           server.sendHeader("Connection", "close");
           server.send(200, "application/json", "{\"updateRequest\": \"" + String(error.f_str()) + "\"}");
-          return false;
-        }
-        else
-        {
-          // for special versions: develop, feature, localDev the version has to be truncated
-          String localVersion = String(VERSION);
-          if (localVersion.indexOf("_"))
-          {
-            localVersion = localVersion.substring(0, localVersion.indexOf("_"));
-          }
-
-          if (userConfig.selectedUpdateChannel == 0)
-          {
-            strcpy(versionServerRelease, (const char *)(doc["version"]));
-            strcpy(versiondateServerRelease, (const char *)(doc["versiondate"]));
-            strcpy(updateURLRelease, (const char *)(doc["link"]));
-            updateAvailable = checkVersion(localVersion, versionServerRelease);
+            return false;
           }
           else
           {
-            strcpy(versionServer, (const char *)(doc["version"]));
-            String versionSnapshot = versionServer;
-            if (versionSnapshot.indexOf("_"))
+            // for special versions: develop, feature, localDev the version has to be truncated
+            String localVersion = String(VERSION);
+            if (localVersion.indexOf("_"))
             {
-              versionSnapshot = versionSnapshot.substring(0, versionSnapshot.indexOf("_"));
+              localVersion = localVersion.substring(0, localVersion.indexOf("_"));
             }
 
-            strcpy(versiondateServer, (const char *)(doc["versiondate"]));
-            strcpy(updateURL, (const char *)(doc["linksnapshot"]));
-            updateAvailable = checkVersion(localVersion, versionSnapshot);
-          }
+            if (userConfig.selectedUpdateChannel == 0)
+            {
+              strcpy(versionServerRelease, (const char *)(doc["version"]));
+              strcpy(versiondateServerRelease, (const char *)(doc["versiondate"]));
+              strcpy(updateURLRelease, (const char *)(doc["link"]));
+              updateAvailable = checkVersion(localVersion, versionServerRelease);
+            }
+            else
+            {
+              strcpy(versionServer, (const char *)(doc["version"]));
+              String versionSnapshot = versionServer;
+              if (versionSnapshot.indexOf("_"))
+              {
+                versionSnapshot = versionSnapshot.substring(0, versionSnapshot.indexOf("_"));
+              }
+
+              strcpy(versiondateServer, (const char *)(doc["versiondate"]));
+              strcpy(updateURL, (const char *)(doc["linksnapshot"]));
+              updateAvailable = checkVersion(localVersion, versionSnapshot);
+            }
 
           server.sendHeader("Connection", "close");
           server.send(200, "application/json", "{\"updateRequest\": \"done\"}");
+          }
         }
       }
-    }
-    else
-    {
-      Serial.printf("[HTTPS] GET... failed, error: %s\n", https.errorToString(httpCode).c_str());
-    }
-    secClient->stop();
-    https.end();
+      else
+      {
+        Serial.printf("[HTTPS] GET... failed, error: %s\n", https.errorToString(httpCode).c_str());
+      }
+      secClient->stop();
+      https.end();
   }
   else
   {
     Serial.println(F("\ngetUpdateInfo - [HTTPS] Unable to connect to server"));
   }
-  secClient->stopAll();
+  // secClient->stopAll();
+  updateInfoRequested = false;
   return true;
+  
 }
+
 
 // check version local with remote
 boolean checkVersion(String v1, String v2)
@@ -735,9 +763,9 @@ void update_finished()
 }
 void update_progress(int cur, int total)
 {
-  updateProgress = (cur / total) * 100;
+  updateProgress = ((float)cur / (float)total) * 100;
   strcpy(updateState, "running");
-  Serial.print("CALLBACK:  HTTP update process at " + String(cur) + "  of " + String(total) + " bytes - " + String(updateProgress, 1) + " %...\n");
+  Serial.print("CALLBACK:  HTTP update process at " + String(cur) + "  of " + String(total) + " bytes - " + String(updateProgress, 1) + " %\n");
 }
 void update_error(int err)
 {
@@ -903,8 +931,6 @@ void connectCheckMqttClient()
       Serial.print(mqttClient.state());
       Serial.println(" try again in 5 seconds");
     }
-  } else {
-    mqttClient.loop();
   }
 }
 
@@ -1316,12 +1342,18 @@ void IRAM_ATTR timer1000MilliSeconds()
 
 void loop()
 {
+  // skip all tasks if update is running
+  if (updateRunning)
+    return;
+
   // web server runner
   server.handleClient();
   // serving domain name
   MDNS.update();
 
-  if(userConfig.mqttActive) {
+  // runner for mqttClient to hold a already etablished connection
+  if (userConfig.mqttActive && mqttClient.connected())
+  {
     mqttClient.loop();
   }
 
@@ -1383,15 +1415,20 @@ void loop()
       Serial.print("\n----- ----- set new power limit from " + String(globalData.powerLimit) + " to " + String(globalData.powerLimitSet));
       if (writeReqCommand(&dtuClient, globalData.powerLimitSet, timeStampInSecondsDtuSynced))
       {
-        Serial.print(" --- done");
+        Serial.println(F(" --- done"));
         // set next normal request in 5 seconds from now on, only if last data updated within last 2 times of user setted update rate
         if (currentMillis - globalData.lastRespTimestamp < (intervalMid * 2))
           previousMillisMid = currentMillis - (intervalMid - 5);
       }
       else
       {
-        Serial.print(" --- error");
+        Serial.println(F(" --- error"));
       }
+    }
+  
+    //
+    if(updateInfoRequested) {
+      getUpdateInfo();
     }
   }
 
@@ -1400,7 +1437,7 @@ void loop()
   {
     Serial.printf("\n>>>>> %02is task - state --> ", int(interval5000ms));
     Serial.print("local: " + getTimeStringByTimestamp(timeStampInSecondsDtuSynced));
-    Serial.print(" --- NTP: " + timeClient.getFormattedTime() + "\n");
+    Serial.print(" --- NTP: " + timeClient.getFormattedTime());
 
     // Serial.print(" --- currentMillis " + String(currentMillis) + " --- ");
     previousMillis5000ms = currentMillis;
