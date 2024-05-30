@@ -1408,6 +1408,9 @@ bool IRAM_ATTR timer1000MilliSeconds(void *timerNo)
 #endif
   // localtime counter - increase every second
   timeStampInSecondsDtuSynced++;
+#if defined(ESP32)
+  return true;
+#endif
 }
 
 void loop()
