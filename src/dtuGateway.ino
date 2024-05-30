@@ -1,15 +1,27 @@
-#include "ESP8266TimerInterrupt.h"
+#if defined(ESP8266)
+// #define HARDWARE "ESP8266"
+#include <ESP8266TimerInterrupt.h>
 #include <ESP8266_ISR_Timer.h>
 #include <ESP8266WiFi.h>
 #include <ESP8266HTTPClient.h>
-#include <WiFiClientSecureBearSSL.h>
-
 #include <ESP8266WebServer.h>
-
 #include <ESP8266HTTPUpdateServer.h>
 #include <ESP8266httpUpdate.h>
-
 #include <ESP8266mDNS.h>
+#include <WiFiClientSecureBearSSL.h>
+#elif defined(ESP32)
+// #define HARDWARE "ESP32"
+#include <ESP32TimerInterrupt.h>
+#include <ESP32_ISR_Timer.h>
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include <WebServer.h>
+#include <HTTPUpdateServer.h>
+#include <ESP32httpUpdate.h>
+#include <ESPmDNS.h>
+#include <WiFiClientSecure.h>
+#endif
+
 #include <WiFiUdp.h>
 #include <NTPClient.h>
 
@@ -32,7 +44,11 @@
 const char *apNameStart = "hoymilesGW"; // + chipid
 
 // OTA
+#if defined(ESP8266)
 ESP8266HTTPUpdateServer httpUpdater;
+#elif defined(ESP32)
+HTTPUpdateServer httpUpdater;
+#endif
 // built json during compile to announce the latest greatest on snapshot or release channel
 // { "version": "0.0.1", "versiondate": "01.01.2024 - 01:00:00", "linksnapshot": "https://<domain>/path/to/firmware/<file>.<bin>", "link": "https://<domain>/path/to/firmware/<file>.<bin>" }
 char updateInfoWebPath[128] = "https://github.com/ohAnd/dtuGateway/releases/download/snapshot/version.json";
@@ -57,6 +73,11 @@ unsigned long reconnects[RECONNECTS_ARRAY_SIZE];
 int reconnectsCnt = -1; // first needed run inkrement to 0
 
 // blink code for status display
+#if defined(ESP8266)
+#define LED_BLINK LED_BUILTIN
+#elif defined(ESP32)
+#define LED_BLINK 13
+#endif
 #define BLINK_NORMAL_CONNECTION 0    // 1 Hz blip - normal connection and running
 #define BLINK_WAITING_NEXT_TRY_DTU 1 // 1 Hz - waiting for next try to connect to DTU
 #define BLINK_WIFI_OFF 2             // 2 Hz - wifi off
@@ -73,9 +94,21 @@ NTPClient timeClient(ntpUDP); // By default 'pool.ntp.org' is used with 60 secon
 WiFiClient puSubClient;
 PubSubClient mqttClient(puSubClient);
 
+#if defined(ESP8266)
 ESP8266WebServer server(80);
+#elif defined(ESP32)
+WebServer server(80);
+#endif
 
-uint32_t chipID = ESP.getChipId();
+#if defined(ESP8266)
+uint64_t chipID = ESP.getChipId();
+#elif defined(ESP32)
+uint64_t chipID = ESP.getEfuseMac();
+// for (int i = 0; i < 17; i = i + 8) {
+//   chipID |= ((ESP.getEfuseMac() >> (40 - i)) & 0xff) << i;
+// }
+#endif
+
 unsigned long starttime = 0;
 
 // intervall for getting and sending temp
@@ -85,7 +118,11 @@ unsigned long starttime = 0;
 #define USING_TIM_DIV256 false // for longest timer but least accurate. Default
 
 // Init ESP8266 only and only Timer 1
+#if defined(ESP8266)
 ESP8266Timer ITimer;
+#elif defined(ESP32)
+ESP32Timer ITimer(0);
+#endif
 #define TIMER_INTERVAL_MS 1000
 
 const long interval100ms = 100; // interval (milliseconds)
@@ -356,7 +393,7 @@ void handleUpdateWifiSettings()
   JSON = JSON + "}";
 
   server.send(200, "application/json", JSON);
-  
+
   // reconnect with new values
   WiFi.disconnect();
   WiFi.mode(WIFI_STA);
@@ -524,7 +561,11 @@ void handleUpdateRequest()
   else
     urlToBin = updateURL;
 
+#if defined(ESP8266)
   BearSSL::WiFiClientSecure updateclient;
+#elif defined(ESP32)
+  WiFiClientSecure updateclient;
+#endif
   updateclient.setInsecure();
 
   if (urlToBin == "" || updateAvailable != true)
@@ -539,32 +580,42 @@ void handleUpdateRequest()
   Serial.println(F("[update] Update requested"));
   Serial.println("[update] try download from " + urlToBin);
 
-  // wait to seconds to load css on client side
+  // ESPhttpUpdate.rebootOnUpdate(false); // remove automatic update
+
   Serial.println(F("[update] starting update"));
 
+#if defined(ESP8266)
   ESPhttpUpdate.onStart(update_started);
   ESPhttpUpdate.onEnd(update_finished);
   ESPhttpUpdate.onProgress(update_progress);
   ESPhttpUpdate.onError(update_error);
   ESPhttpUpdate.closeConnectionsOnUpdate(false);
-
-  // ESPhttpUpdate.rebootOnUpdate(false); // remove automatic update
-
-  Serial.println(F("[update] starting update"));
   ESPhttpUpdate.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
+#elif defined(ESP32)
+// ...
+#endif
+
   updateRunning = true;
 
   // stopping all services to prevent OOM/ stackoverflow
   timeClient.end();
+#if defined(ESP8266)
   ntpUDP.stopAll();
-  mqttClient.disconnect();
   puSubClient.stopAll();
   dtuClient.stopAll();
   MDNS.close();
+#elif defined(ESP32)
+// ...
+#endif
+  mqttClient.disconnect();
   server.stop();
   server.close();
 
+#if defined(ESP8266)
   t_httpUpdate_return ret = ESPhttpUpdate.update(updateclient, urlToBin);
+#elif defined(ESP32)
+  t_httpUpdate_return ret = ESPhttpUpdate.update(urlToBin);
+#endif
 
   switch (ret)
   {
@@ -586,8 +637,9 @@ void handleUpdateRequest()
   Serial.println("[update] Update routine done - ReturnCode: " + String(ret));
 }
 
-// 
-void requestUpdateInfo() {
+//
+void requestUpdateInfo()
+{
   updateInfoRequested = true;
   server.send(200, "application/json", "{\"updateInfoRequested\": \"done\"}");
 }
@@ -596,8 +648,13 @@ void requestUpdateInfo() {
 boolean getUpdateInfo()
 {
   String versionUrl = "";
+#if defined(ESP8266)
   std::unique_ptr<BearSSL::WiFiClientSecure> secClient(new BearSSL::WiFiClientSecure);
   secClient->setInsecure();
+#elif defined(ESP32)
+  WiFiClientSecure secClient;
+  secClient.setInsecure();
+#endif
 
   if (userConfig.selectedUpdateChannel == 0)
   {
@@ -613,77 +670,87 @@ boolean getUpdateInfo()
   // create an HTTPClient instance
   HTTPClient https;
 
-  // Initializing an HTTPS communication using the secure client
+// Initializing an HTTPS communication using the secure client
+#if defined(ESP8266)
   if (https.begin(*secClient, versionUrl))
-  { // HTTPS
+  {
+#elif defined(ESP32)
+  if (https.begin(secClient, versionUrl))
+  {
+#endif
+    // HTTPS
     Serial.print(F("\n---> getUpdateInfo - https connected\n"));
     https.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS); // Enable automatic following of redirects
     int httpCode = https.GET();
     Serial.println("\n---> getUpdateInfo - got http ret code:" + String(httpCode));
 
-      // httpCode will be negative on error
-      if (httpCode > 0)
+    // httpCode will be negative on error
+    if (httpCode > 0)
+    {
+      // HTTP header has been send and Server response header has been handled
+      // file found at server
+      if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY)
       {
-        // HTTP header has been send and Server response header has been handled
-        // file found at server
-        if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY)
+        String payload = https.getString();
+
+        // Parse JSON using ArduinoJson library
+        DynamicJsonDocument doc(1024);
+        DeserializationError error = deserializeJson(doc, payload);
+
+        // Test if parsing succeeds.
+        if (error)
         {
-          String payload = https.getString();
-
-          // Parse JSON using ArduinoJson library
-          DynamicJsonDocument doc(1024);
-          DeserializationError error = deserializeJson(doc, payload);
-
-          // Test if parsing succeeds.
-          if (error)
-          {
-            Serial.print(F("deserializeJson() failed: "));
-            Serial.println(error.f_str());
+          Serial.print(F("deserializeJson() failed: "));
+          Serial.println(error.f_str());
           server.sendHeader("Connection", "close");
           server.send(200, "application/json", "{\"updateRequest\": \"" + String(error.f_str()) + "\"}");
-            return false;
+          return false;
+        }
+        else
+        {
+          // for special versions: develop, feature, localDev the version has to be truncated
+          String localVersion = String(VERSION);
+          if (localVersion.indexOf("_"))
+          {
+            localVersion = localVersion.substring(0, localVersion.indexOf("_"));
+          }
+
+          if (userConfig.selectedUpdateChannel == 0)
+          {
+            strcpy(versionServerRelease, (const char *)(doc["version"]));
+            strcpy(versiondateServerRelease, (const char *)(doc["versiondate"]));
+            strcpy(updateURLRelease, (const char *)(doc["link"]));
+            updateAvailable = checkVersion(localVersion, versionServerRelease);
           }
           else
           {
-            // for special versions: develop, feature, localDev the version has to be truncated
-            String localVersion = String(VERSION);
-            if (localVersion.indexOf("_"))
+            strcpy(versionServer, (const char *)(doc["version"]));
+            String versionSnapshot = versionServer;
+            if (versionSnapshot.indexOf("_"))
             {
-              localVersion = localVersion.substring(0, localVersion.indexOf("_"));
+              versionSnapshot = versionSnapshot.substring(0, versionSnapshot.indexOf("_"));
             }
 
-            if (userConfig.selectedUpdateChannel == 0)
-            {
-              strcpy(versionServerRelease, (const char *)(doc["version"]));
-              strcpy(versiondateServerRelease, (const char *)(doc["versiondate"]));
-              strcpy(updateURLRelease, (const char *)(doc["link"]));
-              updateAvailable = checkVersion(localVersion, versionServerRelease);
-            }
-            else
-            {
-              strcpy(versionServer, (const char *)(doc["version"]));
-              String versionSnapshot = versionServer;
-              if (versionSnapshot.indexOf("_"))
-              {
-                versionSnapshot = versionSnapshot.substring(0, versionSnapshot.indexOf("_"));
-              }
-
-              strcpy(versiondateServer, (const char *)(doc["versiondate"]));
-              strcpy(updateURL, (const char *)(doc["linksnapshot"]));
-              updateAvailable = checkVersion(localVersion, versionSnapshot);
-            }
+            strcpy(versiondateServer, (const char *)(doc["versiondate"]));
+            strcpy(updateURL, (const char *)(doc["linksnapshot"]));
+            updateAvailable = checkVersion(localVersion, versionSnapshot);
+          }
 
           server.sendHeader("Connection", "close");
           server.send(200, "application/json", "{\"updateRequest\": \"done\"}");
-          }
         }
       }
-      else
-      {
-        Serial.printf("[HTTPS] GET... failed, error: %s\n", https.errorToString(httpCode).c_str());
-      }
-      secClient->stop();
-      https.end();
+    }
+    else
+    {
+      Serial.printf("[HTTPS] GET... failed, error: %s\n", https.errorToString(httpCode).c_str());
+    }
+#if defined(ESP8266)
+    secClient->stop();
+#elif defined(ESP32)
+    secClient.stop();
+#endif
+    https.end();
   }
   else
   {
@@ -692,9 +759,7 @@ boolean getUpdateInfo()
   // secClient->stopAll();
   updateInfoRequested = false;
   return true;
-  
 }
-
 
 // check version local with remote
 boolean checkVersion(String v1, String v2)
@@ -1005,9 +1070,9 @@ void setup()
   pinMode(14, OUTPUT);
   digitalWrite(14, LOW);
 
-  // initialize digital pin LED_BUILTIN as an output.
-  pinMode(LED_BUILTIN, OUTPUT);
-  digitalWrite(LED_BUILTIN, LOW); // turn the LED off by making the voltage LOW
+  // initialize digital pin LED_BLINK as an output.
+  pinMode(LED_BLINK, OUTPUT);
+  digitalWrite(LED_BLINK, LOW); // turn the LED off by making the voltage LOW
 
   Serial.begin(115200);
   Serial.print(F("\nBooting - with firmware version "));
@@ -1145,11 +1210,11 @@ void blinkCodeTask()
 
   if (ledCycle == 1)
   {
-    digitalWrite(LED_BUILTIN, LOW); // turn the LED off by making the voltage LOW
+    digitalWrite(LED_BLINK, LOW); // turn the LED off by making the voltage LOW
   }
   else if (ledCycle == ledOffCount)
   {
-    digitalWrite(LED_BUILTIN, HIGH); // turn the LED on (HIGH is the voltage level)
+    digitalWrite(LED_BLINK, HIGH); // turn the LED on (HIGH is the voltage level)
   }
   if (ledCycle >= ledOffReset)
   {
@@ -1334,8 +1399,13 @@ void getSerialCommand(String cmd, String value)
 // main
 
 // get precise localtime - increment
+#if defined(ESP8266)
 void IRAM_ATTR timer1000MilliSeconds()
 {
+#elif defined(ESP32)
+bool IRAM_ATTR timer1000MilliSeconds(void *timerNo)
+{
+#endif
   // localtime counter - increase every second
   timeStampInSecondsDtuSynced++;
 }
@@ -1348,8 +1418,10 @@ void loop()
 
   // web server runner
   server.handleClient();
+#if defined(ESP8266)
   // serving domain name
   MDNS.update();
+#endif
 
   // runner for mqttClient to hold a already etablished connection
   if (userConfig.mqttActive && mqttClient.connected())
@@ -1425,9 +1497,10 @@ void loop()
         Serial.println(F(" --- error"));
       }
     }
-  
+
     //
-    if(updateInfoRequested) {
+    if (updateInfoRequested)
+    {
       getUpdateInfo();
     }
   }
