@@ -19,6 +19,8 @@
 
 #include <EEPROM.h>
 
+#include <display.h>
+
 #include "dtuInterface.h"
 
 #include "index_html.h"
@@ -63,6 +65,8 @@ int reconnectsCnt = -1; // first needed run inkrement to 0
 #define BLINK_TRY_CONNECT_DTU 3      // 5 Hz - try to connect to DTU
 #define BLINK_PAUSE_CLOUD_UPDATE 4   // 0,5 Hz blip - DTO - Cloud update
 int8_t blinkCode = BLINK_WIFI_OFF;
+
+Display oledDisplay;
 
 String host;
 WiFiUDP ntpUDP;
@@ -356,7 +360,7 @@ void handleUpdateWifiSettings()
   JSON = JSON + "}";
 
   server.send(200, "application/json", JSON);
-  
+
   // reconnect with new values
   WiFi.disconnect();
   WiFi.mode(WIFI_STA);
@@ -586,8 +590,9 @@ void handleUpdateRequest()
   Serial.println("[update] Update routine done - ReturnCode: " + String(ret));
 }
 
-// 
-void requestUpdateInfo() {
+//
+void requestUpdateInfo()
+{
   updateInfoRequested = true;
   server.send(200, "application/json", "{\"updateInfoRequested\": \"done\"}");
 }
@@ -621,69 +626,69 @@ boolean getUpdateInfo()
     int httpCode = https.GET();
     Serial.println("\n---> getUpdateInfo - got http ret code:" + String(httpCode));
 
-      // httpCode will be negative on error
-      if (httpCode > 0)
+    // httpCode will be negative on error
+    if (httpCode > 0)
+    {
+      // HTTP header has been send and Server response header has been handled
+      // file found at server
+      if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY)
       {
-        // HTTP header has been send and Server response header has been handled
-        // file found at server
-        if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY)
+        String payload = https.getString();
+
+        // Parse JSON using ArduinoJson library
+        DynamicJsonDocument doc(1024);
+        DeserializationError error = deserializeJson(doc, payload);
+
+        // Test if parsing succeeds.
+        if (error)
         {
-          String payload = https.getString();
-
-          // Parse JSON using ArduinoJson library
-          DynamicJsonDocument doc(1024);
-          DeserializationError error = deserializeJson(doc, payload);
-
-          // Test if parsing succeeds.
-          if (error)
-          {
-            Serial.print(F("deserializeJson() failed: "));
-            Serial.println(error.f_str());
+          Serial.print(F("deserializeJson() failed: "));
+          Serial.println(error.f_str());
           server.sendHeader("Connection", "close");
           server.send(200, "application/json", "{\"updateRequest\": \"" + String(error.f_str()) + "\"}");
-            return false;
+          return false;
+        }
+        else
+        {
+          // for special versions: develop, feature, localDev the version has to be truncated
+          String localVersion = String(VERSION);
+          if (localVersion.indexOf("_"))
+          {
+            localVersion = localVersion.substring(0, localVersion.indexOf("_"));
+          }
+
+          if (userConfig.selectedUpdateChannel == 0)
+          {
+            strcpy(versionServerRelease, (const char *)(doc["version"]));
+            strcpy(versiondateServerRelease, (const char *)(doc["versiondate"]));
+            strcpy(updateURLRelease, (const char *)(doc["link"]));
+            updateAvailable = checkVersion(localVersion, versionServerRelease);
           }
           else
           {
-            // for special versions: develop, feature, localDev the version has to be truncated
-            String localVersion = String(VERSION);
-            if (localVersion.indexOf("_"))
+            strcpy(versionServer, (const char *)(doc["version"]));
+            String versionSnapshot = versionServer;
+            if (versionSnapshot.indexOf("_"))
             {
-              localVersion = localVersion.substring(0, localVersion.indexOf("_"));
+              versionSnapshot = versionSnapshot.substring(0, versionSnapshot.indexOf("_"));
             }
 
-            if (userConfig.selectedUpdateChannel == 0)
-            {
-              strcpy(versionServerRelease, (const char *)(doc["version"]));
-              strcpy(versiondateServerRelease, (const char *)(doc["versiondate"]));
-              strcpy(updateURLRelease, (const char *)(doc["link"]));
-              updateAvailable = checkVersion(localVersion, versionServerRelease);
-            }
-            else
-            {
-              strcpy(versionServer, (const char *)(doc["version"]));
-              String versionSnapshot = versionServer;
-              if (versionSnapshot.indexOf("_"))
-              {
-                versionSnapshot = versionSnapshot.substring(0, versionSnapshot.indexOf("_"));
-              }
-
-              strcpy(versiondateServer, (const char *)(doc["versiondate"]));
-              strcpy(updateURL, (const char *)(doc["linksnapshot"]));
-              updateAvailable = checkVersion(localVersion, versionSnapshot);
-            }
+            strcpy(versiondateServer, (const char *)(doc["versiondate"]));
+            strcpy(updateURL, (const char *)(doc["linksnapshot"]));
+            updateAvailable = checkVersion(localVersion, versionSnapshot);
+          }
 
           server.sendHeader("Connection", "close");
           server.send(200, "application/json", "{\"updateRequest\": \"done\"}");
-          }
         }
       }
-      else
-      {
-        Serial.printf("[HTTPS] GET... failed, error: %s\n", https.errorToString(httpCode).c_str());
-      }
-      secClient->stop();
-      https.end();
+    }
+    else
+    {
+      Serial.printf("[HTTPS] GET... failed, error: %s\n", https.errorToString(httpCode).c_str());
+    }
+    secClient->stop();
+    https.end();
   }
   else
   {
@@ -692,9 +697,7 @@ boolean getUpdateInfo()
   // secClient->stopAll();
   updateInfoRequested = false;
   return true;
-  
 }
-
 
 // check version local with remote
 boolean checkVersion(String v1, String v2)
@@ -1008,6 +1011,10 @@ void setup()
   // initialize digital pin LED_BUILTIN as an output.
   pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, LOW); // turn the LED off by making the voltage LOW
+
+  // init display
+  oledDisplay.setup();
+
 
   Serial.begin(115200);
   Serial.print(F("\nBooting - with firmware version "));
@@ -1365,6 +1372,7 @@ void loop()
     // -------->
     blinkCodeTask();
     serialInputTask();
+    oledDisplay.renderScreen(timeClient.getFormattedTime(), String(VERSION));
   }
 
   // CHANGE to precise 1 second timer increment
@@ -1425,9 +1433,10 @@ void loop()
         Serial.println(F(" --- error"));
       }
     }
-  
+
     //
-    if(updateInfoRequested) {
+    if (updateInfoRequested)
+    {
       getUpdateInfo();
     }
   }
@@ -1442,6 +1451,7 @@ void loop()
     // Serial.print(" --- currentMillis " + String(currentMillis) + " --- ");
     previousMillis5000ms = currentMillis;
     // -------->
+    // -----------------------------------------
     if (WiFi.status() == WL_CONNECTED)
     {
       // get current RSSI to AP
@@ -1465,6 +1475,7 @@ void loop()
 
     previousMillisMid = currentMillis;
     // -------->
+
     if (WiFi.status() == WL_CONNECTED)
     {
       dtuConnectionEstablish(&dtuClient, userConfig.dtuHostIp);

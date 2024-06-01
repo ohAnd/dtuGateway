@@ -16,6 +16,7 @@
   - [known bugs](#known-bugs)
   - [releases](#releases)
     - [installation / update](#installation--update)
+      - [hardware](#hardware)
       - [first installation to the ESP device](#first-installation-to-the-esp-device)
       - [first setup with access point](#first-setup-with-access-point)
       - [return to factory mode](#return-to-factory-mode)
@@ -67,6 +68,21 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
 - syncing time of gateway with the local time of the dtu to prevent wrong restart counters
 - configurable 'cloud pause' - see [experiences](#-experiences-with-the-hoymiles-HMS-800W-2T) - to prevent missing updates by the dtu to the hoymiles cloud
 - automatic reboot of DTU, if there is an error detected (e.g. inplausible not changed values)
+- display SSH1106 implemented
+  - segmented in 3 parts
+    - header:
+      - left: wifi quality dtuGateway to local wifi
+      - mid: current time of dtuGateway
+      - right: wifi quality of dtu connection to local wifi
+    - main:
+      - small left: current power limit of inverter
+      - big mid/ right: current power of inverter
+    - footer:
+      - left: current daily yield
+      - right: current total yield
+  - additonal features
+    - small screensaver to prevent burn-in effect with steady components on the screen (shifting the whole screen every minute with 1 pixel in a 4 step rotation)
+    - smooth brightness control for changed main value - increase to max after change and then dimmming smooth back to the default level
 
 ### regarding environment
 
@@ -243,6 +259,9 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
 
 ## releases
 ### installation / update
+#### hardware
+- ESP8266 based board
+- optional: connect SSH1106 driven OLED display (128x64 e.g. 1.27") with your ESP8266 board (VCC, GND, SCK, SCL)
 #### first installation to the ESP device
 1. download the preferred release as binary (see below)
 2. **HAS TO BE VERIFIED** [only once] flash the esp8266 board with the (esp download tool)[https://www.espressif.com/en/support/download/other-tools]
