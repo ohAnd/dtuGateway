@@ -26,6 +26,12 @@ class Display {
         void renderScreen(String time, String version);
     private:
         void drawScreen();
+        void drawHeader();
+        void drawFooter();
+
+        void drawMainDTUOnline(bool pause=false);
+        void drawMainDTUOffline();
+
         void screenSaver();
         void checkChangedValues();
         // private member variables

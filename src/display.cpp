@@ -42,19 +42,83 @@ void Display::renderScreen(String time, String version)
 void Display::drawScreen()
 {
     // store last shown value
-    lastDisplayData.totalPower = round(globalData.grid.power);
     lastDisplayData.totalYieldDay = globalData.grid.dailyEnergy;
     lastDisplayData.totalYieldTotal = round(globalData.grid.totalEnergy);
-    lastDisplayData.powerLimit = globalData.powerLimit;
     lastDisplayData.rssiGW = globalData.wifi_rssi_gateway;
     lastDisplayData.rssiDTU = globalData.dtuRssi;
-    
+
     u8g2.clearBuffer();
     u8g2.setDrawColor(1);
     u8g2.setFontPosTop();
     u8g2.setFontDirection(0);
     u8g2.setFontRefHeightExtendedText();
 
+    drawHeader();
+
+    // main screen
+    if (dtuConnection.dtuConnectState == DTU_STATE_CONNECTED)
+    {
+        drawMainDTUOnline();
+    }
+    else if (dtuConnection.dtuConnectState == DTU_STATE_CLOUD_PAUSE)
+    {
+        drawMainDTUOnline(true);
+    }
+    else
+    {
+        drawMainDTUOffline();
+    }
+
+    drawFooter();
+
+    // set current choosen contrast
+    u8g2.setContrast(brightness);
+
+    u8g2.sendBuffer();
+}
+
+void Display::drawMainDTUOnline(bool pause)
+{
+    lastDisplayData.totalPower = round(globalData.grid.power);
+    lastDisplayData.powerLimit = globalData.powerLimit;
+
+    // main screen
+
+    u8g2.setFont(u8g2_font_logisoso28_tf);
+    // String wattage = String(lastDisplayData.totalPower) + " W";
+    String wattage = String(lastDisplayData.totalPower);
+    u8g2_uint_t width = u8g2.getUTF8Width(wattage.c_str());
+    int wattage_xpos = (128 - width) / 2;
+    u8g2.drawStr(wattage_xpos + offset_x, 19 + offset_y, wattage.c_str());
+    if (!pause)
+    {
+        u8g2.setFont(u8g2_font_logisoso28_tf);
+        u8g2.drawStr(107 + offset_x, 19 + offset_y, "W");
+    }
+    else
+    {
+        u8g2.setFont(u8g2_font_logisoso16_tf);
+        u8g2.drawStr(107 + offset_x, 19 + offset_y, "W");
+        u8g2.setFont(u8g2_font_unifont_t_emoticons);
+        u8g2.drawGlyph(104 + offset_x, 50 + offset_y, 0x0054);
+    }
+
+    // main screen small left
+    u8g2.drawRFrame(0 + offset_x, 36 + offset_y, 29, 16, 4);
+    u8g2.setFont(u8g2_font_6x10_tf);
+    u8g2.drawStr(3 + offset_x, 40 + offset_y, (String(lastDisplayData.powerLimit)).c_str());
+    u8g2.drawStr(19 + offset_x, 40 + offset_y, "%");
+}
+
+void Display::drawMainDTUOffline()
+{
+    // main screen
+    u8g2.setFont(u8g2_font_logisoso16_tf);
+    u8g2.drawStr(15 + offset_x, 25 + offset_y, "DTU offline");
+}
+
+void Display::drawHeader()
+{
     // header
     // header - content center
     u8g2.setFont(u8g2_font_6x10_tf);
@@ -97,24 +161,10 @@ void Display::drawScreen()
 
     // header - bootom line
     u8g2.drawRFrame(0 + offset_x, -11 + offset_y, 127, 22, 4);
+}
 
-    // main screen
-    u8g2.setFont(u8g2_font_logisoso28_tf);
-    // String wattage = String(lastDisplayData.totalPower) + " W";
-    String wattage = String(lastDisplayData.totalPower);
-    u8g2_uint_t width = u8g2.getUTF8Width(wattage.c_str());
-    int wattage_xpos = (128 - width) / 2;
-    u8g2.drawStr(wattage_xpos + offset_x, 19 + offset_y, wattage.c_str());
-
-    u8g2.setFont(u8g2_font_logisoso28_tf);
-    u8g2.drawStr(107 + offset_x, 19 + offset_y, "W");
-
-    // main screen small left
-    u8g2.drawRFrame(0 + offset_x, 36 + offset_y, 29, 16, 4);
-    u8g2.setFont(u8g2_font_6x10_tf);    
-    u8g2.drawStr(3 + offset_x, 40 + offset_y, (String(lastDisplayData.powerLimit)).c_str());
-    u8g2.drawStr(19 + offset_x, 40 + offset_y, "%");
-
+void Display::drawFooter()
+{
     // footer
     // footer - upper line
     u8g2.drawRFrame(0 + offset_x, 54 + offset_y, 127, 14, 4);
@@ -125,11 +175,6 @@ void Display::drawScreen()
     // u8g2.drawStr(3 + 11 * 4 + 4 * 4 + offset_x, 57 + offset_y, lastDisplayData.version);
     u8g2.drawStr(3 + offset_x, 56 + offset_y, ("d: " + String(lastDisplayData.totalYieldDay, 3) + " kWh").c_str());
     u8g2.drawStr(3 + 18 * 4 + offset_x, 56 + offset_y, ("t: " + String(lastDisplayData.totalYieldTotal, 0) + " kWh").c_str());
-
-    // set current choosen contrast
-    u8g2.setContrast(brightness);
-
-    u8g2.sendBuffer();
 }
 
 void Display::screenSaver()

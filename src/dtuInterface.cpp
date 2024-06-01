@@ -19,6 +19,7 @@ void dtuConnectionEstablish(WiFiClient *localDtuClient, char localDtuHostIp[16],
         {
             Serial.print(F("Connection to DTU failed. Setting try to reconnect.\n"));
             dtuConnection.dtuConnectState = DTU_STATE_TRY_RECONNECT;
+            globalData.dtuRssi = 0;
         }
         else
         {
@@ -35,6 +36,7 @@ void dtuConnectionStop(WiFiClient *localDtuClient, uint8_t tgtState)
     {
         localDtuClient->stop();
         dtuConnection.dtuConnectState = tgtState;
+        globalData.dtuRssi = 0;
         Serial.print(F("+++ DTU Connection --- stopped\n"));
     }
 }
