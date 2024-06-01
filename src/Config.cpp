@@ -18,7 +18,7 @@ void loadConfigFromEEPROM()
 void initializeEEPROM()
 {
     // EEPROM initialize
-    EEPROM.begin(256); // emulate 512 Byte pf EEPROM
+    EEPROM.begin(1024); // emulate 512 Byte pf EEPROM
 
     // Check if EEPROM has been initialized before
     EEPROM.get(0, userConfig);
@@ -32,11 +32,22 @@ void initializeEEPROM()
         // EEPROM not initialized, set default values
         strcpy(userConfig.dtuSsid, "DTUBI-12345678");
         strcpy(userConfig.dtuPassword, "dtubiPassword");
+        
         strcpy(userConfig.wifiSsid, "mySSID");
         strcpy(userConfig.wifiPassword, "myPassword");
         strcpy(userConfig.dtuHostIp, "192.168.0.254");
+        
         strcpy(userConfig.openhabHostIp, "192.168.1.100");
         strcpy(userConfig.openItemPrefix, "inverter");
+        userConfig.openhabActive = 0;
+        
+        strcpy(userConfig.mqttBrokerIp, "192.168.1.100");
+        userConfig.mqttBrokerPort = 1883;
+        strcpy(userConfig.mqttBrokerUser, "dtuuser");
+        strcpy(userConfig.mqttBrokerPassword, "dtupass");
+        strcpy(userConfig.mqttBrokerMainTopic, "dtu1");
+        userConfig.mqttActive = 0;
+
         userConfig.selectedUpdateChannel = 0; // default - release channel
         userConfig.dtuCloudPauseActive = 1;
         userConfig.dtuCloudPauseTime = 40;
@@ -76,9 +87,23 @@ void printEEPROMdata()
 
         Serial.print(F("openhab host: \t\t"));
         Serial.println(userConfig.openhabHostIp);
-
         Serial.print(F("openhab item prefix: \t"));
         Serial.println(userConfig.openItemPrefix);
+        Serial.print(F("openhab binding active: \t"));
+        Serial.println(userConfig.openhabActive);
+
+        Serial.print(F("mqtt host: \t\t"));
+        Serial.println(userConfig.mqttBrokerIp);
+        Serial.print(F("mqtt port: \t\t"));
+        Serial.println(userConfig.mqttBrokerPort);
+        Serial.print(F("mqtt user: \t\t"));
+        Serial.println(userConfig.mqttBrokerUser);
+        Serial.print(F("mqtt pass: \t\t"));
+        Serial.println(userConfig.mqttBrokerPassword);
+        Serial.print(F("mqtt topic: \t\t"));
+        Serial.println(userConfig.mqttBrokerMainTopic);
+        Serial.print(F("mqtt binding active: \t"));
+        Serial.println(userConfig.mqttActive);
 
         Serial.print(F("dtu update time: \t"));
         Serial.println(userConfig.dtuUpdateTime);

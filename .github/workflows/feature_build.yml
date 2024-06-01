@@ -1,9 +1,11 @@
-name: PlatformIO CI main release
+name: PlatformIO CI feature branch build
 
 on:
   push:
     branches:
-      - main
+      - '*'
+      - '!develop'
+      - '!main'
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -22,11 +24,16 @@ jobs:
       - name: Install PlatformIO Core
         run: pip install --upgrade platformio
 
+      - name: Extract branch name
+        shell: bash
+        run: echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_OUTPUT
+        id: extract_branch
+
       - name: write temp file with build number and set to env variable
         run: |
           touch ${{ github.workspace }}/include/buildnumber.txt
           printf -v BUILDNUMBER "%04d" ${{github.run_number}}
-          echo $BUILDNUMBER >> ${{ github.workspace }}/include/buildnumber.txt
+          echo "${BUILDNUMBER}_${{ steps.extract_branch.outputs.branch }}" >> ${{ github.workspace }}/include/buildnumber.txt
           echo "got current buildnumber and saved: "
           cat ${{ github.workspace }}/include/buildnumber.txt
           echo "CURRENT_BUILDNUMBER=$BUILDNUMBER" >> $GITHUB_ENV
@@ -39,19 +46,9 @@ jobs:
             VERSIONNUMBER=$(python ${{ github.workspace }}/version_inc.py getversion 2>&1)
             echo "got versionnumber: " $VERSIONNUMBER
             echo "CURRENT_VERSIONNUMBER=$VERSIONNUMBER" >> $GITHUB_ENV
-            mv .pio/build/esp12e/firmware.bin .pio/build/esp12e/dtuGateway_release_$VERSIONNUMBER.bin
+            mv .pio/build/esp12e/firmware.bin .pio/build/esp12e/dtuGateway_snapshot_$VERSIONNUMBER.bin
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          path: .pio/build/esp12e/dtuGateway_release_${{ env.CURRENT_VERSIONNUMBER }}.bin
-
-      - uses: "marvinpinto/action-automatic-releases@latest"
-        with:
-          repo_token: "${{ secrets.GITHUB_TOKEN }}"
-          automatic_release_tag: "v${{ env.CURRENT_VERSIONNUMBER }}"
-          prerelease: false
-          title: "dtuGateway v${{ env.CURRENT_VERSIONNUMBER }}"
-          files: |
-            .pio/build/esp12e/dtuGateway_release_${{ env.CURRENT_VERSIONNUMBER }}.bin
-            include/version.json
+          path: .pio/build/esp12e/dtuGateway_snapshot_${{ env.CURRENT_VERSIONNUMBER }}.bin

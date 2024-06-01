@@ -13,9 +13,13 @@
 #include <WiFiUdp.h>
 #include <NTPClient.h>
 
+#include <PubSubClient.h>
+
 #include <ArduinoJson.h>
 
 #include <EEPROM.h>
+
+#include <display.h>
 
 #include "dtuInterface.h"
 
@@ -38,11 +42,13 @@ char updateInfoWebPathRelease[128] = "https://github.com/ohAnd/dtuGateway/releas
 
 char versionServer[32] = "checking";
 char versiondateServer[32] = "...";
-char updateURL[128] = ""; // will be read by getting -> updateInfoWebPath
+char updateURL[196] = ""; // will be read by getting -> updateInfoWebPath
 char versionServerRelease[32] = "checking";
 char versiondateServerRelease[32] = "...";
-char updateURLRelease[128] = ""; // will be read by getting -> updateInfoWebPath
+char updateURLRelease[196] = ""; // will be read by getting -> updateInfoWebPath
 boolean updateAvailable = false;
+boolean updateRunning = false;
+boolean updateInfoRequested = false;
 float updateProgress = 0;
 char updateState[16] = "waiting";
 
@@ -60,11 +66,16 @@ int reconnectsCnt = -1; // first needed run inkrement to 0
 #define BLINK_PAUSE_CLOUD_UPDATE 4   // 0,5 Hz blip - DTO - Cloud update
 int8_t blinkCode = BLINK_WIFI_OFF;
 
+Display oledDisplay;
+
 String host;
 WiFiUDP ntpUDP;
 WiFiClient dtuClient;
 NTPClient timeClient(ntpUDP); // By default 'pool.ntp.org' is used with 60 seconds update interval
 #define CLIENT_TIME_OFFSET 3600
+
+WiFiClient puSubClient;
+PubSubClient mqttClient(puSubClient);
 
 ESP8266WebServer server(80);
 
@@ -180,8 +191,10 @@ boolean checkWifiTask()
 // scan network for first settings or change
 int networkCount = 0;
 String foundNetworks = "[{\"name\":\"empty\",\"wifi\":0,\"chan\":0}]";
-boolean scanNetworksResult(int networksFound)
+
+boolean scanNetworksResult()
 {
+  int networksFound = WiFi.scanComplete();
   // print out Wi-Fi network scan result upon completion
   if (networksFound > 0)
   {
@@ -204,13 +217,14 @@ boolean scanNetworksResult(int networksFound)
       }
     }
     foundNetworks = foundNetworks + "]";
-    // WiFi.scanDelete();
+    WiFi.scanDelete();
+    return true;
   }
   else
   {
-    Serial.println(F("no networks found after scanning!"));
+    // Serial.println(F("no networks found after scanning!"));
+    return false;
   }
-  return true;
 }
 
 // web page
@@ -287,8 +301,18 @@ void handleInfojson()
   JSON = JSON + "},";
 
   JSON = JSON + "\"openHabConnection\": {";
+  JSON = JSON + "\"ohActive\": " + userConfig.openhabActive + ",";
   JSON = JSON + "\"ohHostIp\": \"" + String(userConfig.openhabHostIp) + "\",";
   JSON = JSON + "\"ohItemPrefix\": \"" + String(userConfig.openItemPrefix) + "\"";
+  JSON = JSON + "},";
+
+  JSON = JSON + "\"mqttConnection\": {";
+  JSON = JSON + "\"mqttActive\": " + userConfig.mqttActive + ",";
+  JSON = JSON + "\"mqttIp\": \"" + String(userConfig.mqttBrokerIp) + "\",";
+  JSON = JSON + "\"mqttPort\": " + String(userConfig.mqttBrokerPort) + ",";
+  JSON = JSON + "\"mqttUser\": \"" + String(userConfig.mqttBrokerUser) + "\",";
+  JSON = JSON + "\"mqttPass\": \"" + String(userConfig.mqttBrokerPassword) + "\",";
+  JSON = JSON + "\"mqttMainTopic\": \"" + String(userConfig.mqttBrokerMainTopic) + "\"";
   JSON = JSON + "},";
 
   JSON = JSON + "\"dtuConnection\": {";
@@ -337,8 +361,6 @@ void handleUpdateWifiSettings()
 
   server.send(200, "application/json", JSON);
 
-  delay(2000); // give time for the json response
-
   // reconnect with new values
   WiFi.disconnect();
   WiFi.mode(WIFI_STA);
@@ -381,31 +403,62 @@ void handleUpdateDtuSettings()
 
   server.send(200, "application/json", JSON);
 
-  delay(2000); // give time for the json response
-
   // stopping connection to DTU - to force reconnect with new data
   dtuConnectionStop(&dtuClient, DTU_STATE_TRY_RECONNECT);
 }
 
-void handleUpdateOpenhabSettings()
+void handleUpdateBindingsSettings()
 {
   String openhabHostIpUser = server.arg("openhabHostIpSend"); // retrieve message from webserver
-  Serial.println("\nhandleUpdateDtuSettings - got openhab ip: " + openhabHostIpUser);
+  String openhabPrefix = server.arg("openhabPrefixSend");
+  String openhabActive = server.arg("openhabActiveSend");
+
+  String mqttIP = server.arg("mqttIpSend");
+  String mqttPort = server.arg("mqttPortSend");
+  String mqttUser = server.arg("mqttUserSend");
+  String mqttPass = server.arg("mqttPassSend");
+  String mqttMainTopic = server.arg("mqttMainTopicSend");
+  String mqttActive = server.arg("mqttActiveSend");
 
   openhabHostIpUser.toCharArray(userConfig.openhabHostIp, sizeof(userConfig.openhabHostIp));
+  openhabPrefix.toCharArray(userConfig.openItemPrefix, sizeof(userConfig.openItemPrefix));
+
+  if (openhabActive == "1")
+    userConfig.openhabActive = true;
+  else
+    userConfig.openhabActive = false;
+
+  mqttIP.toCharArray(userConfig.mqttBrokerIp, sizeof(userConfig.mqttBrokerIp));
+  userConfig.mqttBrokerPort = mqttPort.toInt();
+  mqttUser.toCharArray(userConfig.mqttBrokerUser, sizeof(userConfig.mqttBrokerUser));
+  mqttPass.toCharArray(userConfig.mqttBrokerPassword, sizeof(userConfig.mqttBrokerPassword));
+  mqttMainTopic.toCharArray(userConfig.mqttBrokerMainTopic, sizeof(userConfig.mqttBrokerMainTopic));
+
+  if (mqttActive == "1")
+    userConfig.mqttActive = true;
+  else
+    userConfig.mqttActive = false;
 
   saveConfigToEEPROM();
   delay(500);
 
+  // reintialize mqtt with new settings
+  initMqttClient();
+
   String JSON = "{";
+  JSON = JSON + "\"openhabActive\": " + userConfig.openhabActive + ",";
   JSON = JSON + "\"openhabHostIp\": \"" + userConfig.openhabHostIp + "\",";
+  JSON = JSON + "\"openItemPrefix\": \"" + userConfig.openItemPrefix + "\",";
+  JSON = JSON + "\"mqttActive\": " + userConfig.mqttActive + ",";
+  JSON = JSON + "\"mqttBrokerIp\": \"" + userConfig.mqttBrokerIp + "\",";
+  JSON = JSON + "\"mqttBrokerPort\": " + String(userConfig.mqttBrokerPort) + ",";
+  JSON = JSON + "\"mqttBrokerUser\": \"" + userConfig.mqttBrokerUser + "\",";
+  JSON = JSON + "\"mqttBrokerPassword\": \"" + userConfig.mqttBrokerPassword + "\",";
+  JSON = JSON + "\"mqttBrokerMainTopic\": \"" + userConfig.mqttBrokerMainTopic + "\"";
   JSON = JSON + "}";
 
   server.send(200, "application/json", JSON);
-
-  delay(2000); // give time for the json response
-
-  Serial.println("handleUpdateOpenhabSettings - send JSON: " + String(JSON));
+  Serial.println("handleUpdateBindingsSettings - send JSON: " + String(JSON));
 }
 
 void handleUpdateOTASettings()
@@ -423,16 +476,18 @@ void handleUpdateOTASettings()
   JSON = JSON + "}";
 
   server.send(200, "application/json", JSON);
-
-  // delay(2000); // give time for the json response
+  Serial.println("handleUpdateDtuSettings - send JSON: " + String(JSON));
 
   // trigger new update info with changed release channel
-  getUpdateInfo();
-
-  Serial.println("handleUpdateDtuSettings - send JSON: " + String(JSON));
+  // getUpdateInfo(AsyncWebServerRequest *request);
+  updateInfoRequested = true;
 }
 
 // webserver port 80
+// void initializeWebServer()
+// {
+//   server.on("/", HTTP_GET, handleRoot);
+
 void initializeWebServer()
 {
   server.on("/", HTTP_GET, handleRoot);
@@ -450,14 +505,14 @@ void initializeWebServer()
   server.on("/updateWifiSettings", handleUpdateWifiSettings);
   server.on("/updateDtuSettings", handleUpdateDtuSettings);
   server.on("/updateOTASettings", handleUpdateOTASettings);
-  server.on("/updateOHSettings", handleUpdateOpenhabSettings);
+  server.on("/updateBindingsSettings", handleUpdateBindingsSettings);
 
   // api GETs
   server.on("/api/data", handleDataJson);
   server.on("/api/info", handleInfojson);
 
   // OTA update
-  server.on("/updateGetInfo", getUpdateInfo);
+  server.on("/updateGetInfo", requestUpdateInfo);
   server.on("/updateRequest", handleUpdateRequest);
 
   server.begin();
@@ -497,15 +552,33 @@ void handleUpdateRequest()
   ESPhttpUpdate.onError(update_error);
   ESPhttpUpdate.closeConnectionsOnUpdate(false);
 
-  // // ESPhttpUpdate.rebootOnUpdate(false); // remove automatic update
+  // ESPhttpUpdate.rebootOnUpdate(false); // remove automatic update
+
+  Serial.println(F("[update] starting update"));
   ESPhttpUpdate.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
+  updateRunning = true;
+
+  // stopping all services to prevent OOM/ stackoverflow
+  timeClient.end();
+  ntpUDP.stopAll();
+  mqttClient.disconnect();
+  puSubClient.stopAll();
+  dtuClient.stopAll();
+  MDNS.close();
+  server.stop();
+  server.close();
+
   t_httpUpdate_return ret = ESPhttpUpdate.update(updateclient, urlToBin);
 
   switch (ret)
   {
   case HTTP_UPDATE_FAILED:
-    Serial.printf("HTTP_UPDATE_FAILD Error (%d): %s\n", ESPhttpUpdate.getLastError(), ESPhttpUpdate.getLastErrorString().c_str());
+    Serial.printf("HTTP_UPDATE_FAILED Error (%d): %s\n", ESPhttpUpdate.getLastError(), ESPhttpUpdate.getLastErrorString().c_str());
     Serial.println(F("[update] Update failed."));
+    // restart all services if failed
+    initializeWebServer(); // starting server again
+    startServices();
+    updateRunning = false;
     break;
   case HTTP_UPDATE_NO_UPDATES:
     Serial.println(F("[update] Update no Update."));
@@ -516,6 +589,14 @@ void handleUpdateRequest()
   }
   Serial.println("[update] Update routine done - ReturnCode: " + String(ret));
 }
+
+//
+void requestUpdateInfo()
+{
+  updateInfoRequested = true;
+  server.send(200, "application/json", "{\"updateInfoRequested\": \"done\"}");
+}
+
 // get the info about update from remote
 boolean getUpdateInfo()
 {
@@ -532,25 +613,27 @@ boolean getUpdateInfo()
     versionUrl = updateInfoWebPath;
   }
 
+  Serial.print("\n---> getUpdateInfo - check for: " + versionUrl + "\n");
+
   // create an HTTPClient instance
   HTTPClient https;
 
   // Initializing an HTTPS communication using the secure client
   if (https.begin(*secClient, versionUrl))
-  {                                                          // HTTPS
+  { // HTTPS
+    Serial.print(F("\n---> getUpdateInfo - https connected\n"));
     https.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS); // Enable automatic following of redirects
     int httpCode = https.GET();
+    Serial.println("\n---> getUpdateInfo - got http ret code:" + String(httpCode));
 
     // httpCode will be negative on error
     if (httpCode > 0)
     {
       // HTTP header has been send and Server response header has been handled
-      // Serial.printf("\n[HTTPS] GET... code: %d\n", httpCode);
       // file found at server
       if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY)
       {
         String payload = https.getString();
-        // Serial.println(payload);
 
         // Parse JSON using ArduinoJson library
         DynamicJsonDocument doc(1024);
@@ -567,25 +650,32 @@ boolean getUpdateInfo()
         }
         else
         {
+          // for special versions: develop, feature, localDev the version has to be truncated
+          String localVersion = String(VERSION);
+          if (localVersion.indexOf("_"))
+          {
+            localVersion = localVersion.substring(0, localVersion.indexOf("_"));
+          }
+
           if (userConfig.selectedUpdateChannel == 0)
           {
-            // versionServerRelease = String(doc["version"]);
             strcpy(versionServerRelease, (const char *)(doc["version"]));
-            // versiondateServerRelease = String(doc["versiondate"]);
             strcpy(versiondateServerRelease, (const char *)(doc["versiondate"]));
-            // updateURLRelease = String(doc["link"]);
             strcpy(updateURLRelease, (const char *)(doc["link"]));
-            updateAvailable = checkVersion(String(VERSION), versionServerRelease);
+            updateAvailable = checkVersion(localVersion, versionServerRelease);
           }
           else
           {
-            // versionServer = String(doc["version"]);
             strcpy(versionServer, (const char *)(doc["version"]));
-            // versiondateServer = String(doc["versiondate"]);
+            String versionSnapshot = versionServer;
+            if (versionSnapshot.indexOf("_"))
+            {
+              versionSnapshot = versionSnapshot.substring(0, versionSnapshot.indexOf("_"));
+            }
+
             strcpy(versiondateServer, (const char *)(doc["versiondate"]));
-            // updateURL = String(doc["linksnapshot"]);
             strcpy(updateURL, (const char *)(doc["linksnapshot"]));
-            updateAvailable = checkVersion(String(VERSION), versionServer);
+            updateAvailable = checkVersion(localVersion, versionSnapshot);
           }
 
           server.sendHeader("Connection", "close");
@@ -597,21 +687,22 @@ boolean getUpdateInfo()
     {
       Serial.printf("[HTTPS] GET... failed, error: %s\n", https.errorToString(httpCode).c_str());
     }
-
+    secClient->stop();
     https.end();
   }
   else
   {
     Serial.println(F("\ngetUpdateInfo - [HTTPS] Unable to connect to server"));
   }
-
+  // secClient->stopAll();
+  updateInfoRequested = false;
   return true;
 }
 
 // check version local with remote
 boolean checkVersion(String v1, String v2)
 {
-  Serial.println("\nstart compare: " + String(v1) + " - " + String(v2));
+  Serial.println("\ncompare versions: " + String(v1) + " - " + String(v2));
   // Method to compare two versions.
   // Returns 1 if v2 is smaller, -1
   // if v1 is smaller, 0 if equal
@@ -675,9 +766,9 @@ void update_finished()
 }
 void update_progress(int cur, int total)
 {
-  updateProgress = (cur / total) * 100;
+  updateProgress = ((float)cur / (float)total) * 100;
   strcpy(updateState, "running");
-  Serial.print("CALLBACK:  HTTP update process at " + String(cur) + "  of " + String(total) + " bytes - " + String(updateProgress, 1) + " %...\n");
+  Serial.print("CALLBACK:  HTTP update process at " + String(cur) + "  of " + String(total) + " bytes - " + String(updateProgress, 1) + " %\n");
 }
 void update_error(int err)
 {
@@ -819,6 +910,98 @@ boolean updateValueToOpenhab()
   return true;
 }
 
+// mqtt client
+
+void initMqttClient()
+{
+  mqttClient.setServer(userConfig.mqttBrokerIp, userConfig.mqttBrokerPort);
+  Serial.print("\ninitialized MQTT client ... to broker: " + String(userConfig.mqttBrokerIp) + ":" + String(userConfig.mqttBrokerPort) + "\n");
+}
+
+void connectCheckMqttClient()
+{
+  if (!mqttClient.connected())
+  {
+    Serial.print("\nMQTT not connected, try to connect ... ");
+    // Attempt to connect
+    if (mqttClient.connect("dtuGateway", userConfig.mqttBrokerUser, userConfig.mqttBrokerPassword))
+    {
+      Serial.println("connected");
+    }
+    else
+    {
+      Serial.print("failed, rc=");
+      Serial.print(mqttClient.state());
+      Serial.println(" try again in 5 seconds");
+    }
+  }
+}
+
+boolean postMessageToMQTTbroker(String topic, String value)
+{
+  const char *charTopic = topic.c_str();
+  const char *charValue = value.c_str();
+  mqttClient.publish(charTopic, charValue);
+
+  // Serial.println("\npostMessageToMQTTbroker - send '" + value + "' to topic: " + topic);
+  return true;
+}
+
+boolean updateValuesToMqtt()
+{
+  connectCheckMqttClient();
+  if (mqttClient.connected())
+  {
+    boolean sendOk = postMessageToMQTTbroker(String(userConfig.mqttBrokerMainTopic) + "/timestamp", (String)timeStampInSecondsDtuSynced);
+    if (sendOk)
+    {
+      postMessageToMQTTbroker(String(userConfig.mqttBrokerMainTopic) + "/grid/U", (String)globalData.grid.voltage);
+      postMessageToMQTTbroker(String(userConfig.mqttBrokerMainTopic) + "/grid/I", (String)globalData.grid.current);
+      postMessageToMQTTbroker(String(userConfig.mqttBrokerMainTopic) + "/grid/P", (String)globalData.grid.power);
+      postMessageToMQTTbroker(String(userConfig.mqttBrokerMainTopic) + "/grid/dailyEnergy", String(globalData.grid.dailyEnergy, 3));
+      if (globalData.grid.totalEnergy != 0)
+      {
+        postMessageToMQTTbroker(String(userConfig.mqttBrokerMainTopic) + "/grid/totalEnergy", String(globalData.grid.totalEnergy, 3));
+      }
+
+      postMessageToMQTTbroker(String(userConfig.mqttBrokerMainTopic) + "/pv0/U", (String)globalData.pv0.voltage);
+      postMessageToMQTTbroker(String(userConfig.mqttBrokerMainTopic) + "/pv0/I", (String)globalData.pv0.current);
+      postMessageToMQTTbroker(String(userConfig.mqttBrokerMainTopic) + "/pv0/P", (String)globalData.pv0.power);
+      postMessageToMQTTbroker(String(userConfig.mqttBrokerMainTopic) + "/pv0/dailyEnergy", String(globalData.pv0.dailyEnergy, 3));
+      if (globalData.pv0.totalEnergy != 0)
+      {
+        postMessageToMQTTbroker(String(userConfig.mqttBrokerMainTopic) + "/pv0/totalEnergy", String(globalData.pv0.totalEnergy, 3));
+      }
+
+      postMessageToMQTTbroker(String(userConfig.mqttBrokerMainTopic) + "/pv1/U", (String)globalData.pv1.voltage);
+      postMessageToMQTTbroker(String(userConfig.mqttBrokerMainTopic) + "/pv1/I", (String)globalData.pv1.current);
+      postMessageToMQTTbroker(String(userConfig.mqttBrokerMainTopic) + "/pv1/P", (String)globalData.pv1.power);
+      postMessageToMQTTbroker(String(userConfig.mqttBrokerMainTopic) + "/pv1/dailyEnergy", String(globalData.pv1.dailyEnergy, 3));
+      if (globalData.pv1.totalEnergy != 0)
+      {
+        postMessageToMQTTbroker(String(userConfig.mqttBrokerMainTopic) + "/pv1/totalEnergy", String(globalData.pv1.totalEnergy, 3));
+      }
+
+      postMessageToMQTTbroker(String(userConfig.mqttBrokerMainTopic) + "/inverter/Temp", (String)globalData.inverterTemp);
+      postMessageToMQTTbroker(String(userConfig.mqttBrokerMainTopic) + "/inverter/PowerLimit", (String)globalData.powerLimit);
+      postMessageToMQTTbroker(String(userConfig.mqttBrokerMainTopic) + "/inverter/WifiRSSI", (String)globalData.dtuRssi);
+      Serial.println("\nsent values to mqtt broker");
+    }
+    else
+    {
+      Serial.println("\nerror during sent values to mqtt broker");
+    }
+  }
+  else
+  {
+    Serial.println("\ncould not send to mqtt broker - mqtt not connected");
+    return false;
+  }
+  return true;
+}
+
+// ****
+
 void setup()
 {
   // switch off SCK LED
@@ -828,6 +1011,10 @@ void setup()
   // initialize digital pin LED_BUILTIN as an output.
   pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, LOW); // turn the LED off by making the voltage LOW
+
+  // init display
+  oledDisplay.setup();
+
 
   Serial.begin(115200);
   Serial.print(F("\nBooting - with firmware version "));
@@ -844,7 +1031,10 @@ void setup()
   {
     Serial.println(F("\n+++ device in 'first start' mode - have to be initialized over own served wifi +++\n"));
     // first scan of networks - synchronous
-    scanNetworksResult(WiFi.scanNetworks());
+    // scanNetworksResult(WiFi.scanNetworks());
+
+    WiFi.scanNetworks();
+    scanNetworksResult();
 
     // Connect to Wi-Fi as AP
     WiFi.mode(WIFI_AP);
@@ -899,10 +1089,10 @@ void startServices()
     Serial.print(F("IP address of gateway: "));
     Serial.println(WiFi.gatewayIP());
     host = "hoymilesGW_" + String(chipID);
-    MDNS.begin(host);
 
     httpUpdater.setup(&server);
 
+    MDNS.begin(host);
     MDNS.addService("http", "tcp", 80);
     Serial.println("Ready! Open http://" + String(host) + ".local in your browser");
 
@@ -915,7 +1105,11 @@ void startServices()
     Serial.print(F("got time from time server: "));
     Serial.println(String(starttime));
 
+    // start first search for available wifi networks
+    WiFi.scanNetworks(true);
+
     initializeWebServer();
+    initMqttClient();
   }
   else
   {
@@ -1155,8 +1349,20 @@ void IRAM_ATTR timer1000MilliSeconds()
 
 void loop()
 {
+  // skip all tasks if update is running
+  if (updateRunning)
+    return;
+
   // web server runner
   server.handleClient();
+  // serving domain name
+  MDNS.update();
+
+  // runner for mqttClient to hold a already etablished connection
+  if (userConfig.mqttActive && mqttClient.connected())
+  {
+    mqttClient.loop();
+  }
 
   unsigned long currentMillis = millis();
   // 100ms task
@@ -1166,6 +1372,7 @@ void loop()
     // -------->
     blinkCodeTask();
     serialInputTask();
+    oledDisplay.renderScreen(timeClient.getFormattedTime(), String(VERSION));
   }
 
   // CHANGE to precise 1 second timer increment
@@ -1178,7 +1385,26 @@ void loop()
     // Serial.print("local: " + getTimeStringByTimestamp(timeStampInSecondsDtuSynced));
     // Serial.print(" --- NTP: " + timeClient.getFormattedTime() + " --- currentMillis " + String(currentMillis) + " --- ");
     previousMillisShort = currentMillis;
+    // Serial.print(F("free mem: "));
+    // Serial.print(ESP.getFreeHeap());
+    // Serial.print(F(" - heap fragm: "));
+    // Serial.print(ESP.getHeapFragmentation());
+    // Serial.print(F(" - max free block size: "));
+    // Serial.print(ESP.getMaxFreeBlockSize());
+    // Serial.print(F(" - free cont stack: "));
+    // Serial.print(ESP.getFreeContStack());
+    // Serial.print(F(" \n"));
+
     // -------->
+
+    if (globalControls.wifiSwitch && !userConfig.wifiAPstart)
+      checkWifiTask();
+    else
+    {
+      // stopping connection to DTU before go wifi offline
+      dtuConnectionStop(&dtuClient, DTU_STATE_OFFLINE);
+      WiFi.disconnect();
+    }
 
     if (dtuConnection.preventCloudErrors)
     {
@@ -1191,30 +1417,27 @@ void loop()
       }
     }
 
-    if (globalControls.wifiSwitch && !userConfig.wifiAPstart)
-      checkWifiTask();
-    else
-    {
-      // stopping connection to DTU before go wifi offline
-      dtuConnectionStop(&dtuClient, DTU_STATE_OFFLINE);
-      WiFi.disconnect();
-    }
-
     // direct request of new powerLimit
     if (globalData.powerLimitSet != globalData.powerLimit && globalData.powerLimitSet != 101 && globalData.uptodate)
     {
       Serial.print("\n----- ----- set new power limit from " + String(globalData.powerLimit) + " to " + String(globalData.powerLimitSet));
       if (writeReqCommand(&dtuClient, globalData.powerLimitSet, timeStampInSecondsDtuSynced))
       {
-        Serial.print(" --- done");
+        Serial.println(F(" --- done"));
         // set next normal request in 5 seconds from now on, only if last data updated within last 2 times of user setted update rate
         if (currentMillis - globalData.lastRespTimestamp < (intervalMid * 2))
           previousMillisMid = currentMillis - (intervalMid - 5);
       }
       else
       {
-        Serial.print(" --- error");
+        Serial.println(F(" --- error"));
       }
+    }
+
+    //
+    if (updateInfoRequested)
+    {
+      getUpdateInfo();
     }
   }
 
@@ -1224,20 +1447,22 @@ void loop()
     Serial.printf("\n>>>>> %02is task - state --> ", int(interval5000ms));
     Serial.print("local: " + getTimeStringByTimestamp(timeStampInSecondsDtuSynced));
     Serial.print(" --- NTP: " + timeClient.getFormattedTime());
+
     // Serial.print(" --- currentMillis " + String(currentMillis) + " --- ");
     previousMillis5000ms = currentMillis;
     // -------->
+    // -----------------------------------------
     if (WiFi.status() == WL_CONNECTED)
     {
-      timeClient.update();
       // get current RSSI to AP
       int wifiPercent = 2 * (WiFi.RSSI() + 100);
       if (wifiPercent > 100)
         wifiPercent = 100;
       globalData.wifi_rssi_gateway = wifiPercent;
-      Serial.print(" --- RSSI to AP: '" + String(WiFi.SSID()) + "': " + String(globalData.wifi_rssi_gateway) + " %");
+      // Serial.print(" --- RSSI to AP: '" + String(WiFi.SSID()) + "': " + String(globalData.wifi_rssi_gateway) + " %");
 
-      getPowerSetDataFromOpenHab();
+      if (userConfig.openhabActive)
+        getPowerSetDataFromOpenHab();
     }
   }
 
@@ -1247,8 +1472,10 @@ void loop()
     Serial.printf("\n>>>>> %02is task - state --> ", int(intervalMid));
     Serial.print("local: " + getTimeStringByTimestamp(timeStampInSecondsDtuSynced));
     Serial.print(" --- NTP: " + timeClient.getFormattedTime() + "\n");
+
     previousMillisMid = currentMillis;
     // -------->
+
     if (WiFi.status() == WL_CONNECTED)
     {
       dtuConnectionEstablish(&dtuClient, userConfig.dtuHostIp);
@@ -1258,7 +1485,11 @@ void loop()
       {
         if ((globalControls.getDataAuto || globalControls.getDataOnce) && globalData.uptodate)
         {
-          updateValueToOpenhab();
+          if (userConfig.openhabActive)
+            updateValueToOpenhab();
+          if (userConfig.mqttActive)
+            updateValuesToMqtt();
+
           if (globalControls.dataFormatJSON)
           {
             printDataAsJsonToSerial();
@@ -1286,7 +1517,10 @@ void loop()
           globalData.pv1.current = 0;
           globalData.pv1.voltage = 0;
 
-          updateValueToOpenhab();
+          if (userConfig.openhabActive)
+            updateValueToOpenhab();
+          if (userConfig.mqttActive)
+            updateValuesToMqtt();
           dtuConnection.dtuErrorState = DTU_ERROR_LAST_SEND;
           Serial.print(F("\n>>>>> TIMEOUT 5 min for DTU -> NIGHT - send zero values\n"));
         }
@@ -1303,8 +1537,13 @@ void loop()
 
     previousMillisLong = currentMillis;
     // -------->
+    if (WiFi.status() == WL_CONNECTED)
+    {
+      timeClient.update();
+    }
     // start async scan for wifi'S
-    // WiFi.scanNetworksAsync(scanNetworksResult);
-    scanNetworksResult(WiFi.scanNetworks());
+    Serial.print(F("\nstart scan for wifi's\n"));
+    WiFi.scanNetworks(true);
   }
+  scanNetworksResult();
 }

@@ -13,12 +13,13 @@ void dtuConnectionEstablish(WiFiClient *localDtuClient, char localDtuHostIp[16],
 {
     if (!localDtuClient->connected() && !dtuConnection.dtuActiveOffToCloudUpdate)
     {
-        localDtuClient->setTimeout(5000);
+        localDtuClient->setTimeout(1500);
         Serial.print("\n>>> Client not connected with DTU! - trying to connect to " + String(localDtuHostIp) + " ... ");
         if (!localDtuClient->connect(localDtuHostIp, localDtuPort))
         {
             Serial.print(F("Connection to DTU failed. Setting try to reconnect.\n"));
             dtuConnection.dtuConnectState = DTU_STATE_TRY_RECONNECT;
+            globalData.dtuRssi = 0;
         }
         else
         {
@@ -35,6 +36,7 @@ void dtuConnectionStop(WiFiClient *localDtuClient, uint8_t tgtState)
     {
         localDtuClient->stop();
         dtuConnection.dtuConnectState = tgtState;
+        globalData.dtuRssi = 0;
         Serial.print(F("+++ DTU Connection --- stopped\n"));
     }
 }

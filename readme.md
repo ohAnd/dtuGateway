@@ -12,10 +12,14 @@
     - [data - http://\<ip\_to\_your\_device\>/api/data](#data---httpip_to_your_deviceapidata)
     - [info - http://\<ip\_to\_your\_device\>/api/info](#info---httpip_to_your_deviceapiinfo)
   - [openhab integration/ configuration](#openhab-integration-configuration)
+  - [mqqt integration/ configuration](#mqqt-integration-configuration)
   - [known bugs](#known-bugs)
   - [releases](#releases)
     - [installation / update](#installation--update)
-    - [first setup with access point](#first-setup-with-access-point)
+      - [hardware](#hardware)
+      - [first installation to the ESP device](#first-installation-to-the-esp-device)
+      - [first setup with access point](#first-setup-with-access-point)
+      - [return to factory mode](#return-to-factory-mode)
     - [main](#main)
     - [snapshot](#snapshot)
   - [experiences with the hoymiles HMS-800W-2T](#experiences-with-the-hoymiles-hms-800w-2t)
@@ -37,6 +41,7 @@ Data from dtu can be read in a very short time, but it has to be tested how ofte
 
 On a manual way you can be back on track, if you are logging in to the local access point of the dtu and resend your local wifi login data to (it seems) initiate a reboot. With this way you can be back online in ~ 1:30 minutes.
 
+So I decided to put this abstraction in an **ESP8266** to have a stable abstraction to an existing smart home environment.
 
 > *hint: the whole project could be also implemented on a small server and translated to e.g. python [see here for an example](https://github.com/henkwiedig/Hoymiles-DTU-Proto) and also the sources below*
 
@@ -44,7 +49,7 @@ On a manual way you can be back on track, if you are logging in to the local acc
 1. Abstract the interface to the dtu (inverter connection endpoint) with different possibilities to connect to other systems. (push/ pull)
 2. Very stable interface with no dependencies to an environment/ a system with a stand alone application based on an arduino board (ESP8266).
 3. TODO: Ability to change running wifi to connect to dtu over local network or direct access point.
-4. Use this need to create a full enivronment for an ESP based project. (see features below)
+4. Use this need to create a full enivronment for an ESP8266 based project. (see features below)
 
 ## features
 
@@ -56,11 +61,28 @@ On a manual way you can be back on track, if you are logging in to the local acc
   - temperature and wifi rssi of the dtu
 - setting the target inverter power limit dynamically
 - serving the readed data per /api/data
-- updating openHab instance with readed data and pulling set data from the instance
+- binding configuration with seperate activation and login data setting
+- binding: updating openHab instance with readed data and pulling set data from the instance
+- binding: updating to a MQTT broker with readed data [OPEN: pulling set power data from the mqtt instance]
 - for testing purposes the time between each request is adjustable (default 31 seconds) 
 - syncing time of gateway with the local time of the dtu to prevent wrong restart counters
 - configurable 'cloud pause' - see [experiences](#-experiences-with-the-hoymiles-HMS-800W-2T) - to prevent missing updates by the dtu to the hoymiles cloud
 - automatic reboot of DTU, if there is an error detected (e.g. inplausible not changed values)
+- display SSH1106 implemented
+  - segmented in 3 parts
+    - header:
+      - left: wifi quality dtuGateway to local wifi
+      - mid: current time of dtuGateway
+      - right: wifi quality of dtu connection to local wifi
+    - main:
+      - small left: current power limit of inverter
+      - big mid/ right: current power of inverter
+    - footer:
+      - left: current daily yield
+      - right: current total yield
+  - additonal features
+    - small screensaver to prevent burn-in effect with steady components on the screen (shifting the whole screen every minute with 1 pixel in a 4 step rotation)
+    - smooth brightness control for changed main value - increase to max after change and then dimmming smooth back to the default level
 
 ### regarding environment
 
@@ -199,11 +221,57 @@ On a manual way you can be back on track, if you are logging in to the local acc
       - "<openItemPrefix>_PowerLimit" //current read power limit from dtu
       - "<openItemPrefix>_WifiRSSI"
 
+## mqqt integration/ configuration
+
+- set the IP to your MQTT broker
+- set the MQTT user and MQTT password
+- set the main topic e.g. 'dtu1' for the pubished data
+- data will be published as following ('dtu1' is configurable in the settings):
+  
+  ```
+  dtu1/timestamp
+
+  dtu1/grid/U
+  dtu1/grid/I
+  dtu1/grid/P
+  dtu1/grid/dailyEnergy
+  dtu1/grid/totalEnergy
+  
+  dtu1/pv0/U
+  dtu1/pv0/I
+  dtu1/pv0/P
+  dtu1/pv0/dailyEnergy
+  dtu1/pv0/totalEnergy
+  
+  dtu1/pv1/U
+  dtu1/pv1/I
+  dtu1/pv1/P
+  dtu1/pv1/dailyEnergy
+  dtu1/pv1/totalEnergy
+
+  dtu1/inverter/Temp
+  dtu1/inverter/PowerLimit
+  dtu1/inverter/WifiRSSI
+  ```
+
 ## known bugs
 - sometimes out-of-memory resets with instant reboots (rare after some hours or more often after some days)
 
 ## releases
 ### installation / update
+#### hardware
+- ESP8266 based board
+- optional display:
+  - connect SSH1106 driven OLED display (128x64 e.g. 1.27") with your ESP8266 board (VCC, GND, SCK, SCL)
+  - pinning for different boards (display connector to ESPxx board pins)
+
+    | dev board                                        | ESP family | VCC  | GND |        SCK       |       SDA        | tested |
+    |--------------------------------------------------|------------|:----:|:---:|:----------------:|:----------------:|:------:|
+    | AZDelivery D1 Board NodeMCU ESP8266MOD-12F       | ESP8266    | 3.3V | GND | D15/GPIO5/SCL/D3 | D14/GPIO4/SDA/D4 |   OK   |
+    | AZDelivery NodeMCU V2 WiFi Amica ESP8266 ESP-12F | ESP8266    | 3.3V | GND | D1/GPIO5/SCL     | D2/GPIO4/SDA     |   OK   |
+    | AZDelivery D1 Mini NodeMcu mit ESP8266-12F       | ESP8266    | 3V3  |  G  | D1/GPIO5/SCL     | D2/GPIO4/SDA     |   OK   |
+  
+#### first installation to the ESP device
 1. download the preferred release as binary (see below)
 2. **HAS TO BE VERIFIED** [only once] flash the esp8266 board with the (esp download tool)[https://www.espressif.com/en/support/download/other-tools]
    1. choose bin file at address 0x0
@@ -215,15 +283,29 @@ On a manual way you can be back on track, if you are logging in to the local acc
    7. press start ;-)
 3. all further updates are done by OTA (see chapters above) 
 
-### first setup with access point
+#### first setup with access point
 1. connect with the AP hoymilesGW_<chipID> (on smartphone sometimes you have to accept the connection explicitly with the knowledge there is no internet connectivity)
 2. open the website http://192.168.4.1 (or http://hoymilesGW.local) for the first configuration
 3. choose your wifi
 4. type in the wifi password - save
+5. in webfrontend setting your DTU IP adress within your local network (currently the user and password for dtu are not needed, for later integration relevant for a direct connection to the dtu over their access point)
+6. then you can configure your needed binding
+   1. openhab -> set the IP of your openhab instance and the prefix for the dtu items according to your configured item file in openhab
+   2. mqtt -> set the IP and port (e.g. 192.178.0.42:1883) of your mqtt broker and the user and passwort that your hacve for this instance
+7. after this one time configuration the connection to the dtu should be established and the data displayed in the webfrontend and according to your setup transmitted to the target instance
+
+#### return to factory mode
+1. connect your ESP with serial (115200 baud) in a COM terminal
+2. check if receive some debug data from the device
+3. type in `resetToFactory 1`
+4. response of the device will be `reinitialize EEPROM data and reboot ...`
+5. after reboot the device starting again in AP mode for first setup
 
 ### main
 latest release - changes will documented by commit messages
 https://github.com/ohAnd/dtuGateway/releases/latest
+
+(to be fair, the amount of downloads is the count of requests from the client to check for new firmware for the OTA update)
 
 ![GitHub Downloads (all assets, latest release)](https://img.shields.io/github/downloads/ohand/dtuGateway/latest/total)
 ![GitHub (Pre-)Release Date](https://img.shields.io/github/release-date/ohand/dtuGateway)
@@ -271,11 +353,13 @@ fully covered with github actions
 
 building on push to develop and serving as a snapshot release with direct connection to the device - available updates will be locally checked and offered to the user for installation 
 
+hint: referring to [Error Build in platform.io - buildnumber file not found #6](https://github.com/ohAnd/dtuGateway/issues/6) for local building: 
+> For automatic versioning there is a file called ../include/buildnumber.txt expected. With the content "localDev" or versionnumber e.g. "1.0.0" in first line. (File is blocked by .gitignore for GitHub actions to run.)
+
+
+
 ### platformio
 - https://docs.platformio.org/en/latest/core/installation/methods/installer-script.html#local-download-macos-linux-windows
 
 ### hints for workflow
 - creating dev release (https://blog.derlin.ch/how-to-create-nightly-releases-with-github-actions)
-
-
-
