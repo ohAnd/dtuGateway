@@ -261,7 +261,16 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
 ### installation / update
 #### hardware
 - ESP8266 based board
-- optional: connect SSH1106 driven OLED display (128x64 e.g. 1.27") with your ESP8266 board (VCC, GND, SCK, SCL)
+- optional display:
+  - connect SSH1106 driven OLED display (128x64 e.g. 1.27") with your ESP8266 board (VCC, GND, SCK, SCL)
+  - pinning for different boards (display connector to ESPxx board pins)
+
+    | dev board                                        | ESP family | VCC  | GND |        SCK       |       SDA        | tested |
+    |--------------------------------------------------|------------|:----:|:---:|:----------------:|:----------------:|:------:|
+    | AZDelivery D1 Board NodeMCU ESP8266MOD-12F       | ESP8266    | 3.3V | GND | D15/GPIO5/SCL/D3 | D14/GPIO4/SDA/D4 |   OK   |
+    | AZDelivery NodeMCU V2 WiFi Amica ESP8266 ESP-12F | ESP8266    | 3.3V | GND | D1/GPIO5/SCL     | D2/GPIO4/SDA     |   OK   |
+    | AZDelivery D1 Mini NodeMcu mit ESP8266-12F       | ESP8266    | 3V3  |  G  | D1/GPIO5/SCL     | D2/GPIO4/SDA     |   OK   |
+  
 #### first installation to the ESP device
 1. download the preferred release as binary (see below)
 2. **HAS TO BE VERIFIED** [only once] flash the esp8266 board with the (esp download tool)[https://www.espressif.com/en/support/download/other-tools]
@@ -354,6 +363,3 @@ hint: referring to [Error Build in platform.io - buildnumber file not found #6](
 
 ### hints for workflow
 - creating dev release (https://blog.derlin.ch/how-to-create-nightly-releases-with-github-actions)
-
-
-
