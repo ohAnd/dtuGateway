@@ -4,7 +4,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
 
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=windows-1252">
-    <title id="title">HoymilesGW</title>
+    <title id="title">dtuGateway</title>
     <meta name="viewport"
         content="user-scalable=no, initial-scale=1, maximum-scale=1, minimum-scale=1, width=device-width">
     <link rel="stylesheet" type="text/css" href="style.css">
@@ -19,7 +19,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
     </div>
     <div class="popup" id="changeSettings">
         <div class="popupHeader">
-            <div class="popupHeaderTitle">settings
+            <div class="popupHeaderTitle">settings <i style="font-size: x-small;float:right;"><a href="/config" target=_blank>advanced config</a></i>
                 <!-- <h2>settings</h2> -->
             </div>
             <div class="popupHeaderTabs">
@@ -112,7 +112,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                 dtu host IP in your local network:
             </div>
             <div>
-                <input type="text" id="dtuHostIp" class="ipv4Input" name="ipv4" placeholder="xxx.xxx.xxx.xxx">
+                <input type="text" id="dtuHostIpDomain" class="ipv4Input" name="ipv4" placeholder="xxx.xxx.xxx.xxx">
             </div>
             <hr>
             <div>
@@ -628,7 +628,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             dtuData = cacheInfoData.dtuConnection;
 
             // get networkdata
-            $('#dtuHostIp').val(dtuData.dtuHostIp);
+            $('#dtuHostIpDomain').val(dtuData.dtuHostIpDomain);
             $('#dtuDataCycle').val(dtuData.dtuDataCycle);
             if (dtuData.dtuCloudPause) {
                 $('#dtuCloudPause').prop("checked", true);
@@ -733,7 +733,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
         }
 
         function changeDtuData() {
-            var dtuHostIpSend = $('#dtuHostIp').val();
+            var dtuHostIpDomainSend = $('#dtuHostIpDomain').val();
             var dtuDataCycleSend = $('#dtuDataCycle').val();
             if ($("#dtuCloudPause").is(':checked')) {
                 dtuCloudPauseSend = 1;
@@ -745,13 +745,13 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             var dtuPasswordSend = $('#dtuPassword').val();
 
             var data = {};
-            data["dtuHostIpSend"] = dtuHostIpSend;
+            data["dtuHostIpDomainSend"] = dtuHostIpDomainSend;
             data["dtuDataCycleSend"] = dtuDataCycleSend;
             data["dtuCloudPauseSend"] = dtuCloudPauseSend;
             data["dtuSsidSend"] = dtuSsidSend;
             data["dtuPasswordSend"] = dtuPasswordSend;
 
-            console.log("send to server: dtuHostIp: " + dtuHostIpSend + " dtuDataCycle: " + dtuDataCycleSend + " dtuCloudPause: " + dtuCloudPauseSend + " - dtuSsid: " + dtuSsidSend + " - pass: " + dtuPasswordSend);
+            console.log("send to server: dtuHostIpDomain: " + dtuHostIpDomainSend + " dtuDataCycle: " + dtuDataCycleSend + " dtuCloudPause: " + dtuCloudPauseSend + " - dtuSsid: " + dtuSsidSend + " - pass: " + dtuPasswordSend);
 
             const urlEncodedDataPairs = [];
 
@@ -777,11 +777,11 @@ const char INDEX_HTML[] PROGMEM = R"=====(
 
             strResult = JSON.parse(xmlHttp.responseText);
             console.log("got from server: " + strResult);
-            console.log("got from server - strResult.dtuHostIp: " + strResult.dtuHostIp + " - cmp with: " + dtuHostIpSend);
+            console.log("got from server - strResult.dtuHostIpDomain: " + strResult.dtuHostIpDomain + " - cmp with: " + dtuHostIpDomainSend);
             console.log("got from server - strResult.dtuSsid: " + strResult.dtuSsid + " - cmp with: " + dtuSsidSend);
-            console.log("got from server - strResult.dtuPassword: " + strResult.dtuHostIp + " - cmp with: " + dtuPasswordSend);
+            console.log("got from server - strResult.dtuPassword: " + strResult.dtuHostIpDomain + " - cmp with: " + dtuPasswordSend);
 
-            if (strResult.dtuHostIp == dtuHostIpSend && strResult.dtuSsid == dtuSsidSend && strResult.dtuPassword == dtuPasswordSend) {
+            if (strResult.dtuHostIpDomain == dtuHostIpDomainSend && strResult.dtuSsid == dtuSsidSend && strResult.dtuPassword == dtuPasswordSend) {
                 console.log("check saved data - OK");
                 alert("dtu Settings change\n__________________________________\n\nYour settings were successfully changed.\n\nClient connection will be reconnected to the new IP.");
             } else {
@@ -796,7 +796,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
         }
 
         function changeBindingsData() {
-            var openhabHostIpSend = $('#openhabIP').val();
+            var openhabHostIpDomainSend = $('#openhabIP').val();
             var openhabPrefixSend = $('#ohItemPrefix').val();
             if ($("#openhabActive").is(':checked')) {
                 openhabActiveSend = 1;
@@ -822,7 +822,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             }
 
             var data = {};
-            data["openhabHostIpSend"] = openhabHostIpSend;
+            data["openhabHostIpDomainSend"] = openhabHostIpDomainSend;
             data["openhabPrefixSend"] = openhabPrefixSend;
             data["openhabActiveSend"] = openhabActiveSend;
 
@@ -833,7 +833,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             data["mqttMainTopicSend"] = mqttMainTopicSend;
             data["mqttActiveSend"] = mqttActiveSend;
 
-            console.log("send to server: openhabHostIpSend: " + openhabHostIpSend);
+            console.log("send to server: openhabHostIpDomainSend: " + openhabHostIpDomainSend);
 
             const urlEncodedDataPairs = [];
 
@@ -859,9 +859,9 @@ const char INDEX_HTML[] PROGMEM = R"=====(
 
             strResult = JSON.parse(xmlHttp.responseText);
             console.log("got from server: " + strResult);
-            console.log("got from server - strResult.dtuHostIp: " + strResult.openhabHostIp + " - cmp with: " + openhabHostIpSend);
+            console.log("got from server - strResult.dtuHostIpDomain: " + strResult.openhabHostIpDomain + " - cmp with: " + openhabHostIpDomainSend);
 
-            if (strResult.openhabHostIp == openhabHostIpSend && strResult.mqttBrokerIp == mqttIpSend && strResult.mqttBrokerUser == mqttUserSend) {
+            if (strResult.openhabHostIpDomain == openhabHostIpDomainSend && strResult.mqttBrokerIpDomain == mqttIpSend && strResult.mqttBrokerUser == mqttUserSend) {
                 console.log("check saved data - OK");
                 alert("bindings Settings change\n__________________________________\n\nYour settings were successfully changed.\n\nChanges will be applied.");
             } else {
@@ -917,9 +917,9 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             try {
                 strResult = JSON.parse(xmlHttp.responseText);
                 console.log("got from server: " + strResult);
-                console.log("got from server - strResult.dtuHostIp: " + strResult.dtuHostIp + " - cmp with: " + dtuHostIpSend);
+                console.log("got from server - strResult.dtuHostIpDomain: " + strResult.dtuHostIpDomain + " - cmp with: " + dtuHostIpDomainSend);
 
-                if (strResult.dtuHostIp == dtuHostIpSend && strResult.dtuSsid == dtuSsidSend && strResult.dtuPassword == dtuPasswordSend) {
+                if (strResult.dtuHostIpDomain == dtuHostIpDomainSend && strResult.dtuSsid == dtuSsidSend && strResult.dtuPassword == dtuPasswordSend) {
                     console.log("check saved data - OK");
                     alert("dtu Settings change\n__________________________________\n\nYour settings were successfully changed.\n\nClient connection will be reconnected to the new IP.");
                 } else {

@@ -17,9 +17,8 @@
 
 #include <ArduinoJson.h>
 
-#include <EEPROM.h>
-
 #include <display.h>
+#include <displayTFT.h>
 
 #include "dtuInterface.h"
 
@@ -52,6 +51,9 @@ boolean updateInfoRequested = false;
 float updateProgress = 0;
 char updateState[16] = "waiting";
 
+// user config
+UserConfigManager configManager;
+
 #define WIFI_RETRY_TIME_SECONDS 30
 #define WIFI_RETRY_TIMEOUT_SECONDS 30
 #define RECONNECTS_ARRAY_SIZE 50
@@ -66,13 +68,13 @@ int reconnectsCnt = -1; // first needed run inkrement to 0
 #define BLINK_PAUSE_CLOUD_UPDATE 4   // 0,5 Hz blip - DTO - Cloud update
 int8_t blinkCode = BLINK_WIFI_OFF;
 
-Display oledDisplay;
+Display displayOLED;
+DisplayTFT displayTFT;
 
 String host;
 WiFiUDP ntpUDP;
 WiFiClient dtuClient;
 NTPClient timeClient(ntpUDP); // By default 'pool.ntp.org' is used with 60 seconds update interval
-#define CLIENT_TIME_OFFSET 3600
 
 WiFiClient puSubClient;
 PubSubClient mqttClient(puSubClient);
@@ -92,11 +94,13 @@ unsigned long starttime = 0;
 ESP8266Timer ITimer;
 #define TIMER_INTERVAL_MS 1000
 
+const long interval50ms = 50;   // interval (milliseconds)
 const long interval100ms = 100; // interval (milliseconds)
-const long intervalShort = 1;   // interval (milliseconds)
-const long interval5000ms = 5;  // interval (milliseconds)
-unsigned long intervalMid = 32; // interval (milliseconds)
-const long intervalLong = 60;   // interval (milliseconds)
+const long intervalShort = 1;   // interval (seconds)
+const long interval5000ms = 5;  // interval (seconds)
+unsigned long intervalMid = 32; // interval (seconds)
+const long intervalLong = 60;   // interval (seconds)
+unsigned long previousMillis50ms = 0;
 unsigned long previousMillis100ms = 0;
 unsigned long previousMillisShort = 1704063600;
 unsigned long previousMillis5000ms = 1704063600;
@@ -239,13 +243,13 @@ void handleDataJson()
 {
   String JSON = "{";
   JSON = JSON + "\"localtime\": " + String(timeStampInSecondsDtuSynced) + ",";
-  JSON = JSON + "\"ntpStamp\": " + String(timeClient.getEpochTime() - CLIENT_TIME_OFFSET) + ",";
+  JSON = JSON + "\"ntpStamp\": " + String(timeClient.getEpochTime() - userConfig.timezoneOffest) + ",";
 
   JSON = JSON + "\"lastResponse\": " + globalData.lastRespTimestamp + ",";
   JSON = JSON + "\"dtuConnState\": " + dtuConnection.dtuConnectState + ",";
   JSON = JSON + "\"dtuErrorState\": " + dtuConnection.dtuErrorState + ",";
 
-  JSON = JSON + "\"starttime\": " + String(starttime - CLIENT_TIME_OFFSET) + ",";
+  JSON = JSON + "\"starttime\": " + String(starttime - userConfig.timezoneOffest) + ",";
 
   JSON = JSON + "\"inverter\": {";
   JSON = JSON + "\"pLim\": " + String(globalData.powerLimit) + ",";
@@ -302,13 +306,13 @@ void handleInfojson()
 
   JSON = JSON + "\"openHabConnection\": {";
   JSON = JSON + "\"ohActive\": " + userConfig.openhabActive + ",";
-  JSON = JSON + "\"ohHostIp\": \"" + String(userConfig.openhabHostIp) + "\",";
+  JSON = JSON + "\"ohHostIp\": \"" + String(userConfig.openhabHostIpDomain) + "\",";
   JSON = JSON + "\"ohItemPrefix\": \"" + String(userConfig.openItemPrefix) + "\"";
   JSON = JSON + "},";
 
   JSON = JSON + "\"mqttConnection\": {";
   JSON = JSON + "\"mqttActive\": " + userConfig.mqttActive + ",";
-  JSON = JSON + "\"mqttIp\": \"" + String(userConfig.mqttBrokerIp) + "\",";
+  JSON = JSON + "\"mqttIp\": \"" + String(userConfig.mqttBrokerIpDomain) + "\",";
   JSON = JSON + "\"mqttPort\": " + String(userConfig.mqttBrokerPort) + ",";
   JSON = JSON + "\"mqttUser\": \"" + String(userConfig.mqttBrokerUser) + "\",";
   JSON = JSON + "\"mqttPass\": \"" + String(userConfig.mqttBrokerPassword) + "\",";
@@ -316,7 +320,7 @@ void handleInfojson()
   JSON = JSON + "},";
 
   JSON = JSON + "\"dtuConnection\": {";
-  JSON = JSON + "\"dtuHostIp\": \"" + String(userConfig.dtuHostIp) + "\",";
+  JSON = JSON + "\"dtuHostIpDomain\": \"" + String(userConfig.dtuHostIpDomain) + "\",";
   JSON = JSON + "\"dtuSsid\": \"" + String(userConfig.dtuSsid) + "\",";
   JSON = JSON + "\"dtuPassword\": \"" + String(userConfig.dtuPassword) + "\",";
   JSON = JSON + "\"dtuRssi\": " + globalData.dtuRssi + ",";
@@ -346,12 +350,22 @@ void handleUpdateWifiSettings()
   Serial.println("\nhandleUpdateWifiSettings - got WifiSSID: " + wifiSSIDUser + " - got WifiPass: " + wifiPassUser);
 
   wifiSSIDUser.toCharArray(userConfig.wifiSsid, sizeof(userConfig.wifiSsid));
-  wifiPassUser.toCharArray(userConfig.wifiPassword, sizeof(userConfig.wifiSsid));
+  wifiPassUser.toCharArray(userConfig.wifiPassword, sizeof(userConfig.wifiPassword));
 
   // after saving from user entry - no more in init state
-  userConfig.wifiAPstart = false;
-  saveConfigToEEPROM();
-  delay(500);
+  if (userConfig.wifiAPstart)
+  {
+    userConfig.wifiAPstart = false;
+    // after first startup reset to current display
+    if (userConfig.displayConnected == 0)
+    {
+      userConfig.displayConnected = 1;
+      displayTFT.setup(); // new setup to get blank screen
+    }
+    else if (userConfig.displayConnected == 1)
+      userConfig.displayConnected = 0;
+    configManager.saveConfig(userConfig);
+  }
 
   // handleRoot();
   String JSON = "{";
@@ -371,15 +385,15 @@ void handleUpdateWifiSettings()
 
 void handleUpdateDtuSettings()
 {
-  String dtuHostIpUser = server.arg("dtuHostIpSend");     // retrieve message from webserver
+  String dtuHostIpDomainUser = server.arg("dtuHostIpDomainSend");     // retrieve message from webserver
   String dtuDataCycle = server.arg("dtuDataCycleSend");   // retrieve message from webserver
   String dtuCloudPause = server.arg("dtuCloudPauseSend"); // retrieve message from webserver
   String dtuSSIDUser = server.arg("dtuSsidSend");         // retrieve message from webserver
   String dtuPassUser = server.arg("dtuPasswordSend");     // retrieve message from webserver
-  Serial.println("\nhandleUpdateDtuSettings - got dtu ip: " + dtuHostIpUser + "- got dtuDataCycle: " + dtuDataCycle + "- got dtu dtuCloudPause: " + dtuCloudPause);
+  Serial.println("\nhandleUpdateDtuSettings - got dtu ip: " + dtuHostIpDomainUser + "- got dtuDataCycle: " + dtuDataCycle + "- got dtu dtuCloudPause: " + dtuCloudPause);
   Serial.println("handleUpdateDtuSettings - got dtu ssid: " + dtuSSIDUser + " - got WifiPass: " + dtuPassUser);
 
-  dtuHostIpUser.toCharArray(userConfig.dtuHostIp, sizeof(userConfig.dtuHostIp));
+  dtuHostIpDomainUser.toCharArray(userConfig.dtuHostIpDomain, sizeof(userConfig.dtuHostIpDomain));
   userConfig.dtuUpdateTime = dtuDataCycle.toInt();
   if (dtuCloudPause)
     userConfig.dtuCloudPauseActive = true;
@@ -388,15 +402,14 @@ void handleUpdateDtuSettings()
   dtuSSIDUser.toCharArray(userConfig.dtuSsid, sizeof(userConfig.dtuSsid));
   dtuPassUser.toCharArray(userConfig.dtuPassword, sizeof(userConfig.dtuPassword));
 
-  saveConfigToEEPROM();
-  delay(500);
+  configManager.saveConfig(userConfig);
 
   intervalMid = userConfig.dtuUpdateTime;
   dtuConnection.preventCloudErrors = userConfig.dtuCloudPauseActive;
   Serial.println("\nhandleUpdateDtuSettings - setting dtu cycle to:" + String(intervalMid));
 
   String JSON = "{";
-  JSON = JSON + "\"dtuHostIp\": \"" + userConfig.dtuHostIp + "\",";
+  JSON = JSON + "\"dtuHostIpDomain\": \"" + userConfig.dtuHostIpDomain + "\",";
   JSON = JSON + "\"dtuSsid\": \"" + userConfig.dtuSsid + "\",";
   JSON = JSON + "\"dtuPassword\": \"" + userConfig.dtuPassword + "\"";
   JSON = JSON + "}";
@@ -409,7 +422,7 @@ void handleUpdateDtuSettings()
 
 void handleUpdateBindingsSettings()
 {
-  String openhabHostIpUser = server.arg("openhabHostIpSend"); // retrieve message from webserver
+  String openhabHostIpDomainUser = server.arg("openhabHostIpDomainSend"); // retrieve message from webserver
   String openhabPrefix = server.arg("openhabPrefixSend");
   String openhabActive = server.arg("openhabActiveSend");
 
@@ -420,7 +433,7 @@ void handleUpdateBindingsSettings()
   String mqttMainTopic = server.arg("mqttMainTopicSend");
   String mqttActive = server.arg("mqttActiveSend");
 
-  openhabHostIpUser.toCharArray(userConfig.openhabHostIp, sizeof(userConfig.openhabHostIp));
+  openhabHostIpDomainUser.toCharArray(userConfig.openhabHostIpDomain, sizeof(userConfig.openhabHostIpDomain));
   openhabPrefix.toCharArray(userConfig.openItemPrefix, sizeof(userConfig.openItemPrefix));
 
   if (openhabActive == "1")
@@ -428,7 +441,7 @@ void handleUpdateBindingsSettings()
   else
     userConfig.openhabActive = false;
 
-  mqttIP.toCharArray(userConfig.mqttBrokerIp, sizeof(userConfig.mqttBrokerIp));
+  mqttIP.toCharArray(userConfig.mqttBrokerIpDomain, sizeof(userConfig.mqttBrokerIpDomain));
   userConfig.mqttBrokerPort = mqttPort.toInt();
   mqttUser.toCharArray(userConfig.mqttBrokerUser, sizeof(userConfig.mqttBrokerUser));
   mqttPass.toCharArray(userConfig.mqttBrokerPassword, sizeof(userConfig.mqttBrokerPassword));
@@ -439,18 +452,17 @@ void handleUpdateBindingsSettings()
   else
     userConfig.mqttActive = false;
 
-  saveConfigToEEPROM();
-  delay(500);
+  configManager.saveConfig(userConfig);
 
   // reintialize mqtt with new settings
   initMqttClient();
 
   String JSON = "{";
   JSON = JSON + "\"openhabActive\": " + userConfig.openhabActive + ",";
-  JSON = JSON + "\"openhabHostIp\": \"" + userConfig.openhabHostIp + "\",";
+  JSON = JSON + "\"openhabHostIpDomain\": \"" + userConfig.openhabHostIpDomain + "\",";
   JSON = JSON + "\"openItemPrefix\": \"" + userConfig.openItemPrefix + "\",";
   JSON = JSON + "\"mqttActive\": " + userConfig.mqttActive + ",";
-  JSON = JSON + "\"mqttBrokerIp\": \"" + userConfig.mqttBrokerIp + "\",";
+  JSON = JSON + "\"mqttBrokerIpDomain\": \"" + userConfig.mqttBrokerIpDomain + "\",";
   JSON = JSON + "\"mqttBrokerPort\": " + String(userConfig.mqttBrokerPort) + ",";
   JSON = JSON + "\"mqttBrokerUser\": \"" + userConfig.mqttBrokerUser + "\",";
   JSON = JSON + "\"mqttBrokerPassword\": \"" + userConfig.mqttBrokerPassword + "\",";
@@ -468,8 +480,7 @@ void handleUpdateOTASettings()
 
   userConfig.selectedUpdateChannel = releaseChannel.toInt();
 
-  saveConfigToEEPROM();
-  delay(500);
+  configManager.saveConfig(userConfig);
 
   String JSON = "{";
   JSON = JSON + "\"releaseChannel\": \"" + userConfig.selectedUpdateChannel + "\"";
@@ -483,10 +494,40 @@ void handleUpdateOTASettings()
   updateInfoRequested = true;
 }
 
+void handleConfigPage()
+{
+  JsonDocument doc;
+  bool gotUserChanges = false;
+
+  if (server.args() && server.hasArg("local.wifiAPstart") && server.arg("local.wifiAPstart") == "false")
+  {
+    gotUserChanges = true;
+
+    for (int i = 0; i < server.args(); i++)
+    {
+      String key = server.argName(i);
+      String value = server.arg(key);
+      String key1 = key.substring(0, key.indexOf("."));
+      String key2 = key.substring(key.indexOf(".") + 1);
+
+      if (value == "false" || value == "true") {
+        bool boolValue = (value == "true");
+        doc[key1][key2] = boolValue;
+      }
+      else
+        doc[key1][key2] = value;
+    }
+  }
+
+  String html = configManager.getWebHandler(doc);
+  server.send(200, "text/html", html);
+
+  delay(1000);
+  if (gotUserChanges)
+    ESP.restart();
+}
+
 // webserver port 80
-// void initializeWebServer()
-// {
-//   server.on("/", HTTP_GET, handleRoot);
 
 void initializeWebServer()
 {
@@ -514,6 +555,8 @@ void initializeWebServer()
   // OTA update
   server.on("/updateGetInfo", requestUpdateInfo);
   server.on("/updateRequest", handleUpdateRequest);
+
+  server.on("/config", handleConfigPage);
 
   server.begin();
 }
@@ -636,7 +679,7 @@ boolean getUpdateInfo()
         String payload = https.getString();
 
         // Parse JSON using ArduinoJson library
-        DynamicJsonDocument doc(1024);
+        JsonDocument doc;
         DeserializationError error = deserializeJson(doc, payload);
 
         // Test if parsing succeeds.
@@ -782,7 +825,7 @@ boolean postMessageToOpenhab(String key, String value)
 {
   WiFiClient client;
   HTTPClient http;
-  String openhabHost = "http://" + String(userConfig.openhabHostIp) + ":8080/rest/items/";
+  String openhabHost = "http://" + String(userConfig.openhabHostIpDomain) + ":8080/rest/items/";
   http.setTimeout(1000); // prevent blocking of progam
   // Serial.print("postMessageToOpenhab (" + openhabHost + ") - " + key + " -> " + value);
   if (http.begin(client, openhabHost + key))
@@ -815,7 +858,7 @@ String getMessageFromOpenhab(String key)
 {
   WiFiClient client;
   HTTPClient http;
-  String openhabHost = "http://" + String(userConfig.openhabHostIp) + ":8080/rest/items/";
+  String openhabHost = "http://" + String(userConfig.openhabHostIpDomain) + ":8080/rest/items/";
   http.setTimeout(2000); // prevent blocking of progam
   if (http.begin(client, openhabHost + key + "/state"))
   {
@@ -914,8 +957,8 @@ boolean updateValueToOpenhab()
 
 void initMqttClient()
 {
-  mqttClient.setServer(userConfig.mqttBrokerIp, userConfig.mqttBrokerPort);
-  Serial.print("\ninitialized MQTT client ... to broker: " + String(userConfig.mqttBrokerIp) + ":" + String(userConfig.mqttBrokerPort) + "\n");
+  mqttClient.setServer(userConfig.mqttBrokerIpDomain, userConfig.mqttBrokerPort);
+  Serial.print("\ninitialized MQTT client ... to broker: " + String(userConfig.mqttBrokerIpDomain) + ":" + String(userConfig.mqttBrokerPort) + "\n");
 }
 
 void connectCheckMqttClient()
@@ -1005,27 +1048,34 @@ boolean updateValuesToMqtt()
 void setup()
 {
   // switch off SCK LED
-  pinMode(14, OUTPUT);
-  digitalWrite(14, LOW);
+  // pinMode(14, OUTPUT);
+  // digitalWrite(14, LOW);
 
   // initialize digital pin LED_BUILTIN as an output.
   pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, LOW); // turn the LED off by making the voltage LOW
 
-  // init display
-  oledDisplay.setup();
-
-
   Serial.begin(115200);
   Serial.print(F("\nBooting - with firmware version "));
   Serial.println(VERSION);
 
-  // Initialize EEPROM
-  initializeEEPROM();
-  // Load configuration from EEPROM
-  loadConfigFromEEPROM();
-  // check for saved data end print to serial
-  printEEPROMdata();
+  if (!configManager.begin())
+  {
+    Serial.println("Failed to initialize UserConfigManager");
+    return;
+  }
+
+  if (configManager.loadConfig(userConfig))
+    configManager.printConfigdata();
+  else
+    Serial.println("Failed to load user config");
+  // ------- user config loaded --------------------------------------------
+
+  // init display according to userConfig
+  if (userConfig.displayConnected == 0)
+    displayOLED.setup();
+  else if (userConfig.displayConnected == 1)
+    displayTFT.setup();
 
   if (userConfig.wifiAPstart)
   {
@@ -1050,6 +1100,20 @@ void setup()
     MDNS.begin("hoymilesGW");
     MDNS.addService("http", "tcp", 80);
     Serial.println(F("Ready! Open http://hoymilesGW.local in your browser"));
+
+    // display - change every reboot in first start mode
+    if (userConfig.displayConnected == 0)
+    {
+      displayOLED.drawFactoryMode(String(VERSION), apSSID, apIP.toString());
+      userConfig.displayConnected = 1;
+      configManager.saveConfig(userConfig);
+    }
+    else if (userConfig.displayConnected == 1)
+    {
+      displayTFT.drawFactoryMode(String(VERSION), apSSID, apIP.toString());
+      userConfig.displayConnected = 0;
+      configManager.saveConfig(userConfig);
+    }
 
     initializeWebServer();
   }
@@ -1098,7 +1162,7 @@ void startServices()
 
     // ntp time - offset in summertime 7200 else 3600
     timeClient.begin();
-    timeClient.setTimeOffset(CLIENT_TIME_OFFSET);
+    timeClient.setTimeOffset(userConfig.timezoneOffest);
     // get first time
     timeClient.update();
     starttime = timeClient.getEpochTime();
@@ -1306,10 +1370,8 @@ void getSerialCommand(String cmd, String value)
     Serial.print(F("'resetToFactory' to "));
     if (val == 1)
     {
-      userConfig.eepromInitialized = 0x00;
-      saveConfigToEEPROM();
-      delay(1500);
-      Serial.print(F(" reinitialize EEPROM data and reboot ... "));
+      configManager.resetConfig();
+      Serial.print(F(" reinitialize UserConfig data and reboot ... "));
       ESP.restart();
     }
   }
@@ -1330,6 +1392,24 @@ void getSerialCommand(String cmd, String value)
       Serial.print(F(" send reboot request "));
       writeCommandRestartDevice(&dtuClient, timeStampInSecondsDtuSynced);
     }
+  }
+  else if (cmd == "selectDisplay")
+  {
+    Serial.print(F(" selected Display"));
+    if (val == 0)
+    {
+      userConfig.displayConnected = 0;
+      Serial.print(F(" OLED"));
+    }
+    else if (val == 1)
+    {
+      userConfig.displayConnected = 1;
+      Serial.print(F(" ROUND TFT 1.28"));
+    }
+    configManager.saveConfig(userConfig);
+    configManager.printConfigdata();
+    Serial.println(F("restart the device to make the changes take effect"));
+    ESP.restart();
   }
   else
   {
@@ -1365,6 +1445,21 @@ void loop()
   }
 
   unsigned long currentMillis = millis();
+  // 50ms task
+  if (currentMillis - previousMillis50ms >= interval50ms)
+  {
+    previousMillis50ms = currentMillis;
+    // -------->
+    if (!userConfig.wifiAPstart)
+    {
+      // display tasks every 50ms = 20Hz
+      if (userConfig.displayConnected == 0)
+        displayOLED.renderScreen(timeClient.getFormattedTime(), String(VERSION));
+      else if (userConfig.displayConnected == 1)
+        displayTFT.renderScreen(timeClient.getFormattedTime(), String(VERSION));
+    }
+  }
+
   // 100ms task
   if (currentMillis - previousMillis100ms >= interval100ms)
   {
@@ -1372,7 +1467,6 @@ void loop()
     // -------->
     blinkCodeTask();
     serialInputTask();
-    oledDisplay.renderScreen(timeClient.getFormattedTime(), String(VERSION));
   }
 
   // CHANGE to precise 1 second timer increment
@@ -1478,7 +1572,7 @@ void loop()
 
     if (WiFi.status() == WL_CONNECTED)
     {
-      dtuConnectionEstablish(&dtuClient, userConfig.dtuHostIp);
+      dtuConnectionEstablish(&dtuClient, userConfig.dtuHostIpDomain);
       timeStampInSecondsDtuSynced = getDtuRemoteTimeAndDataUpdate(&dtuClient, timeStampInSecondsDtuSynced);
 
       if (!dtuConnection.dtuActiveOffToCloudUpdate)
