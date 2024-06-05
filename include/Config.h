@@ -30,6 +30,7 @@ struct UserConfig
     char mqttBrokerUser[64]       = "dtuuser";
     char mqttBrokerPassword[64]   = "dtupass";
     char mqttBrokerMainTopic[32]  = "dtu1";
+    boolean mqttHAautoDiscovery   = false;
     boolean mqttActive            = false;
     
     uint8_t displayConnected      = 0; // OLED default
@@ -40,13 +41,6 @@ struct UserConfig
 };
 
 extern UserConfig userConfig;
-
-// struct for web update 
-typedef struct keyAndValue_
-{
-char key[30];
-String value;
-} keyAndValue_t;
 
 // Define the UserConfigManager class
 class UserConfigManager {

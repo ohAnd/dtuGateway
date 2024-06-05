@@ -71,7 +71,6 @@ int8_t blinkCode = BLINK_WIFI_OFF;
 Display displayOLED;
 DisplayTFT displayTFT;
 
-String host;
 WiFiUDP ntpUDP;
 WiFiClient dtuClient;
 NTPClient timeClient(ntpUDP); // By default 'pool.ntp.org' is used with 60 seconds update interval
@@ -82,6 +81,8 @@ PubSubClient mqttClient(puSubClient);
 ESP8266WebServer server(80);
 
 uint32_t chipID = ESP.getChipId();
+String espUniqueName = String(apNameStart) + "_" + chipID;
+IPAddress dtuGatewayIP;
 unsigned long starttime = 0;
 
 // intervall for getting and sending temp
@@ -290,7 +291,7 @@ void handleInfojson()
 {
   String JSON = "{";
   JSON = JSON + "\"chipid\": " + String(chipID) + ",";
-  JSON = JSON + "\"host\": \"" + String(host) + "\",";
+  JSON = JSON + "\"host\": \"" + espUniqueName + "\",";
   JSON = JSON + "\"initMode\": " + userConfig.wifiAPstart + ",";
 
   JSON = JSON + "\"firmware\": {";
@@ -385,11 +386,11 @@ void handleUpdateWifiSettings()
 
 void handleUpdateDtuSettings()
 {
-  String dtuHostIpDomainUser = server.arg("dtuHostIpDomainSend");     // retrieve message from webserver
-  String dtuDataCycle = server.arg("dtuDataCycleSend");   // retrieve message from webserver
-  String dtuCloudPause = server.arg("dtuCloudPauseSend"); // retrieve message from webserver
-  String dtuSSIDUser = server.arg("dtuSsidSend");         // retrieve message from webserver
-  String dtuPassUser = server.arg("dtuPasswordSend");     // retrieve message from webserver
+  String dtuHostIpDomainUser = server.arg("dtuHostIpDomainSend"); // retrieve message from webserver
+  String dtuDataCycle = server.arg("dtuDataCycleSend");           // retrieve message from webserver
+  String dtuCloudPause = server.arg("dtuCloudPauseSend");         // retrieve message from webserver
+  String dtuSSIDUser = server.arg("dtuSsidSend");                 // retrieve message from webserver
+  String dtuPassUser = server.arg("dtuPasswordSend");             // retrieve message from webserver
   Serial.println("\nhandleUpdateDtuSettings - got dtu ip: " + dtuHostIpDomainUser + "- got dtuDataCycle: " + dtuDataCycle + "- got dtu dtuCloudPause: " + dtuCloudPause);
   Serial.println("handleUpdateDtuSettings - got dtu ssid: " + dtuSSIDUser + " - got WifiPass: " + dtuPassUser);
 
@@ -510,7 +511,8 @@ void handleConfigPage()
       String key1 = key.substring(0, key.indexOf("."));
       String key2 = key.substring(key.indexOf(".") + 1);
 
-      if (value == "false" || value == "true") {
+      if (value == "false" || value == "true")
+      {
         bool boolValue = (value == "true");
         doc[key1][key2] = boolValue;
       }
@@ -1043,6 +1045,49 @@ boolean updateValuesToMqtt()
   return true;
 }
 
+boolean sendHAautoDiscovery()
+{
+  JsonDocument doc;
+  String haTopicPath = "homeassistant/sensor/" + String(espUniqueName) + "/config";
+
+  doc["name"] = "HM_Gateway_total-energy";
+  doc["unique_id"] = espUniqueName;
+  doc["state_topic"] = haTopicPath;
+  doc["unit_of_measurement"] = "kWh";
+  doc["icon"] = "mdi:sine-wave";
+  doc["device"]["name"] = "HoymilesGateway";
+  doc["device"]["identifiers"] = "mymqttdevice01";
+  doc["device"]["manufacturer"] = "ohAnd";
+  doc["device"]["model"] = "ESP8266/ESP32";
+  doc["device"]["hw_version"] = "1.0";
+  doc["device"]["sw_version"] = String(VERSION);
+  doc["device"]["configuration_url"] = "http://" + dtuGatewayIP.toString();
+
+  // serializeJsonPretty(doc, Serial);
+  // serializeJson(doc, Serial);
+
+  char mqttPayload[1024];
+  size_t len = serializeJson(doc, mqttPayload);
+
+  connectCheckMqttClient();
+  if (mqttClient.connected())
+  {
+    if (userConfig.mqttHAautoDiscovery)
+    {
+      mqttClient.beginPublish(haTopicPath.c_str(), len, true);
+      mqttClient.print(mqttPayload);
+      mqttClient.endPublish();
+      Serial.println("\nHA autoDiscovery - send JSON to broker at " + haTopicPath);
+    }
+    else
+    {
+      postMessageToMQTTbroker(haTopicPath, "");
+      Serial.println("\nHA autoDiscovery - send empty payload to broker at " + haTopicPath);
+    }
+  }
+
+  return true;
+}
 // ****
 
 void setup()
@@ -1088,9 +1133,8 @@ void setup()
 
     // Connect to Wi-Fi as AP
     WiFi.mode(WIFI_AP);
-    String apSSID = String(apNameStart) + "_" + chipID;
-    WiFi.softAP(apSSID);
-    Serial.println("\n +++ serving access point with SSID: '" + apSSID + "' +++\n");
+    WiFi.softAP(espUniqueName);
+    Serial.println("\n +++ serving access point with SSID: '" + espUniqueName + "' +++\n");
 
     // IP Address of the ESP8266 on the AP network
     IPAddress apIP = WiFi.softAPIP();
@@ -1104,13 +1148,13 @@ void setup()
     // display - change every reboot in first start mode
     if (userConfig.displayConnected == 0)
     {
-      displayOLED.drawFactoryMode(String(VERSION), apSSID, apIP.toString());
+      displayOLED.drawFactoryMode(String(VERSION), espUniqueName, apIP.toString());
       userConfig.displayConnected = 1;
       configManager.saveConfig(userConfig);
     }
     else if (userConfig.displayConnected == 1)
     {
-      displayTFT.drawFactoryMode(String(VERSION), apSSID, apIP.toString());
+      displayTFT.drawFactoryMode(String(VERSION), espUniqueName, apIP.toString());
       userConfig.displayConnected = 0;
       configManager.saveConfig(userConfig);
     }
@@ -1149,16 +1193,16 @@ void startServices()
   if (WiFi.waitForConnectResult() == WL_CONNECTED)
   {
     Serial.print(F("\nConnected! IP address: "));
-    Serial.println(WiFi.localIP());
+    dtuGatewayIP = WiFi.localIP();
+    Serial.println(dtuGatewayIP.toString());
     Serial.print(F("IP address of gateway: "));
     Serial.println(WiFi.gatewayIP());
-    host = "hoymilesGW_" + String(chipID);
 
     httpUpdater.setup(&server);
 
-    MDNS.begin(host);
+    MDNS.begin(espUniqueName);
     MDNS.addService("http", "tcp", 80);
-    Serial.println("Ready! Open http://" + String(host) + ".local in your browser");
+    Serial.println("Ready! Open http://" + espUniqueName + ".local in your browser");
 
     // ntp time - offset in summertime 7200 else 3600
     timeClient.begin();
@@ -1558,6 +1602,8 @@ void loop()
       if (userConfig.openhabActive)
         getPowerSetDataFromOpenHab();
     }
+    // if (userConfig.mqttActive && userConfig.mqttHAautoDiscovery)
+    sendHAautoDiscovery();
   }
 
   // mid task
