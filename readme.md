@@ -72,9 +72,11 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
  
 #### connections to the environment
 - serving the readed data per /api/data
-- binding configuration with seperate activation and login data setting
+- configuration of bindings with seperate activation and login data setting
 - binding: updating openHab instance with readed data and pulling set data from the instance
 - binding: updating to a MQTT broker with readed data [OPEN: pulling set power data from the mqtt instance]
+  - 2 ways to configure - simple mqtt publishing with base topic or HA MQTT AutoDiscovery based
+  - for all publishing retain flag is set (keeping last seen data in broker)
 
 #### display support
 - selectable (and storable) over advanced web config[^2] or per serial com and at directly at start up coming from factory mode ( [see first-setup-with-access-point](#first-setup-with-access-point) )

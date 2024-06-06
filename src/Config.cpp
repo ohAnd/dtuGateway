@@ -119,7 +119,7 @@ void UserConfigManager::printConfigdata()
     Serial.print(F("mqtt binding active: \t"));
     Serial.println(userConfig.mqttActive);
     Serial.print(F("mqtt HA autoDiscovery: \t"));
-    Serial.println(userConfig.mqttHAautoDiscovery);
+    Serial.println(userConfig.mqttHAutoDiscoveryON);
 
     Serial.print(F("dtu update time: \t"));
     Serial.println(userConfig.dtuUpdateTime);
@@ -169,7 +169,7 @@ JsonDocument UserConfigManager::mappingStructToJson()
     doc["mqtt"]["user"] = userConfig.mqttBrokerUser;
     doc["mqtt"]["pass"] = userConfig.mqttBrokerPassword;
     doc["mqtt"]["mainTopic"] = userConfig.mqttBrokerMainTopic;
-    doc["mqtt"]["HAautoDiscovery"] = userConfig.mqttHAautoDiscovery;
+    doc["mqtt"]["HAutoDiscoveryON"] = userConfig.mqttHAutoDiscoveryON;
 
     doc["display"]["type"] = userConfig.displayConnected;
 
@@ -202,7 +202,7 @@ void UserConfigManager::mappingJsonToStruct(JsonDocument doc)
     String(doc["mqtt"]["user"]).toCharArray(userConfig.mqttBrokerUser, sizeof(userConfig.mqttBrokerUser));
     String(doc["mqtt"]["pass"]).toCharArray(userConfig.mqttBrokerPassword, sizeof(userConfig.mqttBrokerPassword));
     String(doc["mqtt"]["mainTopic"]).toCharArray(userConfig.mqttBrokerMainTopic, sizeof(userConfig.mqttBrokerMainTopic));
-    userConfig.mqttHAautoDiscovery = doc["mqtt"]["HAautoDiscovery"];
+    userConfig.mqttHAutoDiscoveryON = doc["mqtt"]["HAutoDiscoveryON"];
 
     userConfig.displayConnected = doc["display"]["type"];
 
