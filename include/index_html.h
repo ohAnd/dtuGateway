@@ -84,7 +84,10 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                     <input type="text" id="mqttIP" class="ipv4Input" name="ipv4" placeholder="xxx.xxx.xxx.xxx">
                 </div>
                 <div>
-                    specific user on your mqtt broker instance:
+                    <input type="checkbox" id="mqttUseTLS"> TLS connection (e.g. 123456789.s1.eu.hivemq.cloud:8883)
+                </div>
+                <div>
+                    specify user on your mqtt broker instance:
                 </div>
                 <div>
                     <input type="text" id="mqttUser" value="please type in" required maxlength="64">
@@ -100,6 +103,9 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                 </div>
                 <div>
                     <input type="text" id="mqttMainTopic" maxlength="32">
+                </div>
+                <div>
+                    <input type="checkbox" id="mqttHAautoDiscoveryON"> Home Assistant Auto Discovery <br><small>(On = config is send once after every restart, Off = delete the sensor from HA instantly)</small>
                 </div>
             </div>
             <div style="text-align: center;">
@@ -667,10 +673,21 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                 $('#mqttActive').prop("checked", false);
                 $('#mqttSection').css('color', 'grey');
             }
+            if(mqttData.mqttUseTLS) {
+                $('#mqttUseTLS').prop("checked", true);
+            } else {
+                $('#mqttUseTLS').prop("checked", false);
+            }
             $('#mqttIP').val(mqttData.mqttIp+":"+mqttData.mqttPort);
             $('#mqttUser').val(mqttData.mqttUser);
             $('#mqttPassword').val(mqttData.mqttPass);
             $('#mqttMainTopic').val(mqttData.mqttMainTopic);
+            
+            if(mqttData.mqttHAautoDiscoveryON) {
+                $('#mqttHAautoDiscoveryON').prop("checked", true);
+            } else {
+                $('#mqttHAautoDiscoveryON').prop("checked", false);
+            }
         }
 
         $('.passcheck').click(function () {
@@ -806,19 +823,31 @@ const char INDEX_HTML[] PROGMEM = R"=====(
 
             var mqttIpPortString = $('#mqttIP').val().split(":");
 
-
             var mqttIpSend = mqttIpPortString[0];
             var mqttPortSend = "1883";
             if(mqttIpPortString[1] != undefined && !isNaN(mqttIpPortString[1])) {
                 mqttPortSend = mqttIpPortString[1];
-            }            
+            }           
+            var mqttUseTLSSend = 0;
             var mqttUserSend = $('#mqttUser').val();
             var mqttPassSend = $('#mqttPassword').val();
             var mqttMainTopicSend = $('#mqttMainTopic').val();
+            var mqttHAautoDiscoveryONSend = 0;
+
             if ($("#mqttActive").is(':checked')) {
                 mqttActiveSend = 1;
             } else {
                 mqttActiveSend = 0;
+            }
+            if ($("#mqttUseTLS").is(':checked')) {
+                mqttUseTLSSend = 1;
+            } else {
+                mqttUseTLSSend = 0;
+            }
+            if ($("#mqttHAautoDiscoveryON").is(':checked')) {
+                mqttHAautoDiscoveryONSend = 1;
+            } else {
+                mqttHAautoDiscoveryONSend = 0;
             }
 
             var data = {};
@@ -828,10 +857,13 @@ const char INDEX_HTML[] PROGMEM = R"=====(
 
             data["mqttIpSend"] = mqttIpSend;
             data["mqttPortSend"] = mqttPortSend;
+            data["mqttUseTLS"] = mqttUseTLSSend;
             data["mqttUserSend"] = mqttUserSend;
             data["mqttPassSend"] = mqttPassSend;
             data["mqttMainTopicSend"] = mqttMainTopicSend;
             data["mqttActiveSend"] = mqttActiveSend;
+            data["mqttHAautoDiscoveryONSend"] = mqttHAautoDiscoveryONSend;
+            
 
             console.log("send to server: openhabHostIpDomainSend: " + openhabHostIpDomainSend);
 

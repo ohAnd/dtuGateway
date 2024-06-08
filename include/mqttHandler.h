@@ -7,12 +7,21 @@
 
 class MQTTHandler {
 public:
-    MQTTHandler(const char* broker, int port, const char* user, const char* password, bool useTLS, const char* sensorUniqueName);
+    MQTTHandler(const char *broker, int port, const char *user, const char *password, bool useTLS, const char *sensorUniqueName);
     void setup(bool autoDiscovery);
     void loop(bool autoDiscovery);
-    void publishDiscoveryMessage(const char* sensor_type, const char* location, const char* unit);
+    void publishDiscoveryMessage(const char *sensor_type, const char *entity, const char *entityName, const char *unit, bool deleteMessage=false);
     void publishSensorData(String typeName, String value);
     void publishStandardData(String topicPath, String value);
+
+    // Setters for runtime configuration
+    void setBroker(const char* broker);
+    void setPort(int port);
+    void setUser(const char* user);
+    void setPassword(const char* password);
+    void setUseTLS(bool useTLS);
+
+    void reconnect(bool autoDiscovery, bool autoDiscoveryRemove=false);
 
 private:
     const char* mqtt_broker;
@@ -20,13 +29,15 @@ private:
     const char* mqtt_user;
     const char* mqtt_password;
     bool useTLS;
-    const char* sensor_uniqeName;
+    const char* sensor_uniqueName;
+    const char* espURL;
     
     WiFiClient wifiClient;
     WiFiClientSecure wifiClientSecure;
     PubSubClient client;
     
-    void reconnect(bool autoDiscovery);
+    void stopConnection();
+    
 };
 
 #endif // MQTTHANDLER_H
