@@ -31,7 +31,7 @@ struct UserConfig
     char mqttBrokerUser[64]       = "dtuuser";
     char mqttBrokerPassword[64]   = "dtupass";
     char mqttBrokerMainTopic[32]  = "dtu1";
-    boolean mqttHAautoDiscoveryON  = false;
+    boolean mqttHAautoDiscoveryON = false;
     boolean mqttActive            = false;
     
     uint8_t displayConnected      = 0; // OLED default

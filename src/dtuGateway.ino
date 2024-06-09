@@ -1090,9 +1090,9 @@ void setup()
     Serial.print(F("AP IP address: "));
     Serial.println(apIP);
 
-    MDNS.begin("hoymilesGW");
+    MDNS.begin("dtuGateway");
     MDNS.addService("http", "tcp", 80);
-    Serial.println(F("Ready! Open http://hoymilesGW.local in your browser"));
+    Serial.println(F("Ready! Open http://dtuGateway.local in your browser"));
 
     // display - change every reboot in first start mode
     if (userConfig.displayConnected == 0)

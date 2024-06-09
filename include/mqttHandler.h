@@ -10,7 +10,7 @@ public:
     MQTTHandler(const char *broker, int port, const char *user, const char *password, bool useTLS, const char *sensorUniqueName);
     void setup(bool autoDiscovery);
     void loop(bool autoDiscovery);
-    void publishDiscoveryMessage(const char *sensor_type, const char *entity, const char *entityName, const char *unit, bool deleteMessage=false);
+    void publishDiscoveryMessage(const char *sensor_type, const char *entity, const char *entityName, const char *unit, bool deleteMessage, const char *icon=NULL, const char *deviceClass=NULL);
     void publishSensorData(String typeName, String value);
     void publishStandardData(String topicPath, String value);
 

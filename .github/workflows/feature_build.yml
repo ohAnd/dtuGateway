@@ -51,4 +51,5 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
+          name: dtuGateway_snapshot_${{ env.CURRENT_VERSIONNUMBER }}
           path: .pio/build/esp12e/dtuGateway_snapshot_${{ env.CURRENT_VERSIONNUMBER }}.bin
