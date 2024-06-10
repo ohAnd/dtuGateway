@@ -1559,11 +1559,11 @@ void loop()
     }
 
     // for testing
-    globalData.grid.power = globalData.grid.power + 1;
-    if (userConfig.mqttActive)
-      updateValuesToMqtt(userConfig.mqttHAautoDiscoveryON);
-    if (globalData.grid.power > 450)
-      globalData.grid.power = 0;
+    // globalData.grid.power = globalData.grid.power + 1;
+    // if (userConfig.mqttActive)
+    //   updateValuesToMqtt(userConfig.mqttHAautoDiscoveryON);
+    // if (globalData.grid.power > 450)
+    //   globalData.grid.power = 0;
   }
 
   // mid task
