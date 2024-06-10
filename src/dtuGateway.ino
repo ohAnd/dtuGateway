@@ -486,7 +486,7 @@ void handleUpdateBindingsSettings()
   Serial.println("handleUpdateBindingsSettings - HAautoDiscovery new state: " + String(userConfig.mqttHAautoDiscoveryON));
   // mqttHAautoDiscoveryON going from on to off - send one time the delete messages
   if (!userConfig.mqttHAautoDiscoveryON && mqttHAautoDiscoveryONlastState)
-    mqttHandler.reconnect(userConfig.mqttHAautoDiscoveryON , true);
+    mqttHandler.reconnect(userConfig.mqttHAautoDiscoveryON, userConfig.mqttBrokerMainTopic , true);
 
   String JSON = "{";
   JSON = JSON + "\"openhabActive\": " + userConfig.openhabActive + ",";
@@ -500,7 +500,7 @@ void handleUpdateBindingsSettings()
   JSON = JSON + "\"mqttBrokerPassword\": \"" + userConfig.mqttBrokerPassword + "\",";
   JSON = JSON + "\"mqttBrokerMainTopic\": \"" + userConfig.mqttBrokerMainTopic + "\",";
   JSON = JSON + "\"mqttHAautoDiscoveryON\": " + userConfig.mqttHAautoDiscoveryON;
-  
+
   JSON = JSON + "}";
 
   server.send(200, "application/json", JSON);
@@ -1026,7 +1026,7 @@ void updateValuesToMqtt(boolean haAutoDiscovery = false)
   {
     if (haAutoDiscovery)
     {
-      mqttHandler.publishSensorData((pair.first).c_str(), (pair.second).c_str());
+      mqttHandler.publishSensorData(userConfig.mqttBrokerMainTopic, (pair.first).c_str(), (pair.second).c_str());
     }
     else
     {
@@ -1166,9 +1166,12 @@ void startServices()
     WiFi.scanNetworks(true);
 
     initializeWebServer();
-    Serial.println(F("setup mqtt:"));
+
     if (userConfig.mqttActive)
+    {
+      Serial.println(F("setup mqtt:"));
       mqttHandler.setup(userConfig.mqttHAautoDiscoveryON);
+    }
   }
   else
   {
@@ -1437,7 +1440,7 @@ void loop()
 
     // runner for mqttClient to hold a already etablished connection
     if (userConfig.mqttActive)
-      mqttHandler.loop(userConfig.mqttHAautoDiscoveryON);
+      mqttHandler.loop(userConfig.mqttHAautoDiscoveryON, userConfig.mqttBrokerMainTopic);
   }
 
   unsigned long currentMillis = millis();
@@ -1556,11 +1559,11 @@ void loop()
     }
 
     // for testing
-    // globalData.grid.power = globalData.grid.power + 1;
-    // if (userConfig.mqttActive)
-    //   updateValuesToMqtt(userConfig.mqttHAautoDiscoveryON);
-    // if (globalData.grid.power > 450)
-    //   globalData.grid.power = 0;
+    globalData.grid.power = globalData.grid.power + 1;
+    if (userConfig.mqttActive)
+      updateValuesToMqtt(userConfig.mqttHAautoDiscoveryON);
+    if (globalData.grid.power > 450)
+      globalData.grid.power = 0;
   }
 
   // mid task

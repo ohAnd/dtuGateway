@@ -9,9 +9,9 @@ class MQTTHandler {
 public:
     MQTTHandler(const char *broker, int port, const char *user, const char *password, bool useTLS, const char *sensorUniqueName);
     void setup(bool autoDiscovery);
-    void loop(bool autoDiscovery);
-    void publishDiscoveryMessage(const char *sensor_type, const char *entity, const char *entityName, const char *unit, bool deleteMessage, const char *icon=NULL, const char *deviceClass=NULL);
-    void publishSensorData(String typeName, String value);
+    void loop(bool autoDiscovery, String mainTopicPath);
+    void publishDiscoveryMessage(const char *sensor_type, const char *mainTopicPath, const char *entity, const char *entityName, const char *unit, bool deleteMessage, const char *icon=NULL, const char *deviceClass=NULL);
+    void publishSensorData(String mainTopicPath, String typeName, String value);
     void publishStandardData(String topicPath, String value);
 
     // Setters for runtime configuration
@@ -21,7 +21,7 @@ public:
     void setPassword(const char* password);
     void setUseTLS(bool useTLS);
 
-    void reconnect(bool autoDiscovery, bool autoDiscoveryRemove=false);
+    void reconnect(bool autoDiscovery, String mainTopicPath, bool autoDiscoveryRemove=false);
 
 private:
     const char* mqtt_broker;
