@@ -2,6 +2,8 @@
 #include <version.h>
 #include <ArduinoJson.h>
 
+MQTTHandler *MQTTHandler::instance = nullptr;
+
 MQTTHandler::MQTTHandler(const char *broker, int port, const char *user, const char *password, bool useTLS, const char *sensorUniqueName)
     : mqtt_broker(broker), mqtt_port(port), mqtt_user(user), mqtt_password(password), useTLS(useTLS),
       //   client(useTLS ? wifiClientSecure : wifiClient), sensor_uniqueName(sensorUniqueName) {
@@ -14,54 +16,93 @@ MQTTHandler::MQTTHandler(const char *broker, int port, const char *user, const c
     }
     else
         client.setClient(wifiClient);
+    mqtt_IncomingPowerLmitSet = 101;
+    mqttMainTopicPath = "";
+    gw_ipAdress = "";
+    instance = this;
+}
+
+void MQTTHandler::callback(char *topic, byte *payload, unsigned int length)
+{
+    String incommingMessage = "";
+    for (uint8_t i = 0; i < length; i++)
+        incommingMessage += (char)payload[i];
+
+    Serial.println("\nMQTT: Message arrived [" + String(topic) + "] -> '" + incommingMessage + "'");
+    if (instance != nullptr)
+    {
+        if (String(topic) == instance->mqttMainTopicPath + "/inverter/PowerLimit_Set")
+        {
+            int gotLimit = (incommingMessage).toInt();
+            uint8_t setLimit = 0;
+            if (gotLimit >= 2 && gotLimit <= 100)
+                setLimit = gotLimit;
+            else if (gotLimit > 100)
+                setLimit = 100;
+            else if (gotLimit < 2)
+                setLimit = 2;
+            instance->mqtt_IncomingPowerLmitSet = setLimit;
+        }
+    }
+}
+
+uint MQTTHandler::getPowerLimitSet()
+{
+    return mqtt_IncomingPowerLmitSet;
 }
 
 void MQTTHandler::setup(bool autoDiscovery)
 {
     client.setServer(mqtt_broker, mqtt_port);
+    client.setCallback(callback);
     // reconnect(autoDiscovery);
 }
 
-void MQTTHandler::loop(bool autoDiscovery, String mainTopicPath)
+void MQTTHandler::loop(bool autoDiscovery, String mainTopicPath, String ipAdress)
 {
     if (!client.connected())
     {
-        reconnect(autoDiscovery, mainTopicPath);
+        reconnect(autoDiscovery, mainTopicPath, false, ipAdress);
     }
     client.loop();
 }
 
-void MQTTHandler::publishDiscoveryMessage(const char *sensor_type, const char *mainTopicPath, const char *entity, const char *entityName, const char *unit, bool deleteMessage, const char *icon, const char *deviceClass)
+void MQTTHandler::publishDiscoveryMessage(const char *entity, const char *entityName, const char *unit, bool deleteMessage, const char *icon, const char *deviceClass)
 {
-    String uniqueID = String(sensor_type) + "_" + String(entity);
+    String uniqueID = String(sensor_uniqueName) + "_" + String(entity);
 
     char config_topic[100];
     snprintf(config_topic, sizeof(config_topic), "homeassistant/sensor/%s/config", uniqueID.c_str());
     String pathLevel1 = String(entity).substring(0, String(entity).indexOf("_"));
     String pathLevel2 = String(entity).substring(String(entity).indexOf("_") + 1);
-    String stateTopic = String(mainTopicPath) + "/" + pathLevel1 + "/" + pathLevel2;
+    String stateTopic = String(mqttMainTopicPath) + "/" + pathLevel1 + "/" + pathLevel2;
 
     JsonDocument doc;
     doc["name"] = String(entityName);
-    doc["unique_id"] = uniqueID;
-    // doc["state_topic"] = "homeassistant/sensor/" + uniqueID + "/state";
     doc["state_topic"] = stateTopic;
-    doc["unit_of_measurement"] = unit;
     if (deviceClass != NULL)
     {
         doc["device_class"] = deviceClass;
-        // doc["value_template"] = "{{ as_datetime(value) }}";
+        if (String(deviceClass) == "timestamp")
+            doc["value_template"] = "{{ as_datetime(value) }}";
     }
+
+    if (unit != NULL)
+        doc["unit_of_measurement"] = unit;
+
     if (icon != NULL)
         doc["icon"] = icon;
 
-    doc["device"]["name"] = "HMS-xxxxW-2T (" + String(sensor_type) + ")";
-    doc["device"]["identifiers"] = String(sensor_type);
+    doc["unique_id"] = uniqueID;
+    // doc["state_topic"] = "homeassistant/sensor/" + uniqueID + "/state";
+    doc["device"]["name"] = "HMS-xxxxW-2T (" + String(sensor_uniqueName) + ")";
+    doc["device"]["identifiers"] = String(sensor_uniqueName);
     doc["device"]["manufacturer"] = "ohAnd";
     doc["device"]["model"] = "dtuGateway ESP8266/ESP32";
     doc["device"]["hw_version"] = "1.0";
     doc["device"]["sw_version"] = String(VERSION);
-    doc["device"]["configuration_url"] = "http://" + String(sensor_type);
+    // doc["device"]["configuration_url"] = "http://" + String(sensor_uniqueName);
+    doc["device"]["configuration_url"] = "http://" + gw_ipAdress;
 
     char payload[1024];
     size_t len = serializeJson(doc, payload);
@@ -79,21 +120,6 @@ void MQTTHandler::publishDiscoveryMessage(const char *sensor_type, const char *m
     }
 }
 
-void MQTTHandler::publishSensorData(String mainTopicPath, String typeName, String value)
-{
-    char state_topic[100];
-    // snprintf(state_topic, sizeof(state_topic), "homeassistant/sensor/%s_%s/state", sensor_uniqueName, typeName.c_str());
-
-    String pathLevel1 = String(typeName).substring(0, String(typeName).indexOf("_"));
-    String pathLevel2 = String(typeName).substring(String(typeName).indexOf("_") + 1);
-    String stateTopic = String(mainTopicPath) + "/" + pathLevel1 + "/" + pathLevel2;
-
-    snprintf(state_topic, sizeof(state_topic), stateTopic.c_str());
-
-    const char *charValue = value.c_str();
-    client.publish(state_topic, charValue, true);
-}
-
 void MQTTHandler::publishStandardData(String topicPath, String value)
 {
     const char *charTopic = topicPath.c_str();
@@ -101,47 +127,58 @@ void MQTTHandler::publishStandardData(String topicPath, String value)
     client.publish(charTopic, charValue, true);
 }
 
-void MQTTHandler::reconnect(bool autoDiscovery, String mainTopicPath, bool autoDiscoveryRemove)
+void MQTTHandler::reconnect(bool autoDiscovery, String mainTopicPath, bool autoDiscoveryRemove, String ipAdress)
 {
+    // get class local current defines
+    mqttMainTopicPath = mainTopicPath;
+    gw_ipAdress = ipAdress;
+
     if (!client.connected())
     {
-        Serial.print("Attempting MQTT connection... (HA AutoDiscover: " + String(autoDiscovery) + ") ... ");
+        Serial.print("MQTT: Attempting connection... (HA AutoDiscover: " + String(autoDiscovery) + ") ... ");
         if (client.connect(sensor_uniqueName, mqtt_user, mqtt_password))
         {
             Serial.println("connected");
 
+            client.subscribe((mqttMainTopicPath + "/inverter/PowerLimit_Set").c_str());
+            Serial.println("MQTT: subscribe to: " + (mqttMainTopicPath + "/inverter/PowerLimit_Set"));
+
             if (autoDiscovery || autoDiscoveryRemove)
             {
                 if (!autoDiscoveryRemove)
-                    Serial.println("setup HA MQTT auto discovery for all entities of this device");
+                    Serial.println("MQTT: setup HA auto discovery for all entities of this device");
                 else
-                    Serial.println("removing devices for HA MQTT auto discovery");
+                    Serial.println("MQTT: removing devices for HA auto discovery");
 
                 // Publish MQTT auto-discovery messages
-                publishDiscoveryMessage(sensor_uniqueName, mainTopicPath.c_str(), "timestamp", "Time stamp", "s", autoDiscoveryRemove, "mdi:clock-time-ten", "timestamp");
-                publishDiscoveryMessage(sensor_uniqueName, mainTopicPath.c_str(), "grid_U", "Grid voltage", "V", autoDiscoveryRemove, NULL, "voltage");
-                publishDiscoveryMessage(sensor_uniqueName, mainTopicPath.c_str(), "pv0_U", "Panel 0 voltage ", "V", autoDiscoveryRemove, NULL, "voltage");
-                publishDiscoveryMessage(sensor_uniqueName, mainTopicPath.c_str(), "pv1_U", "Panel 1 voltage", "V", autoDiscoveryRemove, NULL, "voltage");
 
-                publishDiscoveryMessage(sensor_uniqueName, mainTopicPath.c_str(), "grid_I", "Grid current", "A", autoDiscoveryRemove, NULL, "current");
-                publishDiscoveryMessage(sensor_uniqueName, mainTopicPath.c_str(), "pv0_I", "Panel 0 current", "A", autoDiscoveryRemove, "mdi:current-dc", "current");
-                publishDiscoveryMessage(sensor_uniqueName, mainTopicPath.c_str(), "pv1_I", "Panel 1 current", "A", autoDiscoveryRemove, "mdi:current-dc", "current");
+                publishDiscoveryMessage("grid_U", "Grid voltage", "V", autoDiscoveryRemove, NULL, "voltage");
+                publishDiscoveryMessage("pv0_U", "Panel 0 voltage ", "V", autoDiscoveryRemove, NULL, "voltage");
+                publishDiscoveryMessage("pv1_U", "Panel 1 voltage", "V", autoDiscoveryRemove, NULL, "voltage");
 
-                publishDiscoveryMessage(sensor_uniqueName, mainTopicPath.c_str(), "grid_P", "Grid power", "W", autoDiscoveryRemove, NULL, "power");
-                publishDiscoveryMessage(sensor_uniqueName, mainTopicPath.c_str(), "pv0_P", "Panel 0 power", "W", autoDiscoveryRemove, "mdi:solar-power", "power");
-                publishDiscoveryMessage(sensor_uniqueName, mainTopicPath.c_str(), "pv1_P", "Panel 1 power", "W", autoDiscoveryRemove, "mdi:solar-power", "power");
+                publishDiscoveryMessage("grid_I", "Grid current", "A", autoDiscoveryRemove, NULL, "current");
+                publishDiscoveryMessage("pv0_I", "Panel 0 current", "A", autoDiscoveryRemove, "mdi:current-dc", "current");
+                publishDiscoveryMessage("pv1_I", "Panel 1 current", "A", autoDiscoveryRemove, "mdi:current-dc", "current");
 
-                publishDiscoveryMessage(sensor_uniqueName, mainTopicPath.c_str(), "grid_dailyEnergy", "Grid current daily yield", "kWh", autoDiscoveryRemove, NULL, "energy");
-                publishDiscoveryMessage(sensor_uniqueName, mainTopicPath.c_str(), "pv0_dailyEnergy", "Panel 0 current daily yield", "kWh", autoDiscoveryRemove, "mdi:import", "energy");
-                publishDiscoveryMessage(sensor_uniqueName, mainTopicPath.c_str(), "pv1_dailyEnergy", "Panel 1 current daily yield", "kWh", autoDiscoveryRemove, "mdi:import", "energy");
+                publishDiscoveryMessage("grid_P", "Grid power", "W", autoDiscoveryRemove, "mdi:solar-power", "power");
+                publishDiscoveryMessage("pv0_P", "Panel 0 power", "W", autoDiscoveryRemove, "mdi:solar-power", "power");
+                publishDiscoveryMessage("pv1_P", "Panel 1 power", "W", autoDiscoveryRemove, "mdi:solar-power", "power");
 
-                publishDiscoveryMessage(sensor_uniqueName, mainTopicPath.c_str(), "grid_totalEnergy", "Grid total yield", "kWh", autoDiscoveryRemove, "mdi:import", "energy");
-                publishDiscoveryMessage(sensor_uniqueName, mainTopicPath.c_str(), "pv0_totalEnergy", "Panel 0 total yield", "kWh", autoDiscoveryRemove, "mdi:import", "energy");
-                publishDiscoveryMessage(sensor_uniqueName, mainTopicPath.c_str(), "pv1_totalEnergy", "Panel 1 total yield", "kWh", autoDiscoveryRemove, "mdi:import", "energy");
+                publishDiscoveryMessage("grid_dailyEnergy", "Grid yield today", "kWh", autoDiscoveryRemove, NULL, "energy");
+                publishDiscoveryMessage("pv0_dailyEnergy", "Panel 0 yield today", "kWh", autoDiscoveryRemove, NULL, "energy");
+                publishDiscoveryMessage("pv1_dailyEnergy", "Panel 1 yield today", "kWh", autoDiscoveryRemove, NULL, "energy");
 
-                publishDiscoveryMessage(sensor_uniqueName, mainTopicPath.c_str(), "inverter_Temp", "Inverter temperature", "°C", autoDiscoveryRemove, "mdi:thermometer", "temperature");
-                publishDiscoveryMessage(sensor_uniqueName, mainTopicPath.c_str(), "inverter_PowerLimit", "Inverter current power limit", "%", autoDiscoveryRemove, "mdi:car-speed-limiter", "power_factor");
-                publishDiscoveryMessage(sensor_uniqueName, mainTopicPath.c_str(), "inverter_WifiRSSI", "Inverter WiFi connection strength", "%", autoDiscoveryRemove, "mdi:wifi");
+                publishDiscoveryMessage("grid_totalEnergy", "Grid yield total", "kWh", autoDiscoveryRemove, NULL, "energy");
+                publishDiscoveryMessage("pv0_totalEnergy", "Panel 0 yield total", "kWh", autoDiscoveryRemove, NULL, "energy");
+                publishDiscoveryMessage("pv1_totalEnergy", "Panel 1 yield total", "kWh", autoDiscoveryRemove, NULL, "energy"); //"mdi:import"
+
+                publishDiscoveryMessage("inverter_Temp", "Inverter temperature", "°C", autoDiscoveryRemove, NULL, "temperature");       //"mdi:thermometer"
+                publishDiscoveryMessage("inverter_PowerLimit", "Inverter power limit", "%", autoDiscoveryRemove, NULL, "power_factor"); //"mdi:car-speed-limiter"
+                publishDiscoveryMessage("inverter_WifiRSSI", "Inverter WiFi strength", "%", autoDiscoveryRemove, "mdi:wifi");
+
+                publishDiscoveryMessage("inverter_PowerLimit_Set", "Inverter power limit Set", "%", autoDiscoveryRemove, "mdi:car-speed-limiter", "power_factor");
+
+                publishDiscoveryMessage("time_stamp", "Time stamp", NULL, autoDiscoveryRemove, NULL, "timestamp");
             }
         }
         else
@@ -154,7 +191,7 @@ void MQTTHandler::reconnect(bool autoDiscovery, String mainTopicPath, bool autoD
 
 void MQTTHandler::stopConnection()
 {
-    Serial.println("... stopped MQTT connection");
+    Serial.println("MQTT: ... stopped connection");
     if (client.connected())
     {
         client.disconnect();

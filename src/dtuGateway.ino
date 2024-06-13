@@ -486,7 +486,9 @@ void handleUpdateBindingsSettings()
   Serial.println("handleUpdateBindingsSettings - HAautoDiscovery new state: " + String(userConfig.mqttHAautoDiscoveryON));
   // mqttHAautoDiscoveryON going from on to off - send one time the delete messages
   if (!userConfig.mqttHAautoDiscoveryON && mqttHAautoDiscoveryONlastState)
-    mqttHandler.reconnect(userConfig.mqttHAautoDiscoveryON, userConfig.mqttBrokerMainTopic , true);
+    mqttHandler.reconnect(userConfig.mqttHAautoDiscoveryON, userConfig.mqttBrokerMainTopic, true, dtuGatewayIP.toString());
+  else
+    mqttHandler.reconnect(userConfig.mqttHAautoDiscoveryON, userConfig.mqttBrokerMainTopic, false, dtuGatewayIP.toString());
 
   String JSON = "{";
   JSON = JSON + "\"openhabActive\": " + userConfig.openhabActive + ",";
@@ -992,10 +994,10 @@ boolean updateValueToOpenhab()
 // publishing data in standard or HA mqtt auto discovery format
 void updateValuesToMqtt(boolean haAutoDiscovery = false)
 {
-  Serial.println("\npublish data to MQTT (HA autoDiscovery = " + String(haAutoDiscovery) + ")");
+  Serial.println("\nMQTT: publish data (HA autoDiscovery = " + String(haAutoDiscovery) + ")");
   std::map<std::string, std::string> keyValueStore;
 
-  keyValueStore["timestamp"] = String(timeStampInSecondsDtuSynced).c_str();
+  keyValueStore["time_stamp"] = String(timeStampInSecondsDtuSynced).c_str();
 
   keyValueStore["grid_U"] = String(globalData.grid.voltage).c_str();
   keyValueStore["grid_I"] = String(globalData.grid.current).c_str();
@@ -1024,16 +1026,9 @@ void updateValuesToMqtt(boolean haAutoDiscovery = false)
 
   for (const auto &pair : keyValueStore)
   {
-    if (haAutoDiscovery)
-    {
-      mqttHandler.publishSensorData(userConfig.mqttBrokerMainTopic, (pair.first).c_str(), (pair.second).c_str());
-    }
-    else
-    {
-      String subtopic = (pair.first).c_str();
-      subtopic.replace("_", "/");
-      mqttHandler.publishStandardData(String(userConfig.mqttBrokerMainTopic) + "/" + subtopic, (pair.second).c_str());
-    }
+    String subtopic = (pair.first).c_str();
+    subtopic.replace("_", "/");
+    mqttHandler.publishStandardData(String(userConfig.mqttBrokerMainTopic) + "/" + subtopic, (pair.second).c_str());
   }
 }
 
@@ -1099,14 +1094,15 @@ void setup()
     {
       displayOLED.drawFactoryMode(String(VERSION), espUniqueName, apIP.toString());
       userConfig.displayConnected = 1;
-      configManager.saveConfig(userConfig);
     }
     else if (userConfig.displayConnected == 1)
     {
       displayTFT.drawFactoryMode(String(VERSION), espUniqueName, apIP.toString());
       userConfig.displayConnected = 0;
-      configManager.saveConfig(userConfig);
     }
+    // deafult setting for mqtt main topic
+    ("dtu_" + String(chipID)).toCharArray(userConfig.mqttBrokerMainTopic, sizeof(userConfig.mqttBrokerMainTopic));
+    configManager.saveConfig(userConfig);
 
     initializeWebServer();
   }
@@ -1169,7 +1165,7 @@ void startServices()
 
     if (userConfig.mqttActive)
     {
-      Serial.println(F("setup mqtt:"));
+      Serial.println(F("MQTT: setup ..."));
       mqttHandler.setup(userConfig.mqttHAautoDiscoveryON);
     }
   }
@@ -1439,8 +1435,10 @@ void loop()
     MDNS.update();
 
     // runner for mqttClient to hold a already etablished connection
-    if (userConfig.mqttActive)
-      mqttHandler.loop(userConfig.mqttHAautoDiscoveryON, userConfig.mqttBrokerMainTopic);
+    if (userConfig.mqttActive) {
+      mqttHandler.loop(userConfig.mqttHAautoDiscoveryON, userConfig.mqttBrokerMainTopic, dtuGatewayIP.toString());
+      globalData.powerLimitSet = mqttHandler.getPowerLimitSet();
+    }
   }
 
   unsigned long currentMillis = millis();
@@ -1559,6 +1557,10 @@ void loop()
     }
 
     // for testing
+    // globalData.grid.totalEnergy = 1.34;
+    // globalData.pv0.totalEnergy = 1.0;
+    // globalData.pv1.totalEnergy = 0.34;
+
     // globalData.grid.power = globalData.grid.power + 1;
     // if (userConfig.mqttActive)
     //   updateValuesToMqtt(userConfig.mqttHAautoDiscoveryON);

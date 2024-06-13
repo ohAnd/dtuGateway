@@ -30,7 +30,7 @@ struct UserConfig
     boolean mqttUseTLS            = false;
     char mqttBrokerUser[64]       = "dtuuser";
     char mqttBrokerPassword[64]   = "dtupass";
-    char mqttBrokerMainTopic[32]  = "dtu1";
+    char mqttBrokerMainTopic[32]  = "dtu_12345678";
     boolean mqttHAautoDiscoveryON = false;
     boolean mqttActive            = false;
     

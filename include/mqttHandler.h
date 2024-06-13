@@ -9,9 +9,8 @@ class MQTTHandler {
 public:
     MQTTHandler(const char *broker, int port, const char *user, const char *password, bool useTLS, const char *sensorUniqueName);
     void setup(bool autoDiscovery);
-    void loop(bool autoDiscovery, String mainTopicPath);
-    void publishDiscoveryMessage(const char *sensor_type, const char *mainTopicPath, const char *entity, const char *entityName, const char *unit, bool deleteMessage, const char *icon=NULL, const char *deviceClass=NULL);
-    void publishSensorData(String mainTopicPath, String typeName, String value);
+    void loop(bool autoDiscovery, String mainTopicPath, String ipAdress);
+    void publishDiscoveryMessage(const char *entity, const char *entityName, const char *unit, bool deleteMessage, const char *icon=NULL, const char *deviceClass=NULL);
     void publishStandardData(String topicPath, String value);
 
     // Setters for runtime configuration
@@ -21,7 +20,10 @@ public:
     void setPassword(const char* password);
     void setUseTLS(bool useTLS);
 
-    void reconnect(bool autoDiscovery, String mainTopicPath, bool autoDiscoveryRemove=false);
+    uint getPowerLimitSet();
+
+    void reconnect(bool autoDiscovery, String mainTopicPath, bool autoDiscoveryRemove, String ipAdress);
+    static void callback(char *topic, byte *payload, unsigned int length);
 
 private:
     const char* mqtt_broker;
@@ -32,12 +34,18 @@ private:
     const char* sensor_uniqueName;
     const char* espURL;
     
+    
     WiFiClient wifiClient;
     WiFiClientSecure wifiClientSecure;
     PubSubClient client;
     
+    static MQTTHandler* instance;
+
+    String mqttMainTopicPath;
+    int8_t mqtt_IncomingPowerLmitSet;
+    String gw_ipAdress;
+
     void stopConnection();
-    
 };
 
 #endif // MQTTHANDLER_H

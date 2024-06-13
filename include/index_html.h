@@ -73,21 +73,21 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             </div>
             <hr>
             <div id="mqttSection">
-                <h3><input type="checkbox" id="mqttActive"> mqtt publishing</h3>
+                <h3><input type="checkbox" id="mqttActive"> MQTT connection</h3>
                 <div>
-                    <p>publish all data to a specific mqtt broker and subscribing to the requested powersetting</p>
+                    <p>publish all data to a specific MQTT broker and subscribing to the requested powersetting</p>
                 </div>
                 <div>
-                    IP/port to mqtt broker (e.g. 192.168.178.100:1883):
+                    IP/port to MQTT broker (e.g. 192.168.178.100:1883):
                 </div>
                 <div>
                     <input type="text" id="mqttIP" class="ipv4Input" name="ipv4" placeholder="xxx.xxx.xxx.xxx">
                 </div>
+                <!-- <div> -->
+                    <!-- <input type="checkbox" id="mqttUseTLS"> TLS connection (e.g. 123456789.s1.eu.hivemq.cloud:8883) -->
+                <!-- </div> -->
                 <div>
-                    <input type="checkbox" id="mqttUseTLS"> TLS connection (e.g. 123456789.s1.eu.hivemq.cloud:8883)
-                </div>
-                <div>
-                    specify user on your mqtt broker instance:
+                    <br>specify user on your mqtt broker instance:
                 </div>
                 <div>
                     <input type="text" id="mqttUser" value="please type in" required maxlength="64">
@@ -99,15 +99,16 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                     <input type="password" id="mqttPassword" value="admin12345" required maxlength="64">
                 </div>
                 <div>
-                    mqtt main topic for this dtu (e.g. dtu1 will appear as 'dtu1/grid/U' in the broker):
+                    MQTT main topic for this dtu (e.g. dtu_12345678 will appear as 'dtu_12345678/grid/U' in the broker - has to be unique in your setup):
                 </div>
                 <div>
                     <input type="text" id="mqttMainTopic" maxlength="32">
                 </div>
                 <div>
-                    <input type="checkbox" id="mqttHAautoDiscoveryON"> Home Assistant Auto Discovery <br><small>(On = config is send once after every restart, Off = delete the sensor from HA instantly)</small>
+                    <input type="checkbox" id="mqttHAautoDiscoveryON"> HomeAssistant Auto Discovery <br><small>(On = config is send once after every restart, Off = delete the sensor from HA instantly - using the same main topic as set above)</small><br>
                 </div>
             </div>
+            <hr>
             <div style="text-align: center;">
                 <b onclick="changeBindingsData()" id="btnSaveWifiSettings" class="form-button btn">save</b>
                 <b onclick="hide('#changeSettings')" id="btnSettingsClose" class="form-button btn">close</b>
