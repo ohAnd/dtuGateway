@@ -15,7 +15,7 @@
     - [data - http://\<ip\_to\_your\_device\>/api/data](#data---httpip_to_your_deviceapidata)
     - [info - http://\<ip\_to\_your\_device\>/api/info](#info---httpip_to_your_deviceapiinfo)
   - [openhab integration/ configuration](#openhab-integration-configuration)
-  - [mqqt integration/ configuration](#mqqt-integration-configuration)
+  - [MQTT integration/ configuration](#mqtt-integration-configuration)
   - [known bugs](#known-bugs)
   - [releases](#releases)
     - [installation / update](#installation--update)
@@ -72,9 +72,11 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
  
 #### connections to the environment
 - serving the readed data per /api/data
-- binding configuration with seperate activation and login data setting
+- configuration of bindings with seperate activation and login data setting
 - binding: updating openHab instance with readed data and pulling set data from the instance
-- binding: updating to a MQTT broker with readed data [OPEN: pulling set power data from the mqtt instance]
+- binding: updating to a MQTT broker with readed data incl. set PowerLimit over MQTT
+  - 2 ways to configure - simple mqtt publishing with base topic or together with HA MQTT AutoDiscovery based
+  - for all publishing retain flag is set (keeping last seen data in broker)
 
 #### display support
 - selectable (and storable) over advanced web config[^2] or per serial com and at directly at start up coming from factory mode ( [see first-setup-with-access-point](#first-setup-with-access-point) )
@@ -118,6 +120,7 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
   - select found local wifi and enter/ save the needed wifi password
   - change dtu connection data (e.g. host IP in local network, wireless user/ pass for dtu access point)
   - configurable data for openhab item settings
+  - configurable data for MQTT settings incl. HomeAssistant AutoDiscovery
   - advanced web config[^2] for all config parameter (http://IP_domain/config) - expert mode
     - display selection (0 - OLED, 1 - round TFT)
     - timeZone Offset -xxxx sec <-> xxxx sec e.g. 3600 for CET(+1h) /7200 for CEST(+2)/-21600 for CST
@@ -128,6 +131,9 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
 ## api
 
 ### data - http://<ip_to_your_device>/api/data
+
+<details>
+<summary>expand to see json example</summary>
 
 ```json 
 {
@@ -166,8 +172,12 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
   }
 }
 ```
+</details>
 
 ### info - http://<ip_to_your_device>/api/info
+
+<details>
+<summary>expand to see json example</summary>
 
 ```json 
 {
@@ -221,6 +231,7 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
   }
 }
 ```
+</details>
 
 ## openhab integration/ configuration
 
@@ -229,6 +240,9 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
 - list of items that should be available in your openhab config
   - read your given power set value from openhab with "<yourOpenItemPrefix>_PowerLimit_Set"
   - set openhab items with data from dtu:
+  <details>
+  <summary>expand to see to details</summary>
+
     - grid data:
       - "<openItemPrefix>Grid_U"
       - "<openItemPrefix>Grid_I"
@@ -252,38 +266,49 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
       - "<openItemPrefix>_PowerLimit" //current read power limit from dtu
       - "<openItemPrefix>_WifiRSSI"
 
-## mqqt integration/ configuration
+  </details>
+
+## MQTT integration/ configuration
 
 - set the IP to your MQTT broker
 - set the MQTT user and MQTT password
-- set the main topic e.g. 'dtu1' for the pubished data
-- data will be published as following ('dtu1' is configurable in the settings):
+- set the main topic e.g. 'dtu_12345678' for the pubished data (default: is `dtu_<ESP chip id>` and has to be unique in your environment)
+- to set the Power Limit from your environment
+  - you have to publish to `dtu_<ESP chip id>/inverter/PowerLimit_Set` a value between 2...100 (possible range at DTU)
+  - the incoming value will be checked for this interval and locally corrected to 2 or 100 if exceeds
+  - (optional: with retain flag, to get the last set value after restart / reconnect of the dtuGateway)
+- data will be published as following ('dtu_12345678' is configurable in the settings):
   
   ```
-  dtu1/timestamp
+  dtu_12345678/timestamp
 
-  dtu1/grid/U
-  dtu1/grid/I
-  dtu1/grid/P
-  dtu1/grid/dailyEnergy
-  dtu1/grid/totalEnergy
+  dtu_12345678/grid/U
+  dtu_12345678/grid/I
+  dtu_12345678/grid/P
+  dtu_12345678/grid/dailyEnergy
+  dtu_12345678/grid/totalEnergy
   
-  dtu1/pv0/U
-  dtu1/pv0/I
-  dtu1/pv0/P
-  dtu1/pv0/dailyEnergy
-  dtu1/pv0/totalEnergy
+  dtu_12345678/pv0/U
+  dtu_12345678/pv0/I
+  dtu_12345678/pv0/P
+  dtu_12345678/pv0/dailyEnergy
+  dtu_12345678/pv0/totalEnergy
   
-  dtu1/pv1/U
-  dtu1/pv1/I
-  dtu1/pv1/P
-  dtu1/pv1/dailyEnergy
-  dtu1/pv1/totalEnergy
+  dtu_12345678/pv1/U
+  dtu_12345678/pv1/I
+  dtu_12345678/pv1/P
+  dtu_12345678/pv1/dailyEnergy
+  dtu_12345678/pv1/totalEnergy
 
-  dtu1/inverter/Temp
-  dtu1/inverter/PowerLimit
-  dtu1/inverter/WifiRSSI
+  dtu_12345678/inverter/Temp
+  dtu_12345678/inverter/PowerLimit
+  dtu_12345678/inverter/PowerLimit_Set // <-- this topic will be subscribed to get the power limit to set from your broker
+  dtu_12345678/inverter/WifiRSSI
   ```
+- Home Assistant Auto Discovery
+  - you can set HomeAssistant Auto Discovery, if you want to auto configure the dtuGateway for your HA installation
+  - switch to ON means - with every restart/ reconnection of the dtuGateway the so called config messages will be published for HA and HA will configure all the given entities of dtuGateway incl. the set value for PowerLimit
+  - switch to OFF means - all the config messages will be deleted and therefore the dtuGateway will be removed from HA (base publishing of data will be remain the same, if MQTT is activated)
 
 ## known bugs
 - sometimes out-of-memory resets with instant reboots (rare after some hours or more often after some days)

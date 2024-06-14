@@ -110,6 +110,8 @@ void UserConfigManager::printConfigdata()
     Serial.println(userConfig.mqttBrokerIpDomain);
     Serial.print(F("mqtt port: \t\t"));
     Serial.println(userConfig.mqttBrokerPort);
+    Serial.print(F("mqtt TLS: \t\t"));
+    Serial.println(userConfig.mqttUseTLS);
     Serial.print(F("mqtt user: \t\t"));
     Serial.println(userConfig.mqttBrokerUser);
     Serial.print(F("mqtt pass: \t\t"));
@@ -118,6 +120,8 @@ void UserConfigManager::printConfigdata()
     Serial.println(userConfig.mqttBrokerMainTopic);
     Serial.print(F("mqtt binding active: \t"));
     Serial.println(userConfig.mqttActive);
+    Serial.print(F("mqtt HA autoDiscovery: \t"));
+    Serial.println(userConfig.mqttHAautoDiscoveryON);
 
     Serial.print(F("dtu update time: \t"));
     Serial.println(userConfig.dtuUpdateTime);
@@ -164,9 +168,11 @@ JsonDocument UserConfigManager::mappingStructToJson()
     doc["mqtt"]["active"] = userConfig.mqttActive;
     doc["mqtt"]["brokerIP"] = userConfig.mqttBrokerIpDomain;
     doc["mqtt"]["brokerPort"] = userConfig.mqttBrokerPort;
+    doc["mqtt"]["brokerUseTLS"] = userConfig.mqttUseTLS;
     doc["mqtt"]["user"] = userConfig.mqttBrokerUser;
     doc["mqtt"]["pass"] = userConfig.mqttBrokerPassword;
     doc["mqtt"]["mainTopic"] = userConfig.mqttBrokerMainTopic;
+    doc["mqtt"]["HAautoDiscoveryON"] = userConfig.mqttHAautoDiscoveryON;
 
     doc["display"]["type"] = userConfig.displayConnected;
 
@@ -196,9 +202,11 @@ void UserConfigManager::mappingJsonToStruct(JsonDocument doc)
     userConfig.mqttActive = doc["mqtt"]["active"];
     String(doc["mqtt"]["brokerIP"]).toCharArray(userConfig.mqttBrokerIpDomain, sizeof(userConfig.mqttBrokerIpDomain));
     userConfig.mqttBrokerPort = doc["mqtt"]["brokerPort"];
+    userConfig.mqttUseTLS = doc["mqtt"]["brokerUseTLS"];
     String(doc["mqtt"]["user"]).toCharArray(userConfig.mqttBrokerUser, sizeof(userConfig.mqttBrokerUser));
     String(doc["mqtt"]["pass"]).toCharArray(userConfig.mqttBrokerPassword, sizeof(userConfig.mqttBrokerPassword));
     String(doc["mqtt"]["mainTopic"]).toCharArray(userConfig.mqttBrokerMainTopic, sizeof(userConfig.mqttBrokerMainTopic));
+    userConfig.mqttHAautoDiscoveryON = doc["mqtt"]["HAautoDiscoveryON"];
 
     userConfig.displayConnected = doc["display"]["type"];
 
