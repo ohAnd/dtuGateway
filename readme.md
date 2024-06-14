@@ -74,8 +74,8 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
 - serving the readed data per /api/data
 - configuration of bindings with seperate activation and login data setting
 - binding: updating openHab instance with readed data and pulling set data from the instance
-- binding: updating to a MQTT broker with readed data [OPEN: pulling set power data from the mqtt instance]
-  - 2 ways to configure - simple mqtt publishing with base topic or HA MQTT AutoDiscovery based
+- binding: updating to a MQTT broker with readed data incl. set PowerLimit over MQTT
+  - 2 ways to configure - simple mqtt publishing with base topic or together with HA MQTT AutoDiscovery based
   - for all publishing retain flag is set (keeping last seen data in broker)
 
 #### display support
@@ -132,6 +132,9 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
 
 ### data - http://<ip_to_your_device>/api/data
 
+<details>
+<summary>expand to see json example</summary>
+
 ```json 
 {
   "localtime": 1704110892,
@@ -169,8 +172,12 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
   }
 }
 ```
+</details>
 
 ### info - http://<ip_to_your_device>/api/info
+
+<details>
+<summary>expand to see json example</summary>
 
 ```json 
 {
@@ -224,6 +231,7 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
   }
 }
 ```
+</details>
 
 ## openhab integration/ configuration
 
@@ -232,6 +240,9 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
 - list of items that should be available in your openhab config
   - read your given power set value from openhab with "<yourOpenItemPrefix>_PowerLimit_Set"
   - set openhab items with data from dtu:
+  <details>
+  <summary>expand to see to details</summary>
+
     - grid data:
       - "<openItemPrefix>Grid_U"
       - "<openItemPrefix>Grid_I"
@@ -254,6 +265,8 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
       - "<openItemPrefix>_Temp"
       - "<openItemPrefix>_PowerLimit" //current read power limit from dtu
       - "<openItemPrefix>_WifiRSSI"
+
+  </details>
 
 ## MQTT integration/ configuration
 

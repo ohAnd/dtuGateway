@@ -894,22 +894,30 @@ String getMessageFromOpenhab(String key)
 {
   WiFiClient client;
   HTTPClient http;
-  String openhabHost = "http://" + String(userConfig.openhabHostIpDomain) + ":8080/rest/items/";
-  http.setTimeout(2000); // prevent blocking of progam
-  if (http.begin(client, openhabHost + key + "/state"))
+  if (WiFi.status() == WL_CONNECTED)
   {
-    String payload = "";
-    int httpCode = http.GET();
-    if (httpCode == HTTP_CODE_OK)
+    String openhabHost = "http://" + String(userConfig.openhabHostIpDomain) + ":8080/rest/items/";
+    http.setTimeout(2000); // prevent blocking of progam
+    if (http.begin(client, openhabHost + key + "/state"))
     {
-      payload = http.getString();
+      String payload = "";
+      int httpCode = http.GET();
+      if (httpCode == HTTP_CODE_OK)
+      {
+        payload = http.getString();
+      }
+      http.end();
+      return payload;
     }
-    http.end();
-    return payload;
+    else
+    {
+      Serial.print("[HTTP] getMessageFromOpenhab Unable to connect " + openhabHost + " \n");
+      return "connectError";
+    }
   }
   else
   {
-    Serial.print("[HTTP] getMessageFromOpenhab Unable to connect " + openhabHost + " \n");
+    Serial.print("getMessageFromOpenhab - can not connect to openhab - wifi not connected \n");
     return "connectError";
   }
 }
@@ -917,37 +925,37 @@ String getMessageFromOpenhab(String key)
 boolean getPowerSetDataFromOpenHab()
 {
   // get data from openhab if connected to DTU
-  if (dtuConnection.dtuConnectState == DTU_STATE_CONNECTED)
+  // if (dtuConnection.dtuConnectState == DTU_STATE_CONNECTED)
+  // {
+  uint8_t gotLimit;
+  bool conversionSuccess = false;
+
+  String openhabMessage = getMessageFromOpenhab(String(userConfig.openItemPrefix) + "_PowerLimit_Set");
+  if (openhabMessage.length() > 0)
   {
-    uint8_t gotLimit;
-    bool conversionSuccess = false;
-
-    String openhabMessage = getMessageFromOpenhab(String(userConfig.openItemPrefix) + "_PowerLimit_Set");
-    if (openhabMessage.length() > 0)
-    {
-      gotLimit = openhabMessage.toInt();
-      // Check if the conversion was successful by comparing the string with its integer representation, to avoid wronmg interpretations of 0 after toInt by a "no number string"
-      conversionSuccess = (String(gotLimit) == openhabMessage);
-    }
-
-    if (conversionSuccess)
-    {
-      if (gotLimit < 2)
-        globalData.powerLimitSet = 2;
-      else if (gotLimit > 100)
-        globalData.powerLimitSet = 2;
-      else
-        globalData.powerLimitSet = gotLimit;
-    }
-    else
-    {
-      Serial.print("got wrong data for SetLimit: " + openhabMessage);
-      return false;
-    }
-    // Serial.print("got SetLimit: " + String(globalData.powerLimitSet) + " - current limit: " + String(globalData.powerLimit) + " %");
-    return true;
+    gotLimit = openhabMessage.toInt();
+    // Check if the conversion was successful by comparing the string with its integer representation, to avoid wronmg interpretations of 0 after toInt by a "no number string"
+    conversionSuccess = (String(gotLimit) == openhabMessage);
   }
-  return false;
+
+  if (conversionSuccess)
+  {
+    if (gotLimit < 2)
+      globalData.powerLimitSet = 2;
+    else if (gotLimit > 100)
+      globalData.powerLimitSet = 2;
+    else
+      globalData.powerLimitSet = gotLimit;
+  }
+  else
+  {
+    Serial.print("got wrong data for SetLimit: " + openhabMessage);
+    return false;
+  }
+  // Serial.print("got SetLimit: " + String(globalData.powerLimitSet) + " - current limit: " + String(globalData.powerLimit) + " %");
+  return true;
+  // }
+  // return false;
 }
 
 boolean updateValueToOpenhab()
@@ -1423,6 +1431,7 @@ void IRAM_ATTR timer1000MilliSeconds()
 
 void loop()
 {
+  unsigned long currentMillis = millis();
   // skip all tasks if update is running
   if (updateRunning)
     return;
@@ -1435,13 +1444,12 @@ void loop()
     MDNS.update();
 
     // runner for mqttClient to hold a already etablished connection
-    if (userConfig.mqttActive) {
+    if (userConfig.mqttActive)
+    {
       mqttHandler.loop(userConfig.mqttHAautoDiscoveryON, userConfig.mqttBrokerMainTopic, dtuGatewayIP.toString());
-      globalData.powerLimitSet = mqttHandler.getPowerLimitSet();
     }
   }
 
-  unsigned long currentMillis = millis();
   // 50ms task
   if (currentMillis - previousMillis50ms >= interval50ms)
   {
@@ -1464,6 +1472,18 @@ void loop()
     // -------->
     blinkCodeTask();
     serialInputTask();
+
+    if (userConfig.mqttActive)
+    {
+      // getting powerlimitSet over MQTT, only on demand - to avoid oversteering for openhab receiving with constant MQTT values, if both bindings are active
+      // the time difference between publishing and take over have to be less then 100 ms
+      PowerLimitSet lastSetting = mqttHandler.getPowerLimitSet();
+      if (currentMillis - lastSetting.timestamp < 100)
+      {
+        globalData.powerLimitSet = lastSetting.setValue;
+        Serial.println("\nMQTT: changed powerset value to '" + String(globalData.powerLimitSet) + "'");
+      }
+    }
   }
 
   // CHANGE to precise 1 second timer increment
@@ -1507,6 +1527,9 @@ void loop()
         dtuConnectionStop(&dtuClient, DTU_STATE_CLOUD_PAUSE); // disconnet DTU server, if prevention on
       }
     }
+
+    if (userConfig.openhabActive)
+      getPowerSetDataFromOpenHab();
 
     // direct request of new powerLimit
     if (globalData.powerLimitSet != globalData.powerLimit && globalData.powerLimitSet != 101 && globalData.uptodate)

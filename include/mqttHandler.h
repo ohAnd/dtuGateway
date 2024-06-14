@@ -5,6 +5,11 @@
 #include <PubSubClient.h>
 #include <WiFiClientSecure.h>
 
+struct PowerLimitSet {
+    uint16_t timestamp = 0;
+    int8_t setValue = 0;
+};
+
 class MQTTHandler {
 public:
     MQTTHandler(const char *broker, int port, const char *user, const char *password, bool useTLS, const char *sensorUniqueName);
@@ -20,7 +25,7 @@ public:
     void setPassword(const char* password);
     void setUseTLS(bool useTLS);
 
-    uint getPowerLimitSet();
+    PowerLimitSet getPowerLimitSet();
 
     void reconnect(bool autoDiscovery, String mainTopicPath, bool autoDiscoveryRemove, String ipAdress);
     static void callback(char *topic, byte *payload, unsigned int length);
@@ -43,6 +48,7 @@ private:
 
     String mqttMainTopicPath;
     int8_t mqtt_IncomingPowerLmitSet;
+    PowerLimitSet lastPowerLimitSet;
     String gw_ipAdress;
 
     void stopConnection();

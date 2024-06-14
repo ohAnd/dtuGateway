@@ -41,14 +41,15 @@ void MQTTHandler::callback(char *topic, byte *payload, unsigned int length)
                 setLimit = 100;
             else if (gotLimit < 2)
                 setLimit = 2;
-            instance->mqtt_IncomingPowerLmitSet = setLimit;
+            instance->lastPowerLimitSet.setValue = setLimit;
+            instance->lastPowerLimitSet.timestamp = millis();
         }
     }
 }
 
-uint MQTTHandler::getPowerLimitSet()
+PowerLimitSet MQTTHandler::getPowerLimitSet()
 {
-    return mqtt_IncomingPowerLmitSet;
+    return lastPowerLimitSet;
 }
 
 void MQTTHandler::setup(bool autoDiscovery)
