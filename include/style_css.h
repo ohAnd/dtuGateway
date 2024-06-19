@@ -100,6 +100,18 @@ hr {
     font-size: 3vmin;
 }
 
+.panelValueButton {
+    font-size: 3vmin;
+	border-width: 1px;
+    border-color: #2196f3;
+    border-style: solid;
+	
+}
+.panelValueButton:hover {
+    border-color: white;
+	cursor: pointer;
+}
+
 .panelValueBoxDetail {
     float: left;
     width: 50%;

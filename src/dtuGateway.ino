@@ -461,6 +461,51 @@ void handleUpdateBindingsSettings()
   Serial.println("handleUpdateBindingsSettings - send JSON: " + String(JSON));
 }
 
+void handleUpdatePowerLimit()
+{
+  String powerLimitSetNew = server.arg("powerLimitSend"); // retrieve message from webserver
+  Serial.println("\nhandleUpdatePowerLimit - got powerLimitSend: " + powerLimitSetNew);
+  uint8_t gotLimit;
+  bool conversionSuccess = false;
+
+  if (powerLimitSetNew.length() > 0)
+  {
+    gotLimit = powerLimitSetNew.toInt();
+    // Check if the conversion was successful by comparing the string with its integer representation, to avoid wronmg interpretations of 0 after toInt by a "no number string"
+    conversionSuccess = (String(gotLimit) == powerLimitSetNew);
+  }
+
+  if (conversionSuccess)
+  {
+    if (gotLimit < 2)
+      globalData.powerLimitSet = 2;
+    else if (gotLimit > 100)
+      globalData.powerLimitSet = 2;
+    else
+      globalData.powerLimitSet = gotLimit;
+
+    // Serial.print("got SetLimit: " + String(globalData.powerLimitSet) + " - current limit: " + String(globalData.powerLimit) + " %");
+  
+    String JSON = "{";
+    JSON = JSON + "\"PowerLimitSet\": \"" + globalData.powerLimitSet + "\"";
+    JSON = JSON + "}";
+
+    server.send(200, "application/json", JSON);
+    Serial.println("handleUpdatePowerLimit - send JSON: " + String(JSON));
+  }
+  else
+  {
+    Serial.print("got wrong data for SetLimit: " + powerLimitSetNew);
+      
+      server.send(400, "text/plain", "powerLimit out of range");
+      return;
+  }
+  
+  // trigger new update info with changed release channel
+  // getUpdateInfo(AsyncWebServerRequest *request);
+  //updateInfoRequested = true;
+}
+
 void handleUpdateOTASettings()
 {
   String releaseChannel = server.arg("releaseChannel"); // retrieve message from webserver
@@ -506,6 +551,7 @@ void initializeWebServer()
   server.on("/updateDtuSettings", handleUpdateDtuSettings);
   server.on("/updateOTASettings", handleUpdateOTASettings);
   server.on("/updateBindingsSettings", handleUpdateBindingsSettings);
+  server.on("/updatePowerLimit", handleUpdatePowerLimit);
 
   // api GETs
   server.on("/api/data", handleDataJson);
