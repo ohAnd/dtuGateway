@@ -105,10 +105,13 @@ hr {
 	border-width: 1px;
     border-color: #2196f3;
     border-style: solid;
-	
+    border-radius: 5px;
+    padding-left: 2%;
+    margin-right: 2%;	
 }
 .panelValueButton:hover {
     border-color: white;
+    border-width: 2px;
 	cursor: pointer;
 }
 

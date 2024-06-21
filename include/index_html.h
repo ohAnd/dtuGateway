@@ -482,8 +482,9 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                 getDTUdata();
                 getBindingsData();
             }
-            if (id == 'updatePowerLimit') {
+            if (id == '#updatePowerLimit') {
                 getPowerLimitData();
+                $('#powerLimitSetNew').focus();
             }
         }
 
@@ -557,6 +558,8 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             checkValueUpdate('#powerLimit', data.inverter.pLim);
             checkValueUpdate('#powerLimitNow', data.inverter.pLim);
             
+            // show last set value in input field
+            $('#powerLimitSetNew').val(data.inverter.pLimSet);
 
             checkValueUpdate('#inverterTemp', (data.inverter.temp).toFixed(1), "'C");
 
