@@ -152,6 +152,31 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             </div>
         </div>
     </div>
+    </div>
+    	 <div class="popup" id="updatePowerLimit" style="display: none;">
+        <h2>Update power limit</h2>
+        <div>
+            <div id="PowerLimitInfo">
+				<div> power limit now in %
+                    <p id="powerLimitNow"></p>
+                </div>
+				<hr>
+                <div> power limit set in %
+             		<input type="number" id="powerLimitSetNew" min="2" max="100" placeholder="">
+                </div>             
+            </div>
+            
+            <hr>
+            
+            <div style="text-align: center;">
+                <b onclick="changePowerLimit()" id="btnSetPowerLimit" class="form-button btn" style="opacity: 1;">set power limit</b>
+            </div>
+        
+            <div style="text-align: center;">
+                <b onclick="hide('#updatePowerLimit')" class="form-button btn">close</b>
+            </div>
+        </div>
+    </div>
     <div class="popup" id="updateMenu">
         <h2>Update</h2>
         <div>
@@ -315,7 +340,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                     </div>
                     <div class="panelValueBoxDetail">
                         <small class="panelHead">limit set</small>
-                        <b id="powerLimitSet" class="panelValueSmall valueText ">00 </b>%
+                        <b id="powerLimitSet" class="panelValueButton valueText " onclick="show('#updatePowerLimit')" >00 </b>%
                     </div>
                     <div class="panelValueBoxDetail">
                         <small class="panelHead">limit now</small>
@@ -464,6 +489,10 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                 getDTUdata();
                 getBindingsData();
             }
+            if (id == '#updatePowerLimit') {
+                getPowerLimitData();
+                $('#powerLimitSetNew').focus();
+            }
         }
 
         var hide = function (id) {
@@ -534,6 +563,10 @@ const char INDEX_HTML[] PROGMEM = R"=====(
 
             checkValueUpdate('#powerLimitSet', data.inverter.pLimSet);
             checkValueUpdate('#powerLimit', data.inverter.pLim);
+            checkValueUpdate('#powerLimitNow', data.inverter.pLim);
+            
+            // show last set value in input field
+            $('#powerLimitSetNew').val(data.inverter.pLimSet);
 
             checkValueUpdate('#inverterTemp', (data.inverter.temp).toFixed(1), "'C");
 
@@ -707,6 +740,14 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                 $('.passcheck').html("show");
             }
         });
+        
+        function getPowerLimitData() {
+            // 
+            $('#btnSetPowerLimit').css('opacity', '1.0');
+            $('#btnSetPowerLimit').attr('onclick', "changePowerLimit();")
+
+            //$('#powerLimitNow').val(data.inverter.pLim);
+        }
 
         function changeWifiData() {
             var ssid = $('#wifiSSIDsend').val();
@@ -904,6 +945,53 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             hide('#changeSettings');
             return;
         }
+
+        function changePowerLimit() {
+                   
+            var powerLimitSend = $('#powerLimitSetNew').val();
+            
+            var data = {};
+            data["powerLimitSend"] = powerLimitSend;
+
+            console.log("send to server: powerLimitSend: " + powerLimitSend);
+
+            const urlEncodedDataPairs = [];
+
+            // Turn the data object into an array of URL-encoded key/value pairs.
+            for (const [name, value] of Object.entries(data)) {
+                urlEncodedDataPairs.push(
+                    `${encodeURIComponent(name)}=${encodeURIComponent(value)}`,
+                );
+                console.log("push: " + name + " - value: " + value);
+            }
+
+            // Combine the pairs into a single string and replace all %-encoded spaces to
+            // the '+' character; matches the behavior of browser form submissions.
+            const urlEncodedData = urlEncodedDataPairs.join("&").replace(/%20/g, "+");
+
+
+            var xmlHttp = new XMLHttpRequest();
+            xmlHttp.open("POST", "/updatePowerLimit", false); // false for synchronous request
+            xmlHttp.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+
+            // Finally, send our data.
+            xmlHttp.send(urlEncodedData);
+
+            strResult = JSON.parse(xmlHttp.responseText);
+            console.log("got from server: " + strResult);
+            console.log("got from server - strResult.PowerLimit: " + strResult.PowerLimit + " - cmp with: " + powerLimitSend);
+
+           // if (strResult.openhabHostIp == openhabHostIpSend && strResult.mqttBrokerIp == mqttIpSend && strResult.mqttBrokerUser == mqttUserSend) {
+             //   console.log("check saved data - OK");
+             //   alert("bindings Settings change\n__________________________________\n\nYour settings were successfully changed.\n\nChanges will be applied.");
+           // } else {
+            //    alert("bindings Settings change\n__________________________________\n\nSome error occured! Checking data from gateway are not as excpeted after sending to save.\n\nPlease try again!");
+           // }
+
+            hide('#updatePowerLimit');
+            return;
+        }
+
 
         function changeReleaseChannel(channel) {
             if (cacheInfoData.firmware.selectedUpdateChannel == channel) return;
