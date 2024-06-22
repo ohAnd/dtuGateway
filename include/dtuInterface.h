@@ -79,7 +79,7 @@ struct inverterData
 extern inverterData globalData;
 
 extern CRC16 crc;
-void dtuConnectionEstablish(WiFiClient *localDtuClient, char localDtuHostIp[16], uint16_t localDtuPort = 10081);
+void dtuConnectionEstablish(WiFiClient *localDtuClient, char localdtuHostIpDomain[16], uint16_t localDtuPort = 10081);
 void dtuConnectionStop(WiFiClient *localDtuClient, uint8_t tgtState);
 void dtuConnectionHandleError(WiFiClient *localDtuClient, unsigned long locTimeSec, uint8_t errorState = DTU_ERROR_NO_ERROR);
 

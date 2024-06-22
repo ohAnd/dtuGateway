@@ -4,7 +4,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
 
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=windows-1252">
-    <title id="title">HoymilesGW</title>
+    <title id="title">dtuGateway</title>
     <meta name="viewport"
         content="user-scalable=no, initial-scale=1, maximum-scale=1, minimum-scale=1, width=device-width">
     <link rel="stylesheet" type="text/css" href="style.css">
@@ -19,7 +19,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
     </div>
     <div class="popup" id="changeSettings">
         <div class="popupHeader">
-            <div class="popupHeaderTitle">settings
+            <div class="popupHeaderTitle">settings <i style="font-size: x-small;float:right;"><a href="/config" target=_blank>advanced config</a></i>
                 <!-- <h2>settings</h2> -->
             </div>
             <div class="popupHeaderTabs">
@@ -73,18 +73,21 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             </div>
             <hr>
             <div id="mqttSection">
-                <h3><input type="checkbox" id="mqttActive"> mqtt publishing</h3>
+                <h3><input type="checkbox" id="mqttActive"> MQTT connection</h3>
                 <div>
-                    <p>publish all data to a specific mqtt broker and subscribing to the requested powersetting</p>
+                    <p>publish all data to a specific MQTT broker and subscribing to the requested powersetting</p>
                 </div>
                 <div>
-                    IP/port to mqtt broker (e.g. 192.168.178.100:1883):
+                    IP/port to MQTT broker (e.g. 192.168.178.100:1883):
                 </div>
                 <div>
                     <input type="text" id="mqttIP" class="ipv4Input" name="ipv4" placeholder="xxx.xxx.xxx.xxx">
                 </div>
+                <!-- <div> -->
+                    <!-- <input type="checkbox" id="mqttUseTLS"> TLS connection (e.g. 123456789.s1.eu.hivemq.cloud:8883) -->
+                <!-- </div> -->
                 <div>
-                    specific user on your mqtt broker instance:
+                    <br>specify user on your mqtt broker instance:
                 </div>
                 <div>
                     <input type="text" id="mqttUser" value="please type in" required maxlength="64">
@@ -96,12 +99,16 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                     <input type="password" id="mqttPassword" value="admin12345" required maxlength="64">
                 </div>
                 <div>
-                    mqtt main topic for this dtu (e.g. dtu1 will appear as 'dtu1/grid/U' in the broker):
+                    MQTT main topic for this dtu (e.g. dtu_12345678 will appear as 'dtu_12345678/grid/U' in the broker - has to be unique in your setup):
                 </div>
                 <div>
                     <input type="text" id="mqttMainTopic" maxlength="32">
                 </div>
+                <div>
+                    <input type="checkbox" id="mqttHAautoDiscoveryON"> HomeAssistant Auto Discovery <br><small>(On = config is send once after every restart, Off = delete the sensor from HA instantly - using the same main topic as set above)</small><br>
+                </div>
             </div>
+            <hr>
             <div style="text-align: center;">
                 <b onclick="changeBindingsData()" id="btnSaveWifiSettings" class="form-button btn">save</b>
                 <b onclick="hide('#changeSettings')" id="btnSettingsClose" class="form-button btn">close</b>
@@ -112,7 +119,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                 dtu host IP in your local network:
             </div>
             <div>
-                <input type="text" id="dtuHostIp" class="ipv4Input" name="ipv4" placeholder="xxx.xxx.xxx.xxx">
+                <input type="text" id="dtuHostIpDomain" class="ipv4Input" name="ipv4" placeholder="xxx.xxx.xxx.xxx">
             </div>
             <hr>
             <div>
@@ -142,6 +149,31 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             <div style="text-align: center;">
                 <b onclick="changeDtuData()" id="btnSaveDtuSettings" class="form-button btn">save</b>
                 <b onclick="hide('#changeSettings')" id="btnSettingsClose" class="form-button btn">close</b>
+            </div>
+        </div>
+    </div>
+    </div>
+    	 <div class="popup" id="updatePowerLimit" style="display: none;">
+        <h2>Update power limit</h2>
+        <div>
+            <div id="PowerLimitInfo">
+				<div> power limit now in %
+                    <p id="powerLimitNow"></p>
+                </div>
+				<hr>
+                <div> power limit set in %
+             		<input type="number" id="powerLimitSetNew" min="2" max="100" placeholder="">
+                </div>             
+            </div>
+            
+            <hr>
+            
+            <div style="text-align: center;">
+                <b onclick="changePowerLimit()" id="btnSetPowerLimit" class="form-button btn" style="opacity: 1;">set power limit</b>
+            </div>
+        
+            <div style="text-align: center;">
+                <b onclick="hide('#updatePowerLimit')" class="form-button btn">close</b>
             </div>
         </div>
     </div>
@@ -308,7 +340,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                     </div>
                     <div class="panelValueBoxDetail">
                         <small class="panelHead">limit set</small>
-                        <b id="powerLimitSet" class="panelValueSmall valueText ">00 </b>%
+                        <b id="powerLimitSet" class="panelValueButton valueText " onclick="show('#updatePowerLimit')" >00 </b>%
                     </div>
                     <div class="panelValueBoxDetail">
                         <small class="panelHead">limit now</small>
@@ -457,6 +489,10 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                 getDTUdata();
                 getBindingsData();
             }
+            if (id == '#updatePowerLimit') {
+                getPowerLimitData();
+                $('#powerLimitSetNew').focus();
+            }
         }
 
         var hide = function (id) {
@@ -527,6 +563,10 @@ const char INDEX_HTML[] PROGMEM = R"=====(
 
             checkValueUpdate('#powerLimitSet', data.inverter.pLimSet);
             checkValueUpdate('#powerLimit', data.inverter.pLim);
+            checkValueUpdate('#powerLimitNow', data.inverter.pLim);
+            
+            // show last set value in input field
+            $('#powerLimitSetNew').val(data.inverter.pLimSet);
 
             checkValueUpdate('#inverterTemp', (data.inverter.temp).toFixed(1), "'C");
 
@@ -628,7 +668,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             dtuData = cacheInfoData.dtuConnection;
 
             // get networkdata
-            $('#dtuHostIp').val(dtuData.dtuHostIp);
+            $('#dtuHostIpDomain').val(dtuData.dtuHostIpDomain);
             $('#dtuDataCycle').val(dtuData.dtuDataCycle);
             if (dtuData.dtuCloudPause) {
                 $('#dtuCloudPause').prop("checked", true);
@@ -667,10 +707,21 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                 $('#mqttActive').prop("checked", false);
                 $('#mqttSection').css('color', 'grey');
             }
+            if(mqttData.mqttUseTLS) {
+                $('#mqttUseTLS').prop("checked", true);
+            } else {
+                $('#mqttUseTLS').prop("checked", false);
+            }
             $('#mqttIP').val(mqttData.mqttIp+":"+mqttData.mqttPort);
             $('#mqttUser').val(mqttData.mqttUser);
             $('#mqttPassword').val(mqttData.mqttPass);
             $('#mqttMainTopic').val(mqttData.mqttMainTopic);
+            
+            if(mqttData.mqttHAautoDiscoveryON) {
+                $('#mqttHAautoDiscoveryON').prop("checked", true);
+            } else {
+                $('#mqttHAautoDiscoveryON').prop("checked", false);
+            }
         }
 
         $('.passcheck').click(function () {
@@ -689,6 +740,14 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                 $('.passcheck').html("show");
             }
         });
+        
+        function getPowerLimitData() {
+            // 
+            $('#btnSetPowerLimit').css('opacity', '1.0');
+            $('#btnSetPowerLimit').attr('onclick', "changePowerLimit();")
+
+            //$('#powerLimitNow').val(data.inverter.pLim);
+        }
 
         function changeWifiData() {
             var ssid = $('#wifiSSIDsend').val();
@@ -733,7 +792,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
         }
 
         function changeDtuData() {
-            var dtuHostIpSend = $('#dtuHostIp').val();
+            var dtuHostIpDomainSend = $('#dtuHostIpDomain').val();
             var dtuDataCycleSend = $('#dtuDataCycle').val();
             if ($("#dtuCloudPause").is(':checked')) {
                 dtuCloudPauseSend = 1;
@@ -745,13 +804,13 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             var dtuPasswordSend = $('#dtuPassword').val();
 
             var data = {};
-            data["dtuHostIpSend"] = dtuHostIpSend;
+            data["dtuHostIpDomainSend"] = dtuHostIpDomainSend;
             data["dtuDataCycleSend"] = dtuDataCycleSend;
             data["dtuCloudPauseSend"] = dtuCloudPauseSend;
             data["dtuSsidSend"] = dtuSsidSend;
             data["dtuPasswordSend"] = dtuPasswordSend;
 
-            console.log("send to server: dtuHostIp: " + dtuHostIpSend + " dtuDataCycle: " + dtuDataCycleSend + " dtuCloudPause: " + dtuCloudPauseSend + " - dtuSsid: " + dtuSsidSend + " - pass: " + dtuPasswordSend);
+            console.log("send to server: dtuHostIpDomain: " + dtuHostIpDomainSend + " dtuDataCycle: " + dtuDataCycleSend + " dtuCloudPause: " + dtuCloudPauseSend + " - dtuSsid: " + dtuSsidSend + " - pass: " + dtuPasswordSend);
 
             const urlEncodedDataPairs = [];
 
@@ -777,11 +836,11 @@ const char INDEX_HTML[] PROGMEM = R"=====(
 
             strResult = JSON.parse(xmlHttp.responseText);
             console.log("got from server: " + strResult);
-            console.log("got from server - strResult.dtuHostIp: " + strResult.dtuHostIp + " - cmp with: " + dtuHostIpSend);
+            console.log("got from server - strResult.dtuHostIpDomain: " + strResult.dtuHostIpDomain + " - cmp with: " + dtuHostIpDomainSend);
             console.log("got from server - strResult.dtuSsid: " + strResult.dtuSsid + " - cmp with: " + dtuSsidSend);
-            console.log("got from server - strResult.dtuPassword: " + strResult.dtuHostIp + " - cmp with: " + dtuPasswordSend);
+            console.log("got from server - strResult.dtuPassword: " + strResult.dtuHostIpDomain + " - cmp with: " + dtuPasswordSend);
 
-            if (strResult.dtuHostIp == dtuHostIpSend && strResult.dtuSsid == dtuSsidSend && strResult.dtuPassword == dtuPasswordSend) {
+            if (strResult.dtuHostIpDomain == dtuHostIpDomainSend && strResult.dtuSsid == dtuSsidSend && strResult.dtuPassword == dtuPasswordSend) {
                 console.log("check saved data - OK");
                 alert("dtu Settings change\n__________________________________\n\nYour settings were successfully changed.\n\nClient connection will be reconnected to the new IP.");
             } else {
@@ -796,7 +855,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
         }
 
         function changeBindingsData() {
-            var openhabHostIpSend = $('#openhabIP').val();
+            var openhabHostIpDomainSend = $('#openhabIP').val();
             var openhabPrefixSend = $('#ohItemPrefix').val();
             if ($("#openhabActive").is(':checked')) {
                 openhabActiveSend = 1;
@@ -806,34 +865,49 @@ const char INDEX_HTML[] PROGMEM = R"=====(
 
             var mqttIpPortString = $('#mqttIP').val().split(":");
 
-
             var mqttIpSend = mqttIpPortString[0];
             var mqttPortSend = "1883";
             if(mqttIpPortString[1] != undefined && !isNaN(mqttIpPortString[1])) {
                 mqttPortSend = mqttIpPortString[1];
-            }            
+            }           
+            var mqttUseTLSSend = 0;
             var mqttUserSend = $('#mqttUser').val();
             var mqttPassSend = $('#mqttPassword').val();
             var mqttMainTopicSend = $('#mqttMainTopic').val();
+            var mqttHAautoDiscoveryONSend = 0;
+
             if ($("#mqttActive").is(':checked')) {
                 mqttActiveSend = 1;
             } else {
                 mqttActiveSend = 0;
             }
+            if ($("#mqttUseTLS").is(':checked')) {
+                mqttUseTLSSend = 1;
+            } else {
+                mqttUseTLSSend = 0;
+            }
+            if ($("#mqttHAautoDiscoveryON").is(':checked')) {
+                mqttHAautoDiscoveryONSend = 1;
+            } else {
+                mqttHAautoDiscoveryONSend = 0;
+            }
 
             var data = {};
-            data["openhabHostIpSend"] = openhabHostIpSend;
+            data["openhabHostIpDomainSend"] = openhabHostIpDomainSend;
             data["openhabPrefixSend"] = openhabPrefixSend;
             data["openhabActiveSend"] = openhabActiveSend;
 
             data["mqttIpSend"] = mqttIpSend;
             data["mqttPortSend"] = mqttPortSend;
+            data["mqttUseTLS"] = mqttUseTLSSend;
             data["mqttUserSend"] = mqttUserSend;
             data["mqttPassSend"] = mqttPassSend;
             data["mqttMainTopicSend"] = mqttMainTopicSend;
             data["mqttActiveSend"] = mqttActiveSend;
+            data["mqttHAautoDiscoveryONSend"] = mqttHAautoDiscoveryONSend;
+            
 
-            console.log("send to server: openhabHostIpSend: " + openhabHostIpSend);
+            console.log("send to server: openhabHostIpDomainSend: " + openhabHostIpDomainSend);
 
             const urlEncodedDataPairs = [];
 
@@ -859,9 +933,9 @@ const char INDEX_HTML[] PROGMEM = R"=====(
 
             strResult = JSON.parse(xmlHttp.responseText);
             console.log("got from server: " + strResult);
-            console.log("got from server - strResult.dtuHostIp: " + strResult.openhabHostIp + " - cmp with: " + openhabHostIpSend);
+            console.log("got from server - strResult.dtuHostIpDomain: " + strResult.openhabHostIpDomain + " - cmp with: " + openhabHostIpDomainSend);
 
-            if (strResult.openhabHostIp == openhabHostIpSend && strResult.mqttBrokerIp == mqttIpSend && strResult.mqttBrokerUser == mqttUserSend) {
+            if (strResult.openhabHostIpDomain == openhabHostIpDomainSend && strResult.mqttBrokerIpDomain == mqttIpSend && strResult.mqttBrokerUser == mqttUserSend) {
                 console.log("check saved data - OK");
                 alert("bindings Settings change\n__________________________________\n\nYour settings were successfully changed.\n\nChanges will be applied.");
             } else {
@@ -871,6 +945,53 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             hide('#changeSettings');
             return;
         }
+
+        function changePowerLimit() {
+                   
+            var powerLimitSend = $('#powerLimitSetNew').val();
+            
+            var data = {};
+            data["powerLimitSend"] = powerLimitSend;
+
+            console.log("send to server: powerLimitSend: " + powerLimitSend);
+
+            const urlEncodedDataPairs = [];
+
+            // Turn the data object into an array of URL-encoded key/value pairs.
+            for (const [name, value] of Object.entries(data)) {
+                urlEncodedDataPairs.push(
+                    `${encodeURIComponent(name)}=${encodeURIComponent(value)}`,
+                );
+                console.log("push: " + name + " - value: " + value);
+            }
+
+            // Combine the pairs into a single string and replace all %-encoded spaces to
+            // the '+' character; matches the behavior of browser form submissions.
+            const urlEncodedData = urlEncodedDataPairs.join("&").replace(/%20/g, "+");
+
+
+            var xmlHttp = new XMLHttpRequest();
+            xmlHttp.open("POST", "/updatePowerLimit", false); // false for synchronous request
+            xmlHttp.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+
+            // Finally, send our data.
+            xmlHttp.send(urlEncodedData);
+
+            strResult = JSON.parse(xmlHttp.responseText);
+            console.log("got from server: " + strResult);
+            console.log("got from server - strResult.PowerLimit: " + strResult.PowerLimit + " - cmp with: " + powerLimitSend);
+
+           // if (strResult.openhabHostIp == openhabHostIpSend && strResult.mqttBrokerIp == mqttIpSend && strResult.mqttBrokerUser == mqttUserSend) {
+             //   console.log("check saved data - OK");
+             //   alert("bindings Settings change\n__________________________________\n\nYour settings were successfully changed.\n\nChanges will be applied.");
+           // } else {
+            //    alert("bindings Settings change\n__________________________________\n\nSome error occured! Checking data from gateway are not as excpeted after sending to save.\n\nPlease try again!");
+           // }
+
+            hide('#updatePowerLimit');
+            return;
+        }
+
 
         function changeReleaseChannel(channel) {
             if (cacheInfoData.firmware.selectedUpdateChannel == channel) return;
@@ -917,9 +1038,9 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             try {
                 strResult = JSON.parse(xmlHttp.responseText);
                 console.log("got from server: " + strResult);
-                console.log("got from server - strResult.dtuHostIp: " + strResult.dtuHostIp + " - cmp with: " + dtuHostIpSend);
+                console.log("got from server - strResult.dtuHostIpDomain: " + strResult.dtuHostIpDomain + " - cmp with: " + dtuHostIpDomainSend);
 
-                if (strResult.dtuHostIp == dtuHostIpSend && strResult.dtuSsid == dtuSsidSend && strResult.dtuPassword == dtuPasswordSend) {
+                if (strResult.dtuHostIpDomain == dtuHostIpDomainSend && strResult.dtuSsid == dtuSsidSend && strResult.dtuPassword == dtuPasswordSend) {
                     console.log("check saved data - OK");
                     alert("dtu Settings change\n__________________________________\n\nYour settings were successfully changed.\n\nClient connection will be reconnected to the new IP.");
                 } else {
