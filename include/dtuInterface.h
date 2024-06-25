@@ -1,17 +1,19 @@
-// dtuInterface.h
 #ifndef DTUINTERFACE_H
 #define DTUINTERFACE_H
 
 #include <Arduino.h>
+#include <ArduinoJson.h>
 #include <UnixTime.h>
 
 #if defined(ESP8266)
-  #include <ESP8266WiFi.h>
+#include <ESP8266WiFi.h>
+#include <ESPAsyncTCP.h>
 #elif defined(ESP32)
-  #include <WiFi.h>
+#include <WiFi.h>
+#include <AsyncTCP.h>
 #endif
 
-#include <ArduinoJson.h>
+#include <Ticker.h>
 
 #include "pb_encode.h"
 #include "pb_decode.h"
@@ -20,9 +22,7 @@
 #include "GetConfig.pb.h"
 #include "CommandPB.pb.h"
 #include "CRC16.h"
-
-// DTU connect
-const uint16_t dtuPort = 10081;
+#include "dtuConst.h"
 
 #define DTU_TIME_OFFSET 28800
 #define DTU_CLOUD_UPLOAD_SECONDS 40
@@ -39,16 +39,23 @@ const uint16_t dtuPort = 10081;
 #define DTU_ERROR_DATA_NO_CHANGE 3
 #define DTU_ERROR_LAST_SEND 4
 
+#define DTU_TXRX_STATE_IDLE 0
+#define DTU_TXRX_STATE_WAIT_APPGETHISTPOWER 1
+#define DTU_TXRX_STATE_WAIT_REALDATANEW 2
+#define DTU_TXRX_STATE_WAIT_GETCONFIG 3
+#define DTU_TXRX_STATE_WAIT_COMMAND 4
+#define DTU_TXRX_STATE_WAIT_RESTARTDEVICE 5
+#define DTU_TXRX_STATE_ERROR 99
+
+
 struct connectionControl
 {
   boolean preventCloudErrors = true;
-  boolean dtuActiveOffToCloudUpdate = true;
+  boolean dtuActiveOffToCloudUpdate = false;
   uint8_t dtuConnectState = DTU_STATE_OFFLINE;
   uint8_t dtuErrorState = DTU_ERROR_NO_ERROR;
+  uint8_t dtuTxRxState = DTU_TXRX_STATE_IDLE;
 };
-
-extern connectionControl dtuConnection;
-
 
 struct baseData
 {
@@ -72,39 +79,85 @@ struct inverterData
   uint32_t wifi_rssi_gateway = 0;
   uint32_t respTimestamp = 1704063600;     // init with start time stamp > 0
   uint32_t lastRespTimestamp = 1704063600; // init with start time stamp > 0
+  uint32_t currentTimestamp = 1704063600; // init with start time stamp > 0
   boolean uptodate = false;
+  boolean updateReceived = false;
   int dtuResetRequested = 0;
 };
 
+
+
 extern inverterData globalData;
+extern connectionControl dtuConnection;
 
-extern CRC16 crc;
-void dtuConnectionEstablish(WiFiClient *localDtuClient, char localdtuHostIpDomain[16], uint16_t localDtuPort = 10081);
-void dtuConnectionStop(WiFiClient *localDtuClient, uint8_t tgtState);
-void dtuConnectionHandleError(WiFiClient *localDtuClient, unsigned long locTimeSec, uint8_t errorState = DTU_ERROR_NO_ERROR);
+typedef void (*DataRetrievalCallback)(const char* data, size_t dataSize, void* userContext);
 
-unsigned long getDtuRemoteTimeAndDataUpdate(WiFiClient *localDtuClient, unsigned long locTimeSec);
-void printDataAsTextToSerial();
-void printDataAsJsonToSerial();
 
-void initializeCRC();
-float calcValue(int32_t value, int32_t divider = 10);
-String getTimeStringByTimestamp(unsigned long timestamp);
-boolean dtuCloudPauseActiveControl(unsigned long locTimeSec);
+class DTUInterface {
+public:
+    DTUInterface(const char* server, uint16_t port=10081);
+    ~DTUInterface();
 
-void readRespAppGetHistPower(WiFiClient *localDtuClient);
-void writeReqAppGetHistPower(WiFiClient *localDtuClient, unsigned long locTimeSec);
+    void setServer(const char* server);
 
-void readRespRealDataNew(WiFiClient *localDtuClient, unsigned long locTimeSec);
-void writeReqRealDataNew(WiFiClient *localDtuClient, unsigned long locTimeSec);
+    void setup();
+    void connect();
+    void disconnect(uint8_t tgtState);
+    void keepAlive(); // Method to send keep-alive messages
 
-void readRespGetConfig(WiFiClient *localDtuClient);
-void writeReqGetConfig(WiFiClient *localDtuClient, unsigned long locTimeSec);
+    void getDataUpdate();
+    void setPowerLimit(int limit);
 
-boolean readRespCommand(WiFiClient *localDtuClient);
-boolean writeReqCommand(WiFiClient *localDtuClient, uint8_t setPercent, unsigned long locTimeSec);
+    String getTimeStringByTimestamp(unsigned long timestamp);
+    void printDataAsTextToSerial();
+    void printDataAsJsonToSerial();  
 
-boolean readRespCommandRestartDevice(WiFiClient *localDtuClient);
-boolean writeCommandRestartDevice(WiFiClient *localDtuClient, unsigned long locTimeSec);
+private:
+    Ticker keepAliveTimer; // Timer to send keep-alive messages
+    static void keepAliveStatic(DTUInterface* dtuInterface); // Static method for timer callback
+    Ticker loopTimer; // local loop to handle 
+    static void dtuLoopStatic(DTUInterface* instance);
+    void dtuLoop();
+
+    static void onConnect(void* arg, AsyncClient* c);
+    static void onDisconnect(void* arg, AsyncClient* c);
+    static void onError(void* arg, AsyncClient* c, int8_t error);
+    static void onDataReceived(void* arg, AsyncClient* client, void* data, size_t len);
+
+    void handleError(uint8_t errorState = DTU_ERROR_NO_ERROR);
+    void initializeCRC();
+
+    const char* serverIP;
+    uint16_t serverPort;
+    AsyncClient* client;
+
+    CRC16 crc;
+    
+    float gridVoltHist[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    uint8_t gridVoltCnt = 0;
+    unsigned long lastSwOff = 0;
+
+    static float calcValue(int32_t value, int32_t divider = 10);
+  
+    void checkingDataUpdate();
+    boolean cloudPauseActiveControl();
+    
+    // Protobuf functions
+    void writeReqAppGetHistPower();
+    void readRespAppGetHistPower(pb_istream_t istream);
+
+    void writeReqRealDataNew();
+    void readRespRealDataNew(pb_istream_t istream);
+    
+    void writeReqGetConfig();
+    void readRespGetConfig(pb_istream_t istream);
+    
+    boolean writeReqCommand(uint8_t setPercent);
+    boolean readRespCommand(pb_istream_t istream);
+    
+    boolean writeCommandRestartDevice();
+    boolean readRespCommandRestartDevice(pb_istream_t istream);
+    
+};
 
 #endif // DTUINTERFACE_H

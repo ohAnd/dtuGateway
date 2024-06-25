@@ -105,10 +105,10 @@ void Display::drawMainDTUOnline(bool pause)
     }
 
     // main screen small left
-    u8g2.drawRFrame(0 + offset_x, 36 + offset_y, 29, 16, 4);
+    u8g2.drawRFrame(0 + offset_x, 36 + offset_y, 30, 16, 4);
     u8g2.setFont(u8g2_font_6x10_tf);
     u8g2.drawStr(3 + offset_x, 40 + offset_y, (String(lastDisplayData.powerLimit)).c_str());
-    u8g2.drawStr(19 + offset_x, 40 + offset_y, "%");
+    u8g2.drawStr(22 + offset_x, 40 + offset_y, "%");
 }
 
 void Display::drawMainDTUOffline()

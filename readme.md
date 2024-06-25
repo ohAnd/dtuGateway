@@ -318,7 +318,7 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
 #### hardware
 - ESP8266/ EPS32 based board
 - optional display SSH1106 OLED 1,3" 128x64 (e.g. [link](https://de.aliexpress.com/item/32881408326.html)):
-  - connect SSH1106 driven OLED display (128x64) with your ESP8266 board (VCC, GND, SCK, SCL)
+  - connect SSH1106 driven OLED display (128x64) with your ESP8266/ ESP32 board (VCC, GND, SCK, SCL)
   - pinning for different boards (display connector to ESPxx board pins)
 
     | dev board                                        | ESP family | VCC  | GND |        SCK       |       SDA        | tested |
@@ -326,18 +326,18 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
     | AZDelivery D1 Board NodeMCU ESP8266MOD-12F       | ESP8266    | 3.3V | GND | D15/GPIO5/SCL/D3 | D14/GPIO4/SDA/D4 |   OK   |
     | AZDelivery NodeMCU V2 WiFi Amica ESP8266 ESP-12F | ESP8266    | 3.3V | GND | D1/GPIO5/SCL     | D2/GPIO4/SDA     |   OK   |
     | AZDelivery D1 Mini NodeMcu mit ESP8266-12F       | ESP8266    | 3V3  |  G  | D1/GPIO5/SCL     | D2/GPIO4/SDA     |   OK   |
-    | ESP-WROOM-32 NodeMCU-32S                         | ESP32      | 3.3V | GND | D22/GPIO22/SCL   | D21/GPI21/SDA    |   OK   |
+    | ESP-WROOM-32 NodeMCU-32S                         | ESP32      | 3.3V | GND | D22/GPIO22/SCL   | D21/GPIO21/SDA   |   OK   |
 
 - optional display GAGC9A01 round TFT 1,28" 240x240 (e.g. [link](https://de.aliexpress.com/i/1005006190625792.html)):
-  - connect SSH1106 driven round TFT display (240x240) with your ESP8266 board (VCC, GND, SCL, SDA, DC, CS, RST)
+  - connect SSH1106 driven round TFT display (240x240) with your ESP8266/ ESP32 board (VCC, GND, SCL, SDA, DC, CS, RST)
   - pinning for different boards (display connector to ESPxx board pins)
 
-    | dev board                                        | ESP family | VCC  | GND |        SCL       |       SDA      |        DC      |       CS       |  RST    | tested |
-    |--------------------------------------------------|------------|:----:|:---:|:----------------:|:--------------:|:--------------:|:--------------:|:-------:|:------:|
-    | AZDelivery D1 Board NodeMCU ESP8266MOD-12F       | ESP8266    | 3.3V | GND |     t.b.d.       |      t.b.d.    |      t.b.d.    |      t.b.d.    | t.b.d.  | t.b.c. |
-    | AZDelivery NodeMCU V2 WiFi Amica ESP8266 ESP-12F | ESP8266    | 3.3V | GND | D5/GPI14/SCLK    | D7/GPIO13/MOSI | D3/GPIO0/Flash |  D8/GPIO15/CS  | 3V3[^1] |   OK   |
-    | AZDelivery D1 Mini NodeMcu mit ESP8266-12F       | ESP8266    | 3V3  |  G  | D5/GPI14/SCLK    | D7/GPIO13/MOSI | D3/GPIO0/Flash |  D8/GPIO15/CS  | 3V3[^1] |   OK   |
-    
+    | dev board                                        | ESP family | VCC  | GND |        SCL       |       SDA       |        DC         |       CS            |     RST      | tested |
+    |--------------------------------------------------|------------|:----:|:---:|:----------------:|:---------------:|:-----------------:|:-------------------:|:------------:|:------:|
+    | AZDelivery D1 Board NodeMCU ESP8266MOD-12F       | ESP8266    | 3.3V | GND |     t.b.d.       |      t.b.d.     |      t.b.d.       |       t.b.d.        |   t.b.d.     | t.b.c. |
+    | AZDelivery NodeMCU V2 WiFi Amica ESP8266 ESP-12F | ESP8266    | 3.3V | GND | D5/GPI14/SCLK    | D7/GPIO13/MOSI  | D3/GPIO0/Flash    |    D8/GPIO15/CS     |   3V3[^1]    |   OK   |    
+    | AZDelivery D1 Mini NodeMcu mit ESP8266-12F       | ESP8266    | 3V3  |  G  | D5/GPI14/SCLK    | D7/GPIO13/MOSI  | D3/GPIO0/Flash    |    D8/GPIO15/CS     |   3V3[^1]    |   OK   |
+    | ESP-WROOM-32 NodeMCU-32S                         | ESP32      | 3.3V | GND | D18/GPIO18/SCK   | D23/GPIO23/MOSI | D2/GPIO2/HSPI_WP0 | D15/GPIO15/HSPI_CS0 | 3.3V (D4) [^1]|   OK   |
     [^1]: reset pin of display currently not in use therefore directly pulled up to 3,3 V
   
 #### first installation to the ESP device

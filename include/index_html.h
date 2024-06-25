@@ -441,11 +441,11 @@ const char INDEX_HTML[] PROGMEM = R"=====(
 
             window.setInterval(function () {
                 getDataValues();
-            }, 5000);
+            }, 1000);
 
             timerInfoUpdate = window.setInterval(function () {
                 getInfoValues();
-            }, 7500);
+            }, 5000);
 
             // check every minute (62,5s) for an available update
             window.setInterval(function () {

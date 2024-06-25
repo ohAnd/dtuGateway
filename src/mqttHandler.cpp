@@ -136,10 +136,10 @@ void MQTTHandler::reconnect(bool autoDiscovery, String mainTopicPath, bool autoD
 
     if (!client.connected())
     {
-        Serial.print("MQTT: Attempting connection... (HA AutoDiscover: " + String(autoDiscovery) + ") ... ");
+        Serial.print("\nMQTT: Attempting connection... (HA AutoDiscover: " + String(autoDiscovery) + ") ... ");
         if (client.connect(sensor_uniqueName, mqtt_user, mqtt_password))
         {
-            Serial.println("connected");
+            Serial.println("\nMQTT: Attempting connection is now connected");
 
             client.subscribe((mqttMainTopicPath + "/inverter/PowerLimit_Set").c_str());
             Serial.println("MQTT: subscribe to: " + (mqttMainTopicPath + "/inverter/PowerLimit_Set"));

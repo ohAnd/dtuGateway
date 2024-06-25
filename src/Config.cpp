@@ -35,7 +35,7 @@ bool UserConfigManager::begin()
     }
     else
     {
-        Serial.println("Config loaded successfully");
+        Serial.println("[begin] Config loaded successfully");
     }
     return true;
 }
@@ -63,6 +63,11 @@ bool UserConfigManager::loadConfig(UserConfig &config)
     }
 
     mappingJsonToStruct(doc);
+    if (userConfig.dtuUpdateTime == 0 && userConfig.dtuCloudPauseTime == 0 && userConfig.mqttBrokerPort == 0)
+    {
+        Serial.println("ERROR: config corrupted, reset to default");
+        resetConfig();
+    }
     Serial.println("config loaded from json: " + String(filePath));
 
     file.close();

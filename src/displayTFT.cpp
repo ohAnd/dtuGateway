@@ -173,7 +173,7 @@ void DisplayTFT::drawFactoryMode(String version, String apName, String ip)
     tft.drawCentreString("connect with wifi", 120, 75, 2); // font2 16 + 3
     tft.drawCentreString("and open", 120, 123, 2);
     tft.drawCentreString("in your browser", 120, 171, 2);
-    
+
     tft.setTextColor(TFT_GREENYELLOW, TFT_BLACK);
     tft.drawCentreString(apName, 120, 94, 2); // font4 26 + 3
     tft.drawCentreString("http://" + ip, 120, 145, 4);
@@ -194,7 +194,7 @@ void DisplayTFT::drawHeader(String version)
     tft.drawCentreString("dtu", 184, 37, 1);
 
     tft.setTextColor(TFT_CYAN, TFT_BLACK);
-    char *rssi = "";
+    char *rssi = NULL;
     sprintf(rssi, "%3d %%", lastDisplayData.rssiGW);
     tft.drawCentreString(rssi, 46, 48, 2);
     sprintf(rssi, "%3d %%", lastDisplayData.rssiDTU);
