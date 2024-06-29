@@ -57,10 +57,10 @@ void DisplayTFT::renderScreen(String time, String version)
 void DisplayTFT::drawScreen(String version, String time)
 {
     // store last shown value
-    lastDisplayData.totalYieldDay = globalData.grid.dailyEnergy;
-    lastDisplayData.totalYieldTotal = round(globalData.grid.totalEnergy);
-    lastDisplayData.rssiGW = globalData.wifi_rssi_gateway;
-    lastDisplayData.rssiDTU = globalData.dtuRssi;
+    lastDisplayData.totalYieldDay = dtuGlobalData.grid.dailyEnergy;
+    lastDisplayData.totalYieldTotal = round(dtuGlobalData.grid.totalEnergy);
+    lastDisplayData.rssiGW = dtuGlobalData.wifi_rssi_gateway;
+    lastDisplayData.rssiDTU = dtuGlobalData.dtuRssi;
 
     drawHeader(version);
 
@@ -81,8 +81,8 @@ void DisplayTFT::drawMainDTUOnline(bool pause)
     // pause = true;
 
     // save display value
-    lastDisplayData.totalPower = round(globalData.grid.power);
-    lastDisplayData.powerLimit = globalData.powerLimit;
+    lastDisplayData.totalPower = round(dtuGlobalData.grid.power);
+    lastDisplayData.powerLimit = dtuGlobalData.powerLimit;
 
     // reset screen after certain state transitions
     if (!pause && (lastDisplayData.stateWasOffline || lastDisplayData.stateWasCloudPause))
@@ -309,7 +309,7 @@ void DisplayTFT::screenSaver()
 void DisplayTFT::checkChangedValues()
 {
     valueChanged = false;
-    if (lastDisplayData.totalPower != round(globalData.grid.power))
+    if (lastDisplayData.totalPower != round(dtuGlobalData.grid.power))
         valueChanged = true;
 }
 

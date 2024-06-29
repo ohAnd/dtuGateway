@@ -24,6 +24,9 @@
 #include "CRC16.h"
 #include "dtuConst.h"
 
+#include <base/platformData.h>
+#include <Config.h>
+
 #define DTU_TIME_OFFSET 28800
 #define DTU_CLOUD_UPLOAD_SECONDS 40
 
@@ -32,6 +35,7 @@
 #define DTU_STATE_CLOUD_PAUSE 2
 #define DTU_STATE_TRY_RECONNECT 3
 #define DTU_STATE_DTU_REBOOT 4
+#define DTU_STATE_CONNECT_ERROR 5
 
 #define DTU_ERROR_NO_ERROR 0
 #define DTU_ERROR_NO_TIME 1
@@ -55,13 +59,16 @@ struct connectionControl
   uint8_t dtuConnectState = DTU_STATE_OFFLINE;
   uint8_t dtuErrorState = DTU_ERROR_NO_ERROR;
   uint8_t dtuTxRxState = DTU_TXRX_STATE_IDLE;
+  uint8_t dtuConnectRetriesShort = 0;
+  uint8_t dtuConnectRetriesLong = 0;
+  unsigned long pauseStartTime = 0;
 };
 
 struct baseData
 {
   float current = 0;
   float voltage = 0;
-  float power = 0;
+  float power = -1;
   float dailyEnergy = 0;
   float totalEnergy = 0;
 };
@@ -73,7 +80,7 @@ struct inverterData
   baseData pv1;
   float gridFreq = 0;
   float inverterTemp = 0;
-  uint8_t powerLimit = 0;
+  uint8_t powerLimit = 254;
   uint8_t powerLimitSet = 101; // init with not possible value for startup
   uint32_t dtuRssi = 0;
   uint32_t wifi_rssi_gateway = 0;
@@ -87,7 +94,7 @@ struct inverterData
 
 
 
-extern inverterData globalData;
+extern inverterData dtuGlobalData;
 extern connectionControl dtuConnection;
 
 typedef void (*DataRetrievalCallback)(const char* data, size_t dataSize, void* userContext);
@@ -159,5 +166,7 @@ private:
     boolean readRespCommandRestartDevice(pb_istream_t istream);
     
 };
+
+extern DTUInterface dtuInterface;
 
 #endif // DTUINTERFACE_H

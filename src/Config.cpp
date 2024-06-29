@@ -12,16 +12,16 @@ bool UserConfigManager::begin()
     if (!LittleFS.begin())
     {
 
-        Serial.println("An error has occurred while mounting LittleFS");
-        // specific to ESP32 because it uses the ESP32-specific LittleFS.begin(true) function to format the filesystem if mounting fails.
+        Serial.println(F("UserConfigManager::begin - An error has occurred while mounting LittleFS"));
 #if defined(ESP32)
+        // specific to ESP32 because it uses the ESP32-specific LittleFS.begin(true) function to format the filesystem if mounting fails.
         if (!LittleFS.begin(true))
         {
-            Serial.println("... tried to format filesystem also failed.");
+            Serial.println(F("... tried to format filesystem also failed."));
         }
         else
         {
-            Serial.println("... successfully formatted filesystem.");
+            Serial.println(F("... successfully formatted filesystem."));
         }
 #endif
         return false;
@@ -30,12 +30,12 @@ bool UserConfigManager::begin()
     UserConfig config;
     if (!loadConfig(config))
     {
-        Serial.println("First run: Initializing config");
+        Serial.println(F("UserConfigManager::begin - First run: Initializing config"));
         saveConfig(defaultConfig);
     }
     else
     {
-        Serial.println("[begin] Config loaded successfully");
+        Serial.println(F("UserConfigManager::begin - Config loaded successfully"));
     }
     return true;
 }
@@ -49,7 +49,7 @@ bool UserConfigManager::loadConfig(UserConfig &config)
     File file = LittleFS.open(filePath, "r");
     if (!file)
     {
-        Serial.println("Failed to open file for reading");
+        Serial.println("UserConfigManager::loadConfig - Failed to open file for reading");
         return false;
     }
     // file.read((uint8_t *)&config, sizeof(UserConfig));
@@ -58,17 +58,18 @@ bool UserConfigManager::loadConfig(UserConfig &config)
     DeserializationError error = deserializeJson(doc, file);
     if (error)
     {
-        Serial.print("deserializeJson() fehlgeschlagen: ");
+        Serial.print("UserConfigManager::loadConfig - deserializeJson() fehlgeschlagen: ");
         Serial.println(error.c_str());
     }
 
     mappingJsonToStruct(doc);
     if (userConfig.dtuUpdateTime == 0 && userConfig.dtuCloudPauseTime == 0 && userConfig.mqttBrokerPort == 0)
     {
-        Serial.println("ERROR: config corrupted, reset to default");
-        resetConfig();
+        Serial.println(F("UserConfigManager::loadConfig --- ERROR: config corrupted, reset to default"));
+        saveConfig(defaultConfig);
+    } else {
+        Serial.println("UserConfigManager::loadConfig - config loaded from json: " + String(filePath));
     }
-    Serial.println("config loaded from json: " + String(filePath));
 
     file.close();
     return true;
@@ -79,11 +80,11 @@ void UserConfigManager::saveConfig(const UserConfig &config)
     File file = LittleFS.open(filePath, "w");
     if (!file)
     {
-        Serial.println("Failed to open file for writing");
+        Serial.println(F("Failed to open file for writing"));
         return;
     }
     JsonDocument doc;
-    doc = mappingStructToJson();
+    doc = mappingStructToJson(config);
     serializeJson(doc, file);
 
     Serial.println("config saved to json: " + String(filePath));
@@ -95,11 +96,11 @@ void UserConfigManager::resetConfig()
 {
     if (LittleFS.remove(filePath))
     {
-        Serial.println("Config file deleted successfully");
+        Serial.println(F("Config file deleted successfully"));
     }
     else
     {
-        Serial.println("Failed to delete config file");
+        Serial.println(F("Failed to delete config file"));
     }
 }
 
@@ -164,38 +165,38 @@ void UserConfigManager::printConfigdata()
     Serial.print(F("--------------------------------------\n"));
 }
 
-JsonDocument UserConfigManager::mappingStructToJson()
+JsonDocument UserConfigManager::mappingStructToJson(const UserConfig &config)
 {
     JsonDocument doc;
 
-    doc["wifi"]["ssid"] = userConfig.wifiSsid;
-    doc["wifi"]["pass"] = userConfig.wifiPassword;
+    doc["wifi"]["ssid"] = config.wifiSsid;
+    doc["wifi"]["pass"] = config.wifiPassword;
 
-    doc["dtu"]["hostIP"] = userConfig.dtuHostIpDomain;
-    doc["dtu"]["cloudPauseActive"] = userConfig.dtuCloudPauseActive;
-    doc["dtu"]["cloudPauseTime"] = userConfig.dtuCloudPauseTime;
-    doc["dtu"]["updateTime"] = userConfig.dtuUpdateTime;
-    doc["dtu"]["ssid"] = userConfig.dtuSsid;
-    doc["dtu"]["pass"] = userConfig.dtuPassword;
+    doc["dtu"]["hostIP"] = config.dtuHostIpDomain;
+    doc["dtu"]["cloudPauseActive"] = config.dtuCloudPauseActive;
+    doc["dtu"]["cloudPauseTime"] = config.dtuCloudPauseTime;
+    doc["dtu"]["updateTime"] = config.dtuUpdateTime;
+    doc["dtu"]["ssid"] = config.dtuSsid;
+    doc["dtu"]["pass"] = config.dtuPassword;
 
-    doc["openhab"]["active"] = userConfig.openhabActive;
-    doc["openhab"]["hostIP"] = userConfig.openhabHostIpDomain;
-    doc["openhab"]["itemPrefix"] = userConfig.openItemPrefix;
+    doc["openhab"]["active"] = config.openhabActive;
+    doc["openhab"]["hostIP"] = config.openhabHostIpDomain;
+    doc["openhab"]["itemPrefix"] = config.openItemPrefix;
 
-    doc["mqtt"]["active"] = userConfig.mqttActive;
-    doc["mqtt"]["brokerIP"] = userConfig.mqttBrokerIpDomain;
-    doc["mqtt"]["brokerPort"] = userConfig.mqttBrokerPort;
-    doc["mqtt"]["brokerUseTLS"] = userConfig.mqttUseTLS;
-    doc["mqtt"]["user"] = userConfig.mqttBrokerUser;
-    doc["mqtt"]["pass"] = userConfig.mqttBrokerPassword;
-    doc["mqtt"]["mainTopic"] = userConfig.mqttBrokerMainTopic;
-    doc["mqtt"]["HAautoDiscoveryON"] = userConfig.mqttHAautoDiscoveryON;
+    doc["mqtt"]["active"] = config.mqttActive;
+    doc["mqtt"]["brokerIP"] = config.mqttBrokerIpDomain;
+    doc["mqtt"]["brokerPort"] = config.mqttBrokerPort;
+    doc["mqtt"]["brokerUseTLS"] = config.mqttUseTLS;
+    doc["mqtt"]["user"] = config.mqttBrokerUser;
+    doc["mqtt"]["pass"] = config.mqttBrokerPassword;
+    doc["mqtt"]["mainTopic"] = config.mqttBrokerMainTopic;
+    doc["mqtt"]["HAautoDiscoveryON"] = config.mqttHAautoDiscoveryON;
 
-    doc["display"]["type"] = userConfig.displayConnected;
+    doc["display"]["type"] = config.displayConnected;
 
-    doc["local"]["selectedUpdateChannel"] = userConfig.selectedUpdateChannel;
-    doc["local"]["wifiAPstart"] = userConfig.wifiAPstart;
-    doc["local"]["timezoneOffest"] = userConfig.timezoneOffest;
+    doc["local"]["selectedUpdateChannel"] = config.selectedUpdateChannel;
+    doc["local"]["wifiAPstart"] = config.wifiAPstart;
+    doc["local"]["timezoneOffest"] = config.timezoneOffest;
 
     return doc;
 }
@@ -238,12 +239,14 @@ void UserConfigManager::mappingJsonToStruct(JsonDocument doc)
 
 String UserConfigManager::createWebPage(bool updated)
 {
-    const String beginHtml = "<html><head><title>dtuGateway Configuration Interface</title><link rel=\"stylesheet\"href=\"https://stackpath.bootstrapcdn.com/bootstrap/4.1.0/css/bootstrap.min.css\"integrity=\"sha384-9gVQ4dYFwwWSjIDZnLEWnxCjeSWFphJiwGPXr1jddIhOegiu1FwO5qRGvFXOdJZ4\"crossorigin=\"anonymous\"><script src=\"https://code.jquery.com/jquery-3.3.1.slim.min.js\"integrity=\"sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo\"crossorigin=\"anonymous\"></script><script src=\"https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.0/umd/popper.min.js\"integrity=\"sha384-cs/chFZiN24E4KMATLdqdvsezGxaGsi4hLGOzlXwp5UZB1LY//20VyM2taTB4QvJ\"crossorigin=\"anonymous\"></script><script src=\"https://stackpath.bootstrapcdn.com/bootstrap/4.1.0/js/bootstrap.min.js\"integrity=\"sha384-uefMccjFJAIv6A+rW+L4AHf99KvxDjWSu1z9VI8SKNVmz4sk7buKt/6v9KI65qnm\"crossorigin=\"anonymous\"></script></head><body><div class=\"container\"><div class=\"jumbotron\"style=\"width:100%\"><h1>dtuGateway Configuration Interface</h1><p>Edit the config variables here and click save.<br>After the configuration is saved, a reboot will be triggered. </p></div>";
-    const String continueHtml = "<form method=\"POST\" action=\"\">";
-    const String savedAlert = "<div class=\"alert alert-success\" role=\"alert\"><button type=\"button\" class=\"close\" data-dismiss=\"alert\" aria-label=\"Close\"><span aria-hidden=\"true\">&times;</span></button>The config has been saved. And the device will be rebooted</div>";
+    // Serial.println(F("\nCONFIG web - START generate html page for config interface"));
+
+    const String beginHtml = F("<html><head><title>dtuGateway Configuration Interface</title><link rel=\"stylesheet\"href=\"https://stackpath.bootstrapcdn.com/bootstrap/4.1.0/css/bootstrap.min.css\"integrity=\"sha384-9gVQ4dYFwwWSjIDZnLEWnxCjeSWFphJiwGPXr1jddIhOegiu1FwO5qRGvFXOdJZ4\"crossorigin=\"anonymous\"><script src=\"https://code.jquery.com/jquery-3.3.1.slim.min.js\"integrity=\"sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo\"crossorigin=\"anonymous\"></script><script src=\"https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.0/umd/popper.min.js\"integrity=\"sha384-cs/chFZiN24E4KMATLdqdvsezGxaGsi4hLGOzlXwp5UZB1LY//20VyM2taTB4QvJ\"crossorigin=\"anonymous\"></script><script src=\"https://stackpath.bootstrapcdn.com/bootstrap/4.1.0/js/bootstrap.min.js\"integrity=\"sha384-uefMccjFJAIv6A+rW+L4AHf99KvxDjWSu1z9VI8SKNVmz4sk7buKt/6v9KI65qnm\"crossorigin=\"anonymous\"></script></head><body><div class=\"container\"><div class=\"jumbotron\"style=\"width:100%\"><h1>dtuGateway Configuration Interface</h1><p>Edit the config variables here and click save.<br>After the configuration is saved, a reboot will be triggered. </p></div>");
+    const String continueHtml = F("<form method=\"POST\" action=\"\">");
+    const String savedAlert = F("<div class=\"alert alert-success\" role=\"alert\"><button type=\"button\" class=\"close\" data-dismiss=\"alert\" aria-label=\"Close\"><span aria-hidden=\"true\">&times;</span></button>The config has been saved. And the device will be rebooted</div>");
 
     // const String endHtml = "<div class=\"form-group row\"><div class=\"col-sm-1\"><button class=\"btn btn-primary\" type=\"submit\">Save</button></div><div class=\"col-sm-1 offset-sm-0\"><button type=\"button\" class=\"btn btn-danger\" onclick=\"reset()\">Reset</button></div></div></form></div></body><script>function reset(){var url=window.location.href;if(url.indexOf('?')>0){url=url.substring(0,url.indexOf('?'));}url+='?reset=true';window.location.replace(url);}</script></html>";
-    const String endHtml = "<div class=\"form-group row\"><div class=\"col-sm-1\"><button class=\"btn btn-primary\" type=\"submit\">Save</button></div></div></form></div></body><script>function reset(){var url=window.location.href;if(url.indexOf('?')>0){url=url.substring(0,url.indexOf('?'));}url+='?reset=true';window.location.replace(url);}</script></html>";
+    const String endHtml = F("<div class=\"form-group row\"><div class=\"col-sm-1\"><button class=\"btn btn-primary\" type=\"submit\">Save</button></div></div></form></div></body><script>function reset(){var url=window.location.href;if(url.indexOf('?')>0){url=url.substring(0,url.indexOf('?'));}url+='?reset=true';window.location.replace(url);}</script></html>");
 
     String result = beginHtml;
 
@@ -255,7 +258,7 @@ String UserConfigManager::createWebPage(bool updated)
     result += continueHtml;
 
     JsonDocument doc;
-    doc = mappingStructToJson();
+    doc = mappingStructToJson(userConfig);
 
     JsonObject obj = doc.as<JsonObject>();
 
@@ -275,6 +278,8 @@ String UserConfigManager::createWebPage(bool updated)
 
     result += endHtml;
 
+    // Serial.println(F("\nCONFIG web - END generate html page for config interface"));
+
     return result;
 }
 
@@ -287,7 +292,7 @@ String UserConfigManager::getWebHandler(JsonDocument doc)
         File file = LittleFS.open("/userconfig.json", "w");
         if (!file)
         {
-            Serial.println("Failed to open file for writing");
+            Serial.println(F("Failed to open file for writing"));
             return "<html><body>ERROR - failed to open /userconfig.json</body></html>";
         }
         serializeJson(doc, file);
@@ -303,12 +308,6 @@ String UserConfigManager::getWebHandler(JsonDocument doc)
     {
         Serial.println(F("\nCONFIG web - show current config"));
     }
-
-    // if (server->args() == 1 && server->hasArg("reset") && server->arg("reset") == "true") {
-    // 	Serial.println("Reset is true.");
-
-    // 	updated = true;
-    // }
 
     String html = createWebPage(updated);
     return html;

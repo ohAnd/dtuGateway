@@ -4,31 +4,32 @@
 #include <ESP8266_ISR_Timer.h>
 #include <ESP8266WiFi.h>
 #include <ESP8266HTTPClient.h>
-#include <ESP8266WebServer.h>
-#include <ESP8266HTTPUpdateServer.h>
-#include <ESP8266httpUpdate.h>
+// #include <ESP8266WebServer.h>
+// #include <ESP8266HTTPUpdateServer.h>
+// #include <ESP8266httpUpdate.h>
 #include <ESP8266mDNS.h>
-#include <WiFiClientSecureBearSSL.h>
+// #include <WiFiClientSecureBearSSL.h>
 #elif defined(ESP32)
 // #define HARDWARE "ESP32"
 #include <ESP32TimerInterrupt.h>
 #include <ESP32_ISR_Timer.h>
 #include <WiFi.h>
 #include <HTTPClient.h>
-#include <WebServer.h>
-#include <HTTPUpdateServer.h>
-#include <ESP32httpUpdate.h>
+// #include <WebServer.h>
+// #include <HTTPUpdateServer.h>
+// #include <ESP32httpUpdate.h>
 #include <ESPmDNS.h>
-#include <WiFiClientSecure.h>
+// #include <WiFiClientSecure.h>
 #include <map>
 #endif
 
 #include <WiFiUdp.h>
 #include <NTPClient.h>
 
-#include <PubSubClient.h>
-
 #include <ArduinoJson.h>
+
+#include <base/webserver.h>
+#include <base/platformData.h>
 
 #include <display.h>
 #include <displayTFT.h>
@@ -37,58 +38,52 @@
 
 #include <mqttHandler.h>
 
-#include "index_html.h"
-#include "jquery_min_js.h"
-#include "style_css.h"
-
-#include "version.h"
 #include "Config.h"
 
-// first start AP name
-const char *apNameStart = "dtuGateway"; // + chipid
+// ---> START initializing here and publishishing allover project over platformData.h
+baseDataStruct platformData;
 
-#if defined(ESP8266)
-uint64_t chipID = ESP.getChipId();
-#elif defined(ESP32)
-uint64_t chipID = ESP.getEfuseMac();
-// for (int i = 0; i < 17; i = i + 8) {
-//   chipID |= ((ESP.getEfuseMac() >> (40 - i)) & 0xff) << i;
-// }
-#endif
+baseUpdateInfoStruct updateInfo;
 
-String espUniqueName = String(apNameStart) + "_" + chipID;
-
-// OTA
-#if defined(ESP8266)
-ESP8266HTTPUpdateServer httpUpdater;
-#elif defined(ESP32)
-HTTPUpdateServer httpUpdater;
-#endif
-// built json during compile to announce the latest greatest on snapshot or release channel
-// { "version": "0.0.1", "versiondate": "01.01.2024 - 01:00:00", "linksnapshot": "https://<domain>/path/to/firmware/<file>.<bin>", "link": "https://<domain>/path/to/firmware/<file>.<bin>" }
-char updateInfoWebPath[128] = "https://github.com/ohAnd/dtuGateway/releases/download/snapshot/version.json";
-char updateInfoWebPathRelease[128] = "https://github.com/ohAnd/dtuGateway/releases/latest/download/version.json";
-
-char versionServer[32] = "checking";
-char versiondateServer[32] = "...";
-char updateURL[196] = ""; // will be read by getting -> updateInfoWebPath
-char versionServerRelease[32] = "checking";
-char versiondateServerRelease[32] = "...";
-char updateURLRelease[196] = ""; // will be read by getting -> updateInfoWebPath
-boolean updateAvailable = false;
-boolean updateRunning = false;
-boolean updateInfoRequested = false;
-float updateProgress = 0;
-char updateState[16] = "waiting";
-
-// user config
-UserConfigManager configManager;
+const long interval50ms = 50;   // interval (milliseconds)
+const long interval100ms = 100; // interval (milliseconds)
+const long intervalShort = 1;   // interval (seconds)
+const long interval5000ms = 5;  // interval (seconds)
+const long intervalLong = 60;   // interval (seconds)
+unsigned long previousMillis50ms = 0;
+unsigned long previousMillis100ms = 0;
+unsigned long previousMillisShort = 1704063600;  // in seconds
+unsigned long previousMillis5000ms = 1704063600; // in seconds
+// dtuNextUpdateCounterSeconds = 1704063600; -> with platformData
+unsigned long previousMillisLong = 1704063600;
 
 #define WIFI_RETRY_TIME_SECONDS 30
-#define WIFI_RETRY_TIMEOUT_SECONDS 30
+#define WIFI_RETRY_TIMEOUT_SECONDS 15
 #define RECONNECTS_ARRAY_SIZE 50
 unsigned long reconnects[RECONNECTS_ARRAY_SIZE];
 int reconnectsCnt = -1; // first needed run inkrement to 0
+
+// intervall for getting and sending temp
+// Select a Timer Clock
+#define USING_TIM_DIV1 false   // for shortest and most accurate timer
+#define USING_TIM_DIV16 true   // for medium time and medium accurate timer
+#define USING_TIM_DIV256 false // for longest timer but least accurate. Default
+
+struct controls
+{
+  boolean wifiSwitch = true;
+  boolean getDataAuto = true;
+  boolean getDataOnce = false;
+  boolean dataFormatJSON = false;
+};
+controls globalControls;
+
+// wifi functions
+boolean wifi_connecting = false;
+int wifiTimeoutShort = WIFI_RETRY_TIMEOUT_SECONDS;
+int wifiTimeoutLong = WIFI_RETRY_TIME_SECONDS;
+
+// <--- END initializing here and published over platformData.h
 
 // blink code for status display
 #if defined(ESP8266)
@@ -109,33 +104,33 @@ int reconnectsCnt = -1; // first needed run inkrement to 0
 #define BLINK_PAUSE_CLOUD_UPDATE 4   // 0,5 Hz blip - DTO - Cloud update
 int8_t blinkCode = BLINK_WIFI_OFF;
 
+// user config
+UserConfigManager configManager;
+
+WiFiUDP ntpUDP;
+NTPClient timeClient(ntpUDP); // By default 'pool.ntp.org' is used with 60 seconds update interval
+
+DTUwebserver dtuWebServer;
+
+// // OTA
+// #if defined(ESP8266)
+// ESP8266HTTPUpdateServer httpUpdater;
+// #elif defined(ESP32)
+// HTTPUpdateServer httpUpdater;
+// #endif
+
 Display displayOLED;
 DisplayTFT displayTFT;
 
-WiFiUDP ntpUDP;
-
 DTUInterface dtuInterface("192.168.0.254"); // initialize with default IP
 
-NTPClient timeClient(ntpUDP); // By default 'pool.ntp.org' is used with 60 seconds update interval
+MQTTHandler mqttHandler(userConfig.mqttBrokerIpDomain, userConfig.mqttBrokerPort, userConfig.mqttBrokerUser, userConfig.mqttBrokerPassword, userConfig.mqttUseTLS, platformData.espUniqueName.c_str());
 
-WiFiClient puSubClient;
-MQTTHandler mqttHandler(userConfig.mqttBrokerIpDomain, userConfig.mqttBrokerPort, userConfig.mqttBrokerUser, userConfig.mqttBrokerPassword, userConfig.mqttUseTLS, espUniqueName.c_str());
-
-#if defined(ESP8266)
-ESP8266WebServer server(80);
-#elif defined(ESP32)
-WebServer server(80);
-#endif
-
-IPAddress dtuGatewayIP;
-
-unsigned long starttime = 0;
-
-// intervall for getting and sending temp
-// Select a Timer Clock
-#define USING_TIM_DIV1 false   // for shortest and most accurate timer
-#define USING_TIM_DIV16 true   // for medium time and medium accurate timer
-#define USING_TIM_DIV256 false // for longest timer but least accurate. Default
+// #if defined(ESP8266)
+// ESP8266WebServer server(80);
+// #elif defined(ESP32)
+// WebServer server(80);
+// #endif
 
 // Init ESP8266 only and only Timer 1
 #if defined(ESP8266)
@@ -145,45 +140,18 @@ ESP32Timer ITimer(0);
 #endif
 #define TIMER_INTERVAL_MS 1000
 
-const long interval50ms = 50;   // interval (milliseconds)
-const long interval100ms = 100; // interval (milliseconds)
-const long intervalShort = 1;   // interval (seconds)
-const long interval5000ms = 5;  // interval (seconds)
-unsigned long intervalMid = 32; // interval (seconds)
-const long intervalLong = 60;   // interval (seconds)
-unsigned long previousMillis50ms = 0;
-unsigned long previousMillis100ms = 0;
-unsigned long previousMillisShort = 1704063600;
-unsigned long previousMillis5000ms = 1704063600;
-unsigned long previousMillisMid = 1704063600;
-unsigned long previousMillisLong = 1704063600;
-
-struct controls
-{
-  boolean wifiSwitch = true;
-  boolean getDataAuto = true;
-  boolean getDataOnce = false;
-  boolean dataFormatJSON = false;
-};
-controls globalControls;
-
-// wifi functions
-boolean wifi_connecting = false;
-int wifiTimeoutShort = WIFI_RETRY_TIMEOUT_SECONDS;
-int wifiTimeoutLong = WIFI_RETRY_TIME_SECONDS;
-
 boolean checkWifiTask()
 {
   if (WiFi.status() != WL_CONNECTED && !wifi_connecting) // start connecting wifi
   {
     // reconnect counter - and reset to default
-    reconnects[reconnectsCnt++] = timeClient.getEpochTime();
+    reconnects[reconnectsCnt++] = platformData.currentNTPtime;
     if (reconnectsCnt >= 25)
     {
       reconnectsCnt = 0;
       Serial.println(F("No Wifi connection after 25 tries!"));
       // after 20 reconnects inner 7 min - write defaults
-      if ((timeClient.getEpochTime() - reconnects[0]) < (WIFI_RETRY_TIME_SECONDS * 1000)) //
+      if ((platformData.currentNTPtime - reconnects[0]) < (WIFI_RETRY_TIME_SECONDS * 1000)) //
       {
         Serial.println(F("No Wifi connection after 5 tries and inner 5 minutes"));
       }
@@ -243,9 +211,6 @@ boolean checkWifiTask()
 }
 
 // scan network for first settings or change
-int networkCount = 0;
-String foundNetworks = "[{\"name\":\"empty\",\"wifi\":0,\"chan\":0}]";
-
 boolean scanNetworksResult()
 {
   int networksFound = WiFi.scanComplete();
@@ -254,8 +219,8 @@ boolean scanNetworksResult()
   {
     Serial.print(F("\nscan for wifi networks done: "));
     Serial.println(String(networksFound) + " wifi's found");
-    networkCount = networksFound;
-    foundNetworks = "[";
+    platformData.wifiNetworkCount = networksFound;
+    platformData.wifiFoundNetworks = "[";
     for (int i = 0; i < networksFound; i++)
     {
       int wifiPercent = 2 * (WiFi.RSSI(i) + 100);
@@ -264,13 +229,13 @@ boolean scanNetworksResult()
         wifiPercent = 100;
       }
       // Serial.printf("%d: %s, Ch:%d (%ddBm, %d) %s\n", i + 1, WiFi.SSID(i).c_str(), WiFi.channel(i), WiFi.RSSI(i), wifiPercent, WiFi.encryptionType(i) == ENC_TYPE_NONE ? "open" : "");
-      foundNetworks = foundNetworks + "{\"name\":\"" + WiFi.SSID(i).c_str() + "\",\"wifi\":" + wifiPercent + ",\"rssi\":" + WiFi.RSSI(i) + ",\"chan\":" + WiFi.channel(i) + "}";
+      platformData.wifiFoundNetworks = platformData.wifiFoundNetworks + "{\"name\":\"" + WiFi.SSID(i).c_str() + "\",\"wifi\":" + wifiPercent + ",\"rssi\":" + WiFi.RSSI(i) + ",\"chan\":" + WiFi.channel(i) + "}";
       if (i < networksFound - 1)
       {
-        foundNetworks = foundNetworks + ",";
+        platformData.wifiFoundNetworks = platformData.wifiFoundNetworks + ",";
       }
     }
-    foundNetworks = foundNetworks + "]";
+    platformData.wifiFoundNetworks = platformData.wifiFoundNetworks + "]";
     WiFi.scanDelete();
     return true;
   }
@@ -281,711 +246,296 @@ boolean scanNetworksResult()
   }
 }
 
-// web page
-// webpage
-void handleRoot()
-{
-  server.sendHeader("Connection", "close");
-  server.send_P(200, "text/html", INDEX_HTML);
-}
-// serve json as api
-void handleDataJson()
-{
-  String JSON = "{";
-  JSON = JSON + "\"localtime\": " + String(globalData.currentTimestamp) + ",";
-  JSON = JSON + "\"ntpStamp\": " + String(timeClient.getEpochTime() - userConfig.timezoneOffest) + ",";
-
-  JSON = JSON + "\"lastResponse\": " + globalData.lastRespTimestamp + ",";
-  JSON = JSON + "\"dtuConnState\": " + dtuConnection.dtuConnectState + ",";
-  JSON = JSON + "\"dtuErrorState\": " + dtuConnection.dtuErrorState + ",";
-
-  JSON = JSON + "\"starttime\": " + String(starttime - userConfig.timezoneOffest) + ",";
-
-  JSON = JSON + "\"inverter\": {";
-  JSON = JSON + "\"pLim\": " + String(globalData.powerLimit) + ",";
-  JSON = JSON + "\"pLimSet\": " + String(globalData.powerLimitSet) + ",";
-  JSON = JSON + "\"temp\": " + String(globalData.inverterTemp) + ",";
-  JSON = JSON + "\"uptodate\": " + String(globalData.uptodate);
-  JSON = JSON + "},";
-
-  JSON = JSON + "\"grid\": {";
-  JSON = JSON + "\"v\": " + String(globalData.grid.voltage) + ",";
-  JSON = JSON + "\"c\": " + String(globalData.grid.current) + ",";
-  JSON = JSON + "\"p\": " + String(globalData.grid.power) + ",";
-  JSON = JSON + "\"dE\": " + String(globalData.grid.dailyEnergy, 3) + ",";
-  JSON = JSON + "\"tE\": " + String(globalData.grid.totalEnergy, 3);
-  JSON = JSON + "},";
-
-  JSON = JSON + "\"pv0\": {";
-  JSON = JSON + "\"v\": " + String(globalData.pv0.voltage) + ",";
-  JSON = JSON + "\"c\": " + String(globalData.pv0.current) + ",";
-  JSON = JSON + "\"p\": " + String(globalData.pv0.power) + ",";
-  JSON = JSON + "\"dE\": " + String(globalData.pv0.dailyEnergy, 3) + ",";
-  JSON = JSON + "\"tE\": " + String(globalData.pv0.totalEnergy, 3);
-  JSON = JSON + "},";
-
-  JSON = JSON + "\"pv1\": {";
-  JSON = JSON + "\"v\": " + String(globalData.pv1.voltage) + ",";
-  JSON = JSON + "\"c\": " + String(globalData.pv1.current) + ",";
-  JSON = JSON + "\"p\": " + String(globalData.pv1.power) + ",";
-  JSON = JSON + "\"dE\": " + String(globalData.pv1.dailyEnergy, 3) + ",";
-  JSON = JSON + "\"tE\": " + String(globalData.pv1.totalEnergy, 3);
-  JSON = JSON + "}";
-  JSON = JSON + "}";
-
-  server.send(200, "application/json; charset=utf-8", JSON);
-}
-
-void handleInfojson()
-{
-  String JSON = "{";
-  JSON = JSON + "\"chipid\": " + String(chipID) + ",";
-  JSON = JSON + "\"host\": \"" + espUniqueName + "\",";
-  JSON = JSON + "\"initMode\": " + userConfig.wifiAPstart + ",";
-
-  JSON = JSON + "\"firmware\": {";
-  JSON = JSON + "\"version\": \"" + String(VERSION) + "\",";
-  JSON = JSON + "\"versiondate\": \"" + String(BUILDTIME) + "\",";
-  JSON = JSON + "\"versionServer\": \"" + String(versionServer) + "\",";
-  JSON = JSON + "\"versiondateServer\": \"" + String(versiondateServer) + "\",";
-  JSON = JSON + "\"versionServerRelease\": \"" + String(versionServerRelease) + "\",";
-  JSON = JSON + "\"versiondateServerRelease\": \"" + String(versiondateServerRelease) + "\",";
-  JSON = JSON + "\"selectedUpdateChannel\": \"" + String(userConfig.selectedUpdateChannel) + "\",";
-  JSON = JSON + "\"updateAvailable\": " + updateAvailable;
-  JSON = JSON + "},";
-
-  JSON = JSON + "\"openHabConnection\": {";
-  JSON = JSON + "\"ohActive\": " + userConfig.openhabActive + ",";
-  JSON = JSON + "\"ohHostIp\": \"" + String(userConfig.openhabHostIpDomain) + "\",";
-  JSON = JSON + "\"ohItemPrefix\": \"" + String(userConfig.openItemPrefix) + "\"";
-  JSON = JSON + "},";
-
-  JSON = JSON + "\"mqttConnection\": {";
-  JSON = JSON + "\"mqttActive\": " + userConfig.mqttActive + ",";
-  JSON = JSON + "\"mqttIp\": \"" + String(userConfig.mqttBrokerIpDomain) + "\",";
-  JSON = JSON + "\"mqttPort\": " + String(userConfig.mqttBrokerPort) + ",";
-  JSON = JSON + "\"mqttUseTLS\": " + userConfig.mqttUseTLS + ",";
-  JSON = JSON + "\"mqttUser\": \"" + String(userConfig.mqttBrokerUser) + "\",";
-  JSON = JSON + "\"mqttPass\": \"" + String(userConfig.mqttBrokerPassword) + "\",";
-  JSON = JSON + "\"mqttMainTopic\": \"" + String(userConfig.mqttBrokerMainTopic) + "\",";
-  JSON = JSON + "\"mqttHAautoDiscoveryON\": " + userConfig.mqttHAautoDiscoveryON;
-  JSON = JSON + "},";
-
-  JSON = JSON + "\"dtuConnection\": {";
-  JSON = JSON + "\"dtuHostIpDomain\": \"" + String(userConfig.dtuHostIpDomain) + "\",";
-  JSON = JSON + "\"dtuSsid\": \"" + String(userConfig.dtuSsid) + "\",";
-  JSON = JSON + "\"dtuPassword\": \"" + String(userConfig.dtuPassword) + "\",";
-  JSON = JSON + "\"dtuRssi\": " + globalData.dtuRssi + ",";
-  JSON = JSON + "\"dtuDataCycle\": " + userConfig.dtuUpdateTime + ",";
-  JSON = JSON + "\"dtuResetRequested\": " + globalData.dtuResetRequested + ",";
-  JSON = JSON + "\"dtuCloudPause\": " + userConfig.dtuCloudPauseActive + ",";
-  JSON = JSON + "\"dtuCloudPauseTime\": " + userConfig.dtuCloudPauseTime;
-  JSON = JSON + "},";
-
-  JSON = JSON + "\"wifiConnection\": {";
-  JSON = JSON + "\"networkCount\": " + networkCount + ",";
-  JSON = JSON + "\"foundNetworks\":" + foundNetworks + ",";
-  JSON = JSON + "\"wifiSsid\": \"" + String(userConfig.wifiSsid) + "\",";
-  JSON = JSON + "\"wifiPassword\": \"" + String(userConfig.wifiPassword) + "\",";
-  JSON = JSON + "\"rssiGW\": " + globalData.wifi_rssi_gateway;
-  JSON = JSON + "}";
-
-  JSON = JSON + "}";
-
-  server.send(200, "application/json; charset=utf-8", JSON);
-}
-
-void handleUpdateWifiSettings()
-{
-  String wifiSSIDUser = server.arg("wifiSSIDsend"); // retrieve message from webserver
-  String wifiPassUser = server.arg("wifiPASSsend"); // retrieve message from webserver
-  Serial.println("\nhandleUpdateWifiSettings - got WifiSSID: " + wifiSSIDUser + " - got WifiPass: " + wifiPassUser);
-
-  wifiSSIDUser.toCharArray(userConfig.wifiSsid, sizeof(userConfig.wifiSsid));
-  wifiPassUser.toCharArray(userConfig.wifiPassword, sizeof(userConfig.wifiPassword));
-
-  // after saving from user entry - no more in init state
-  if (userConfig.wifiAPstart)
-  {
-    userConfig.wifiAPstart = false;
-    // after first startup reset to current display
-    if (userConfig.displayConnected == 0)
-    {
-      userConfig.displayConnected = 1;
-      displayTFT.setup(); // new setup to get blank screen
-    }
-    else if (userConfig.displayConnected == 1)
-      userConfig.displayConnected = 0;
-    configManager.saveConfig(userConfig);
-  }
-
-  // handleRoot();
-  String JSON = "{";
-  JSON = JSON + "\"wifiSSIDUser\": \"" + userConfig.wifiSsid + "\",";
-  JSON = JSON + "\"wifiPassUser\": \"" + userConfig.wifiPassword + "\",";
-  JSON = JSON + "}";
-
-  server.send(200, "application/json", JSON);
-
-  // reconnect with new values
-  WiFi.disconnect();
-  WiFi.mode(WIFI_STA);
-  checkWifiTask();
-
-  Serial.println("handleUpdateWifiSettings - send JSON: " + String(JSON));
-}
-
-void handleUpdateDtuSettings()
-{
-  String dtuHostIpDomainUser = server.arg("dtuHostIpDomainSend"); // retrieve message from webserver
-  String dtuDataCycle = server.arg("dtuDataCycleSend");           // retrieve message from webserver
-  String dtuCloudPause = server.arg("dtuCloudPauseSend");         // retrieve message from webserver
-  String dtuSSIDUser = server.arg("dtuSsidSend");                 // retrieve message from webserver
-  String dtuPassUser = server.arg("dtuPasswordSend");             // retrieve message from webserver
-  Serial.println("\nhandleUpdateDtuSettings - got dtu ip: " + dtuHostIpDomainUser + "- got dtuDataCycle: " + dtuDataCycle + "- got dtu dtuCloudPause: " + dtuCloudPause);
-  Serial.println("handleUpdateDtuSettings - got dtu ssid: " + dtuSSIDUser + " - got WifiPass: " + dtuPassUser);
-
-  dtuHostIpDomainUser.toCharArray(userConfig.dtuHostIpDomain, sizeof(userConfig.dtuHostIpDomain));
-  userConfig.dtuUpdateTime = dtuDataCycle.toInt();
-  if (userConfig.dtuUpdateTime < 1)
-    userConfig.dtuUpdateTime = 1; // fix zero entry
-  if (dtuCloudPause)
-    userConfig.dtuCloudPauseActive = true;
-  else
-    userConfig.dtuCloudPauseActive = false;
-  dtuSSIDUser.toCharArray(userConfig.dtuSsid, sizeof(userConfig.dtuSsid));
-  dtuPassUser.toCharArray(userConfig.dtuPassword, sizeof(userConfig.dtuPassword));
-
-  configManager.saveConfig(userConfig);
-
-  // change the dtu interface settings
-  dtuInterface.setServer(userConfig.dtuHostIpDomain);
-
-  intervalMid = userConfig.dtuUpdateTime;
-
-  dtuConnection.preventCloudErrors = userConfig.dtuCloudPauseActive;
-  Serial.println("\nhandleUpdateDtuSettings - setting dtu cycle to:" + String(intervalMid));
-
-  String JSON = "{";
-  JSON = JSON + "\"dtuHostIpDomain\": \"" + userConfig.dtuHostIpDomain + "\",";
-  JSON = JSON + "\"dtuSsid\": \"" + userConfig.dtuSsid + "\",";
-  JSON = JSON + "\"dtuPassword\": \"" + userConfig.dtuPassword + "\"";
-  JSON = JSON + "}";
-
-  server.send(200, "application/json", JSON);
-}
-
-void handleUpdateBindingsSettings()
-{
-  String openhabHostIpDomainUser = server.arg("openhabHostIpDomainSend"); // retrieve message from webserver
-  String openhabPrefix = server.arg("openhabPrefixSend");
-  String openhabActive = server.arg("openhabActiveSend");
-
-  String mqttIP = server.arg("mqttIpSend");
-  String mqttPort = server.arg("mqttPortSend");
-  String mqttUser = server.arg("mqttUserSend");
-  String mqttPass = server.arg("mqttPassSend");
-  String mqttMainTopic = server.arg("mqttMainTopicSend");
-  String mqttActive = server.arg("mqttActiveSend");
-  String mqttUseTLS = server.arg("mqttUseTLSSend");
-  String mqttHAautoDiscoveryON = server.arg("mqttHAautoDiscoveryONSend");
-  bool mqttHAautoDiscoveryONlastState = userConfig.mqttHAautoDiscoveryON;
-
-  Serial.println("handleUpdateBindingsSettings - HAautoDiscovery current state: " + String(mqttHAautoDiscoveryONlastState));
-
-  openhabHostIpDomainUser.toCharArray(userConfig.openhabHostIpDomain, sizeof(userConfig.openhabHostIpDomain));
-  openhabPrefix.toCharArray(userConfig.openItemPrefix, sizeof(userConfig.openItemPrefix));
-
-  if (openhabActive == "1")
-    userConfig.openhabActive = true;
-  else
-    userConfig.openhabActive = false;
-
-  mqttIP.toCharArray(userConfig.mqttBrokerIpDomain, sizeof(userConfig.mqttBrokerIpDomain));
-  userConfig.mqttBrokerPort = mqttPort.toInt();
-  mqttUser.toCharArray(userConfig.mqttBrokerUser, sizeof(userConfig.mqttBrokerUser));
-  mqttPass.toCharArray(userConfig.mqttBrokerPassword, sizeof(userConfig.mqttBrokerPassword));
-  mqttMainTopic.toCharArray(userConfig.mqttBrokerMainTopic, sizeof(userConfig.mqttBrokerMainTopic));
-
-  if (mqttActive == "1")
-    userConfig.mqttActive = true;
-  else
-    userConfig.mqttActive = false;
-
-  if (mqttUseTLS == "1")
-    userConfig.mqttUseTLS = true;
-  else
-    userConfig.mqttUseTLS = false;
-
-  if (mqttHAautoDiscoveryON == "1")
-    userConfig.mqttHAautoDiscoveryON = true;
-  else
-    userConfig.mqttHAautoDiscoveryON = false;
-
-  configManager.saveConfig(userConfig);
-
-  // changing to given mqtt setting - inlcuding reset the connection
-  mqttHandler.setBroker(userConfig.mqttBrokerIpDomain);
-  mqttHandler.setPort(userConfig.mqttBrokerPort);
-  mqttHandler.setUser(userConfig.mqttBrokerUser);
-  mqttHandler.setPassword(userConfig.mqttBrokerPassword);
-  mqttHandler.setUseTLS(userConfig.mqttUseTLS); // Enable TLS
-
-  Serial.println("handleUpdateBindingsSettings - HAautoDiscovery new state: " + String(userConfig.mqttHAautoDiscoveryON));
-  // mqttHAautoDiscoveryON going from on to off - send one time the delete messages
-  if (!userConfig.mqttHAautoDiscoveryON && mqttHAautoDiscoveryONlastState)
-    mqttHandler.reconnect(userConfig.mqttHAautoDiscoveryON, userConfig.mqttBrokerMainTopic, true, dtuGatewayIP.toString());
-  else
-    mqttHandler.reconnect(userConfig.mqttHAautoDiscoveryON, userConfig.mqttBrokerMainTopic, false, dtuGatewayIP.toString());
-
-  String JSON = "{";
-  JSON = JSON + "\"openhabActive\": " + userConfig.openhabActive + ",";
-  JSON = JSON + "\"openhabHostIpDomain\": \"" + userConfig.openhabHostIpDomain + "\",";
-  JSON = JSON + "\"openItemPrefix\": \"" + userConfig.openItemPrefix + "\",";
-  JSON = JSON + "\"mqttActive\": " + userConfig.mqttActive + ",";
-  JSON = JSON + "\"mqttBrokerIpDomain\": \"" + userConfig.mqttBrokerIpDomain + "\",";
-  JSON = JSON + "\"mqttBrokerPort\": " + String(userConfig.mqttBrokerPort) + ",";
-  JSON = JSON + "\"mqttUseTLS\": " + userConfig.mqttUseTLS + ",";
-  JSON = JSON + "\"mqttBrokerUser\": \"" + userConfig.mqttBrokerUser + "\",";
-  JSON = JSON + "\"mqttBrokerPassword\": \"" + userConfig.mqttBrokerPassword + "\",";
-  JSON = JSON + "\"mqttBrokerMainTopic\": \"" + userConfig.mqttBrokerMainTopic + "\",";
-  JSON = JSON + "\"mqttHAautoDiscoveryON\": " + userConfig.mqttHAautoDiscoveryON;
-
-  JSON = JSON + "}";
-
-  server.send(200, "application/json", JSON);
-  Serial.println("handleUpdateBindingsSettings - send JSON: " + String(JSON));
-}
-
-void handleUpdatePowerLimit()
-{
-  String powerLimitSetNew = server.arg("powerLimitSend"); // retrieve message from webserver
-  Serial.println("\nhandleUpdatePowerLimit - got powerLimitSend: " + powerLimitSetNew);
-  uint8_t gotLimit;
-  bool conversionSuccess = false;
-
-  if (powerLimitSetNew.length() > 0)
-  {
-    gotLimit = powerLimitSetNew.toInt();
-    // Check if the conversion was successful by comparing the string with its integer representation, to avoid wronmg interpretations of 0 after toInt by a "no number string"
-    conversionSuccess = (String(gotLimit) == powerLimitSetNew);
-  }
-
-  if (conversionSuccess)
-  {
-    if (gotLimit < 2)
-      globalData.powerLimitSet = 2;
-    else if (gotLimit > 100)
-      globalData.powerLimitSet = 2;
-    else
-      globalData.powerLimitSet = gotLimit;
-
-    // Serial.print("got SetLimit: " + String(globalData.powerLimitSet) + " - current limit: " + String(globalData.powerLimit) + " %");
-
-    String JSON = "{";
-    JSON = JSON + "\"PowerLimitSet\": \"" + globalData.powerLimitSet + "\"";
-    JSON = JSON + "}";
-
-    server.send(200, "application/json", JSON);
-    Serial.println("handleUpdatePowerLimit - send JSON: " + String(JSON));
-  }
-  else
-  {
-    Serial.print("got wrong data for SetLimit: " + powerLimitSetNew);
-
-    server.send(400, "text/plain", "powerLimit out of range");
-    return;
-  }
-
-  // trigger new update info with changed release channel
-  // getUpdateInfo(AsyncWebServerRequest *request);
-  // updateInfoRequested = true;
-}
-
-void handleUpdateOTASettings()
-{
-  String releaseChannel = server.arg("releaseChannel"); // retrieve message from webserver
-  Serial.println("\nhandleUpdateOTASettings - got releaseChannel: " + releaseChannel);
-
-  userConfig.selectedUpdateChannel = releaseChannel.toInt();
-
-  configManager.saveConfig(userConfig);
-
-  String JSON = "{";
-  JSON = JSON + "\"releaseChannel\": \"" + userConfig.selectedUpdateChannel + "\"";
-  JSON = JSON + "}";
-
-  server.send(200, "application/json", JSON);
-  Serial.println("handleUpdateDtuSettings - send JSON: " + String(JSON));
-
-  // trigger new update info with changed release channel
-  // getUpdateInfo(AsyncWebServerRequest *request);
-  updateInfoRequested = true;
-}
-
-void handleConfigPage()
-{
-  JsonDocument doc;
-  bool gotUserChanges = false;
-
-  if (server.args() && server.hasArg("local.wifiAPstart") && server.arg("local.wifiAPstart") == "false")
-  {
-    gotUserChanges = true;
-
-    for (int i = 0; i < server.args(); i++)
-    {
-      String key = server.argName(i);
-      String value = server.arg(key);
-      String key1 = key.substring(0, key.indexOf("."));
-      String key2 = key.substring(key.indexOf(".") + 1);
-
-      if (value == "false" || value == "true")
-      {
-        bool boolValue = (value == "true");
-        doc[key1][key2] = boolValue;
-      }
-      else
-        doc[key1][key2] = value;
-    }
-  }
-
-  String html = configManager.getWebHandler(doc);
-  server.send(200, "text/html", html);
-
-  delay(1000);
-  if (gotUserChanges)
-    ESP.restart();
-}
-
-// webserver port 80
-
-void initializeWebServer()
-{
-  server.on("/", HTTP_GET, handleRoot);
-
-  server.on("/jquery.min.js", HTTP_GET, []()
-            {
-    server.sendHeader("Connection", "close");
-    server.send_P(200, "text/html", JQUERY_MIN_JS); });
-
-  server.on("/style.css", HTTP_GET, []()
-            {
-    server.sendHeader("Connection", "close");
-    server.send_P(200, "text/html", STYLE_CSS); });
-
-  server.on("/updateWifiSettings", handleUpdateWifiSettings);
-  server.on("/updateDtuSettings", handleUpdateDtuSettings);
-  server.on("/updateOTASettings", handleUpdateOTASettings);
-  server.on("/updateBindingsSettings", handleUpdateBindingsSettings);
-  server.on("/updatePowerLimit", handleUpdatePowerLimit);
-
-  // api GETs
-  server.on("/api/data", handleDataJson);
-  server.on("/api/info", handleInfojson);
-
-  // OTA update
-  server.on("/updateGetInfo", requestUpdateInfo);
-  server.on("/updateRequest", handleUpdateRequest);
-
-  server.on("/config", handleConfigPage);
-
-  server.begin();
-}
-
 // OTA
-// ---> /updateRequest
-void handleUpdateRequest()
-{
-  String urlToBin = "";
-  if (userConfig.selectedUpdateChannel == 0)
-    urlToBin = updateURLRelease;
-  else
-    urlToBin = updateURL;
+// // ---> /updateRequest
+// void handleUpdateRequest()
+// {
+//   String urlToBin = "";
+//   if (userConfig.selectedUpdateChannel == 0)
+//     urlToBin = updateInfo.updateURLRelease;
+//   else
+//     urlToBin = updateInfo.updateURL;
 
-#if defined(ESP8266)
-  BearSSL::WiFiClientSecure updateclient;
-#elif defined(ESP32)
-  WiFiClientSecure updateclient;
-#endif
-  updateclient.setInsecure();
+// #if defined(ESP8266)
+//   BearSSL::WiFiClientSecure updateclient;
+// #elif defined(ESP32)
+//   WiFiClientSecure updateclient;
+// #endif
+//   updateclient.setInsecure();
 
-  if (urlToBin == "" || updateAvailable != true)
-  {
-    Serial.println(F("[update] no url given or no update available"));
-    return;
-  }
+//   if (urlToBin == "" || updateInfo.updateAvailable != true)
+//   {
+//     Serial.println(F("[update] no url given or no update available"));
+//     return;
+//   }
 
-  server.sendHeader("Connection", "close");
-  server.send(200, "application/json", "{\"update\": \"in_progress\"}");
+//   server.sendHeader("Connection", "close");
+//   server.send(200, "application/json", "{\"update\": \"in_progress\"}");
 
-  Serial.println(F("[update] Update requested"));
-  Serial.println("[update] try download from " + urlToBin);
+//   Serial.println(F("[update] Update requested"));
+//   Serial.println("[update] try download from " + urlToBin);
 
-  // ESPhttpUpdate.rebootOnUpdate(false); // remove automatic update
+//   // ESPhttpUpdate.rebootOnUpdate(false); // remove automatic update
 
-  Serial.println(F("[update] starting update"));
+//   Serial.println(F("[update] starting update"));
 
-#if defined(ESP8266)
-  ESPhttpUpdate.onStart(update_started);
-  ESPhttpUpdate.onEnd(update_finished);
-  ESPhttpUpdate.onProgress(update_progress);
-  ESPhttpUpdate.onError(update_error);
-  ESPhttpUpdate.closeConnectionsOnUpdate(false);
-  ESPhttpUpdate.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
-#elif defined(ESP32)
-// ...
-#endif
+// #if defined(ESP8266)
+//   ESPhttpUpdate.onStart(update_started);
+//   ESPhttpUpdate.onEnd(update_finished);
+//   ESPhttpUpdate.onProgress(update_progress);
+//   ESPhttpUpdate.onError(update_error);
+//   ESPhttpUpdate.closeConnectionsOnUpdate(false);
+//   ESPhttpUpdate.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
+// #elif defined(ESP32)
+// // ...
+// #endif
 
-  updateRunning = true;
+//   updateInfo.updateRunning = true;
 
-  // stopping all services to prevent OOM/ stackoverflow
-  timeClient.end();
-#if defined(ESP8266)
-  ntpUDP.stopAll();
-  puSubClient.stopAll();
-  dtuInterface.disconnect(DTU_STATE_OFFLINE);
-  MDNS.close();
-#elif defined(ESP32)
-// ...
-#endif
-  server.stop();
-  server.close();
+//   // stopping all services to prevent OOM/ stackoverflow
+//   timeClient.end();
+// #if defined(ESP8266)
+//   ntpUDP.stopAll();
+//   puSubClient.stopAll();
+//   dtuInterface.disconnect(DTU_STATE_OFFLINE);
+//   MDNS.close();
+// #elif defined(ESP32)
+// // ...
+// #endif
+//   server.stop();
+//   server.close();
 
-#if defined(ESP8266)
-  t_httpUpdate_return ret = ESPhttpUpdate.update(updateclient, urlToBin);
-#elif defined(ESP32)
-  t_httpUpdate_return ret = ESPhttpUpdate.update(urlToBin);
-#endif
+// #if defined(ESP8266)
+//   t_httpUpdate_return ret = ESPhttpUpdate.update(updateclient, urlToBin);
+// #elif defined(ESP32)
+//   t_httpUpdate_return ret = ESPhttpUpdate.update(urlToBin);
+// #endif
 
-  switch (ret)
-  {
-  case HTTP_UPDATE_FAILED:
-    Serial.printf("HTTP_UPDATE_FAILED Error (%d): %s\n", ESPhttpUpdate.getLastError(), ESPhttpUpdate.getLastErrorString().c_str());
-    Serial.println(F("[update] Update failed."));
-    // restart all services if failed
-    initializeWebServer(); // starting server again
-    startServices();
-    updateRunning = false;
-    break;
-  case HTTP_UPDATE_NO_UPDATES:
-    Serial.println(F("[update] Update no Update."));
-    break;
-  case HTTP_UPDATE_OK:
-    Serial.println(F("[update] Update ok.")); // may not be called since we reboot the ESP
-    break;
-  }
-  Serial.println("[update] Update routine done - ReturnCode: " + String(ret));
-}
+//   switch (ret)
+//   {
+//   case HTTP_UPDATE_FAILED:
+//     Serial.printf("HTTP_UPDATE_FAILED Error (%d): %s\n", ESPhttpUpdate.getLastError(), ESPhttpUpdate.getLastErrorString().c_str());
+//     Serial.println(F("[update] Update failed."));
+//     // restart all services if failed
+//     initializeWebServer(); // starting server again
+//     startServices();
+//     updateInfo.updateRunning = false;
+//     break;
+//   case HTTP_UPDATE_NO_UPDATES:
+//     Serial.println(F("[update] Update no Update."));
+//     break;
+//   case HTTP_UPDATE_OK:
+//     Serial.println(F("[update] Update ok.")); // may not be called since we reboot the ESP
+//     break;
+//   }
+//   Serial.println("[update] Update routine done - ReturnCode: " + String(ret));
+// }
 
 //
-void requestUpdateInfo()
-{
-  updateInfoRequested = true;
-  server.send(200, "application/json", "{\"updateInfoRequested\": \"done\"}");
-}
 
 // get the info about update from remote
-boolean getUpdateInfo()
-{
-  String versionUrl = "";
-#if defined(ESP8266)
-  std::unique_ptr<BearSSL::WiFiClientSecure> secClient(new BearSSL::WiFiClientSecure);
-  secClient->setInsecure();
-#elif defined(ESP32)
-  WiFiClientSecure secClient;
-  secClient.setInsecure();
-#endif
+// boolean getUpdateInfo()
+// {
+//   Serial.print("\n---> getUpdateInfo - got request\n");
+//   String versionUrl = "";
+// #if defined(ESP8266)
+//   std::unique_ptr<BearSSL::WiFiClientSecure> secClient(new BearSSL::WiFiClientSecure);
+//   secClient->setInsecure();
+// #elif defined(ESP32)
+//   WiFiClientSecure secClient;
+//   secClient.setInsecure();
+// #endif
 
-  if (userConfig.selectedUpdateChannel == 0)
-  {
-    versionUrl = updateInfoWebPathRelease;
-  }
-  else
-  {
-    versionUrl = updateInfoWebPath;
-  }
+//   if (userConfig.selectedUpdateChannel == 0)
+//   {
+//     versionUrl = updateInfo.updateInfoWebPathRelease;
+//   }
+//   else
+//   {
+// versionUrl = updateInfo.updateInfoWebPath;
+//   }
 
-  Serial.print("\n---> getUpdateInfo - check for: " + versionUrl + "\n");
+//   Serial.print("\n---> getUpdateInfo - check for: " + versionUrl + "\n");
 
-  // create an HTTPClient instance
-  HTTPClient https;
+//   // create an HTTPClient instance
+//   HTTPClient https;
 
-// Initializing an HTTPS communication using the secure client
-#if defined(ESP8266)
-  if (https.begin(*secClient, versionUrl))
-  {
-#elif defined(ESP32)
-  if (https.begin(secClient, versionUrl))
-  {
-#endif
-    // HTTPS
-    Serial.print(F("\n---> getUpdateInfo - https connected\n"));
-    https.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS); // Enable automatic following of redirects
-    int httpCode = https.GET();
-    Serial.println("\n---> getUpdateInfo - got http ret code:" + String(httpCode));
+// // Initializing an HTTPS communication using the secure client
+// #if defined(ESP8266)
+//   if (https.begin(*secClient, versionUrl))
+//   {
+// #elif defined(ESP32)
+//   if (https.begin(secClient, versionUrl))
+//   {
+// #endif
+//     // HTTPS
+//     Serial.print(F("\n---> getUpdateInfo - https connected\n"));
+//     https.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS); // Enable automatic following of redirects
+//     int httpCode = https.GET();
+//     Serial.println("\n---> getUpdateInfo - got http ret code:" + String(httpCode));
 
-    // httpCode will be negative on error
-    if (httpCode > 0)
-    {
-      // HTTP header has been send and Server response header has been handled
-      // file found at server
-      if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY)
-      {
-        String payload = https.getString();
+//     // httpCode will be negative on error
+//     if (httpCode > 0)
+//     {
+//       // HTTP header has been send and Server response header has been handled
+//       // file found at server
+//       if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY)
+//       {
+//         String payload = https.getString();
 
-        // Parse JSON using ArduinoJson library
-        JsonDocument doc;
-        DeserializationError error = deserializeJson(doc, payload);
+//         // Parse JSON using ArduinoJson library
+//         JsonDocument doc;
+//         DeserializationError error = deserializeJson(doc, payload);
 
-        // Test if parsing succeeds.
-        if (error)
-        {
-          Serial.print(F("deserializeJson() failed: "));
-          Serial.println(error.f_str());
-          // Test if parsing succeeds.
-          if (error)
-          {
-            Serial.print(F("deserializeJson() failed: "));
-            Serial.println(error.f_str());
-            server.sendHeader("Connection", "close");
-            server.send(200, "application/json", "{\"updateRequest\": \"" + String(error.f_str()) + "\"}");
-            return false;
-          }
-          else
-          {
-            // for special versions: develop, feature, localDev the version has to be truncated
-            String localVersion = String(VERSION);
-            String versionSnapshot = versionServer;
-            if (localVersion.indexOf("_"))
-            {
-              localVersion = localVersion.substring(0, localVersion.indexOf("_"));
-            }
+//         // Test if parsing succeeds.
+//         if (error)
+//         {
+//           Serial.print(F("deserializeJson() failed: "));
+//           Serial.println(error.f_str());
+//           // Test if parsing succeeds.
+//           if (error)
+//           {
+//             Serial.print(F("deserializeJson() failed: "));
+//             Serial.println(error.f_str());
+//             server.sendHeader("Connection", "close");
+//             server.send(200, "application/json", "{\"updateRequest\": \"" + String(error.f_str()) + "\"}");
+//             return false;
+//           }
+//           else
+//           {
+//             // for special versions: develop, feature, localDev the version has to be truncated
+//             String localVersion = String(fwVersion);
+//             String versionSnapshot = updateInfo.versionServer;
+//             if (localVersion.indexOf("_"))
+//             {
+//               localVersion = localVersion.substring(0, localVersion.indexOf("_"));
+//             }
 
-            if (userConfig.selectedUpdateChannel == 0)
-            {
-              strcpy(versionServerRelease, (const char *)(doc["version"]));
-              strcpy(versiondateServerRelease, (const char *)(doc["versiondate"]));
-              strcpy(updateURLRelease, (const char *)(doc["link"]));
-              updateAvailable = checkVersion(localVersion, versionServerRelease);
-            }
-            else
-            {
-              strcpy(versionServer, (const char *)(doc["version"]));
-              if (versionSnapshot.indexOf("_"))
-              {
-                versionSnapshot = versionSnapshot.substring(0, versionSnapshot.indexOf("_"));
-              }
+//             if (userConfig.selectedUpdateChannel == 0)
+//             {
+//               strcpy(updateInfo.versionServerRelease, (const char *)(doc["version"]));
+//               strcpy(updateInfo.versiondateServerRelease, (const char *)(doc["versiondate"]));
+//               strcpy(updateInfo.updateURLRelease, (const char *)(doc["link"]));
+//               updateInfo.updateAvailable = checkVersion(localVersion, updateInfo.versionServerRelease);
+//             }
+//             else
+//             {
+//               strcpy(updateInfo.versionServer, (const char *)(doc["version"]));
+//               if (versionSnapshot.indexOf("_"))
+//               {
+//                 versionSnapshot = versionSnapshot.substring(0, versionSnapshot.indexOf("_"));
+//               }
 
-              strcpy(versiondateServer, (const char *)(doc["versiondate"]));
-              strcpy(updateURL, (const char *)(doc["linksnapshot"]));
-              updateAvailable = checkVersion(localVersion, versionSnapshot);
-            }
-            strcpy(versiondateServer, (const char *)(doc["versiondate"]));
-            strcpy(updateURL, (const char *)(doc["linksnapshot"]));
-            updateAvailable = checkVersion(localVersion, versionSnapshot);
-          }
+//               strcpy(updateInfo.versiondateServer, (const char *)(doc["versiondate"]));
+//               strcpy(updateInfo.updateURL, (const char *)(doc["linksnapshot"]));
+//               updateInfo.updateAvailable = checkVersion(localVersion, versionSnapshot);
+//             }
+//             strcpy(updateInfo.versiondateServer, (const char *)(doc["versiondate"]));
+//             strcpy(updateInfo.updateURL, (const char *)(doc["linksnapshot"]));
+//             updateInfo.updateAvailable = checkVersion(localVersion, versionSnapshot);
+//           }
 
-          server.sendHeader("Connection", "close");
-          server.send(200, "application/json", "{\"updateRequest\": \"done\"}");
-        }
-      }
-    }
-    else
-    {
-      Serial.printf("[HTTPS] GET... failed, error: %s\n", https.errorToString(httpCode).c_str());
-    }
-#if defined(ESP8266)
-    secClient->stop();
-#elif defined(ESP32)
-    secClient.stop();
-#endif
-    https.end();
-  }
-  else
-  {
-    Serial.println(F("\ngetUpdateInfo - [HTTPS] Unable to connect to server"));
-  }
-  // secClient->stopAll();
-  updateInfoRequested = false;
-  return true;
-}
+//           server.sendHeader("Connection", "close");
+//           server.send(200, "application/json", "{\"updateRequest\": \"done\"}");
+//         }
+//       }
+//     }
+//     else
+//     {
+//       Serial.printf("[HTTPS] GET... failed, error: %s\n", https.errorToString(httpCode).c_str());
+//     }
+// #if defined(ESP8266)
+//     secClient->stop();
+// #elif defined(ESP32)
+//     secClient.stop();
+// #endif
+//     https.end();
+//   }
+//   else
+//   {
+//     Serial.println(F("\ngetUpdateInfo - [HTTPS] Unable to connect to server"));
+//   }
+//   // secClient->stopAll();
+//   updateInfo.updateInfoRequested = false;
+//   return true;
+// }
 
 // check version local with remote
-boolean checkVersion(String v1, String v2)
-{
-  Serial.println("\ncompare versions: " + String(v1) + " - " + String(v2));
-  // Method to compare two versions.
-  // Returns 1 if v2 is smaller, -1
-  // if v1 is smaller, 0 if equal
-  // int result = 0;
-  int vnum1 = 0, vnum2 = 0;
+// boolean checkVersion(String v1, String v2)
+// {
+//   Serial.println("\ncompare versions: " + String(v1) + " - " + String(v2));
+//   // Method to compare two versions.
+//   // Returns 1 if v2 is smaller, -1
+//   // if v1 is smaller, 0 if equal
+//   // int result = 0;
+//   int vnum1 = 0, vnum2 = 0;
 
-  // loop until both string are
-  // processed
-  for (unsigned int i = 0, j = 0; (i < v1.length() || j < v2.length());)
-  {
-    // storing numeric part of
-    // version 1 in vnum1
-    while (i < v1.length() && v1[i] != '.')
-    {
-      vnum1 = vnum1 * 10 + (v1[i] - '0');
-      i++;
-    }
+//   // loop until both string are
+//   // processed
+//   for (unsigned int i = 0, j = 0; (i < v1.length() || j < v2.length());)
+//   {
+//     // storing numeric part of
+//     // version 1 in vnum1
+//     while (i < v1.length() && v1[i] != '.')
+//     {
+//       vnum1 = vnum1 * 10 + (v1[i] - '0');
+//       i++;
+//     }
 
-    // storing numeric part of
-    // version 2 in vnum2
-    while (j < v2.length() && v2[j] != '.')
-    {
-      vnum2 = vnum2 * 10 + (v2[j] - '0');
-      j++;
-    }
+//     // storing numeric part of
+//     // version 2 in vnum2
+//     while (j < v2.length() && v2[j] != '.')
+//     {
+//       vnum2 = vnum2 * 10 + (v2[j] - '0');
+//       j++;
+//     }
 
-    if (vnum1 > vnum2)
-    {
-      // result = 1; // v2 is smaller
-      // Serial.println("vgl (i=" + String(i) + ") v2 smaller - vnum1 " + String(vnum1) + " - " + String(vnum2));
-      return false;
-    }
+//     if (vnum1 > vnum2)
+//     {
+//       // result = 1; // v2 is smaller
+//       // Serial.println("vgl (i=" + String(i) + ") v2 smaller - vnum1 " + String(vnum1) + " - " + String(vnum2));
+//       return false;
+//     }
 
-    if (vnum2 > vnum1)
-    {
-      // result = -1; // v1 is smaller
-      // Serial.println("vgl (i=" + String(i) + ") v1 smaller - vnum1 " + String(vnum1) + " - " + String(vnum2));
-      return true;
-    }
+//     if (vnum2 > vnum1)
+//     {
+//       // result = -1; // v1 is smaller
+//       // Serial.println("vgl (i=" + String(i) + ") v1 smaller - vnum1 " + String(vnum1) + " - " + String(vnum2));
+//       return true;
+//     }
 
-    // if equal, reset variables and
-    // go for next numeric part
-    // Serial.println("vgl (i=" + String(i) + ") v1 equal 2 - vnum1 " + String(vnum1) + " - " + String(vnum2));
-    vnum1 = vnum2 = 0;
-    i++;
-    j++;
-  }
-  // 0 if equal
-  return false;
-}
+//     // if equal, reset variables and
+//     // go for next numeric part
+//     // Serial.println("vgl (i=" + String(i) + ") v1 equal 2 - vnum1 " + String(vnum1) + " - " + String(vnum2));
+//     vnum1 = vnum2 = 0;
+//     i++;
+//     j++;
+//   }
+//   // 0 if equal
+//   return false;
+// }
 
-void update_started()
-{
-  Serial.println(F("CALLBACK:  HTTP update process started"));
-  strcpy(updateState, "started");
-}
-void update_finished()
-{
-  Serial.println(F("CALLBACK:  HTTP update process finished"));
-  strcpy(updateState, "done");
-}
-void update_progress(int cur, int total)
-{
-  updateProgress = ((float)cur / (float)total) * 100;
-  strcpy(updateState, "running");
-  Serial.print("CALLBACK:  HTTP update process at " + String(cur) + "  of " + String(total) + " bytes - " + String(updateProgress, 1) + " %\n");
-}
-void update_error(int err)
-{
-  Serial.printf("CALLBACK:  HTTP update fatal error code %d\n", err);
-  strcpy(updateState, "error");
-}
+// void update_started()
+// {
+//   Serial.println(F("CALLBACK:  HTTP update process started"));
+//   strcpy(updateInfo.updateState, "started");
+// }
+// void update_finished()
+// {
+//   Serial.println(F("CALLBACK:  HTTP update process finished"));
+//   strcpy(updateInfo.updateState, "done");
+// }
+// void update_progress(int cur, int total)
+// {
+//   updateInfo.updateProgress = ((float)cur / (float)total) * 100;
+//   strcpy(updateInfo.updateState, "running");
+//   Serial.print("CALLBACK:  HTTP update process at " + String(cur) + "  of " + String(total) + " bytes - " + String(updateInfo.updateProgress, 1) + " %\n");
+// }
+// void update_error(int err)
+// {
+//   Serial.printf("CALLBACK:  HTTP update fatal error code %d\n", err);
+//   strcpy(updateInfo.updateState, "error");
+// }
 
 // APIs (non REST)
 
@@ -1058,9 +608,6 @@ String getMessageFromOpenhab(String key)
 // get PowerSet data from openhab
 boolean getPowerSetDataFromOpenHab()
 {
-  // get data from openhab if connected to DTU
-  // if (dtuConnection.dtuConnectState == DTU_STATE_CONNECTED)
-  // {
   uint8_t gotLimit;
   bool conversionSuccess = false;
 
@@ -1075,59 +622,58 @@ boolean getPowerSetDataFromOpenHab()
   if (conversionSuccess)
   {
     if (gotLimit < 2)
-      globalData.powerLimitSet = 2;
+      dtuGlobalData.powerLimitSet = 2;
     else if (gotLimit > 100)
-      globalData.powerLimitSet = 2;
+      dtuGlobalData.powerLimitSet = 2;
     else
-      globalData.powerLimitSet = gotLimit;
+      dtuGlobalData.powerLimitSet = gotLimit;
   }
   else
   {
-    Serial.print("got wrong data for SetLimit: " + openhabMessage);
+    Serial.println("\ngot wrong data for SetLimit - openhab response: ->" + openhabMessage + "<-");
     return false;
   }
-  // Serial.print("got SetLimit: " + String(globalData.powerLimitSet) + " - current limit: " + String(globalData.powerLimit) + " %");
+  // Serial.print("got SetLimit: " + String(dtuGlobalData.powerLimitSet) + " - current limit: " + String(dtuGlobalData.powerLimit) + " %");
   return true;
-  // }
-  // return false;
 }
 // update all values to openhab
 boolean updateValueToOpenhab()
 {
-  boolean sendOk = postMessageToOpenhab(String(userConfig.openItemPrefix) + "Grid_U", (String)globalData.grid.voltage);
+  boolean sendOk = postMessageToOpenhab(String(userConfig.openItemPrefix) + "Grid_U", (String)dtuGlobalData.grid.voltage);
   if (sendOk)
   {
-    postMessageToOpenhab(String(userConfig.openItemPrefix) + "Grid_I", (String)globalData.grid.current);
-    postMessageToOpenhab(String(userConfig.openItemPrefix) + "Grid_P", (String)globalData.grid.power);
-    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV_E_day", String(globalData.grid.dailyEnergy, 3));
-    if (globalData.grid.totalEnergy != 0)
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "Grid_I", (String)dtuGlobalData.grid.current);
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "Grid_P", (String)dtuGlobalData.grid.power);
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV_E_day", String(dtuGlobalData.grid.dailyEnergy, 3));
+    if (dtuGlobalData.grid.totalEnergy != 0)
     {
-      postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV_E_total", String(globalData.grid.totalEnergy, 3));
+      postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV_E_total", String(dtuGlobalData.grid.totalEnergy, 3));
     }
 
-    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV1_U", (String)globalData.pv0.voltage);
-    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV1_I", (String)globalData.pv0.current);
-    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV1_P", (String)globalData.pv0.power);
-    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV1_E_day", String(globalData.pv0.dailyEnergy, 3));
-    if (globalData.pv0.totalEnergy != 0)
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV1_U", (String)dtuGlobalData.pv0.voltage);
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV1_I", (String)dtuGlobalData.pv0.current);
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV1_P", (String)dtuGlobalData.pv0.power);
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV1_E_day", String(dtuGlobalData.pv0.dailyEnergy, 3));
+    if (dtuGlobalData.pv0.totalEnergy != 0)
     {
-      postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV1_E_total", String(globalData.pv0.totalEnergy, 3));
+      postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV1_E_total", String(dtuGlobalData.pv0.totalEnergy, 3));
     }
 
-    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV2_U", (String)globalData.pv1.voltage);
-    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV2_I", (String)globalData.pv1.current);
-    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV2_P", (String)globalData.pv1.power);
-    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV2_E_day", String(globalData.pv1.dailyEnergy, 3));
-    if (globalData.pv1.totalEnergy != 0)
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV2_U", (String)dtuGlobalData.pv1.voltage);
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV2_I", (String)dtuGlobalData.pv1.current);
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV2_P", (String)dtuGlobalData.pv1.power);
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV2_E_day", String(dtuGlobalData.pv1.dailyEnergy, 3));
+    if (dtuGlobalData.pv1.totalEnergy != 0)
     {
-      postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV2_E_total", String(globalData.pv1.totalEnergy, 3));
+      postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV2_E_total", String(dtuGlobalData.pv1.totalEnergy, 3));
     }
 
-    postMessageToOpenhab(String(userConfig.openItemPrefix) + "_Temp", (String)globalData.inverterTemp);
-    postMessageToOpenhab(String(userConfig.openItemPrefix) + "_PowerLimit", (String)globalData.powerLimit);
-    postMessageToOpenhab(String(userConfig.openItemPrefix) + "_WifiRSSI", (String)globalData.dtuRssi);
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "_Temp", (String)dtuGlobalData.inverterTemp);
+    if (dtuGlobalData.powerLimit != -1)
+      postMessageToOpenhab(String(userConfig.openItemPrefix) + "_PowerLimit", (String)dtuGlobalData.powerLimit);
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "_WifiRSSI", (String)dtuGlobalData.dtuRssi);
   }
-  Serial.println("\nsent values to openHAB");
+  Serial.println(F("\nsent values to openHAB"));
   return true;
 }
 
@@ -1137,32 +683,32 @@ void updateValuesToMqtt(boolean haAutoDiscovery = false)
   Serial.println("\nMQTT: publish data (HA autoDiscovery = " + String(haAutoDiscovery) + ")");
   std::map<std::string, std::string> keyValueStore;
 
-  keyValueStore["time_stamp"] = String(globalData.currentTimestamp).c_str();
+  keyValueStore["time_stamp"] = String(dtuGlobalData.currentTimestamp).c_str();
 
-  keyValueStore["grid_U"] = String(globalData.grid.voltage).c_str();
-  keyValueStore["grid_I"] = String(globalData.grid.current).c_str();
-  keyValueStore["grid_P"] = String(globalData.grid.power).c_str();
-  keyValueStore["grid_dailyEnergy"] = String(globalData.grid.dailyEnergy, 3).c_str();
-  if (globalData.grid.totalEnergy != 0)
-    keyValueStore["grid_totalEnergy"] = String(globalData.grid.totalEnergy, 3).c_str();
+  keyValueStore["grid_U"] = String(dtuGlobalData.grid.voltage).c_str();
+  keyValueStore["grid_I"] = String(dtuGlobalData.grid.current).c_str();
+  keyValueStore["grid_P"] = String(dtuGlobalData.grid.power).c_str();
+  keyValueStore["grid_dailyEnergy"] = String(dtuGlobalData.grid.dailyEnergy, 3).c_str();
+  if (dtuGlobalData.grid.totalEnergy != 0)
+    keyValueStore["grid_totalEnergy"] = String(dtuGlobalData.grid.totalEnergy, 3).c_str();
 
-  keyValueStore["pv0_U"] = String(globalData.pv0.voltage).c_str();
-  keyValueStore["pv0_I"] = String(globalData.pv0.current).c_str();
-  keyValueStore["pv0_P"] = String(globalData.pv0.power).c_str();
-  keyValueStore["pv0_dailyEnergy"] = String(globalData.pv0.dailyEnergy, 3).c_str();
-  if (globalData.pv0.totalEnergy != 0)
-    keyValueStore["pv0_totalEnergy"] = String(globalData.pv0.totalEnergy, 3).c_str();
+  keyValueStore["pv0_U"] = String(dtuGlobalData.pv0.voltage).c_str();
+  keyValueStore["pv0_I"] = String(dtuGlobalData.pv0.current).c_str();
+  keyValueStore["pv0_P"] = String(dtuGlobalData.pv0.power).c_str();
+  keyValueStore["pv0_dailyEnergy"] = String(dtuGlobalData.pv0.dailyEnergy, 3).c_str();
+  if (dtuGlobalData.pv0.totalEnergy != 0)
+    keyValueStore["pv0_totalEnergy"] = String(dtuGlobalData.pv0.totalEnergy, 3).c_str();
 
-  keyValueStore["pv1_U"] = String(globalData.pv1.voltage).c_str();
-  keyValueStore["pv1_I"] = String(globalData.pv1.current).c_str();
-  keyValueStore["pv1_P"] = String(globalData.pv1.power).c_str();
-  keyValueStore["pv1_dailyEnergy"] = String(globalData.pv1.dailyEnergy, 3).c_str();
-  if (globalData.pv0.totalEnergy != 0)
-    keyValueStore["pv1_totalEnergy"] = String(globalData.pv1.totalEnergy, 3).c_str();
+  keyValueStore["pv1_U"] = String(dtuGlobalData.pv1.voltage).c_str();
+  keyValueStore["pv1_I"] = String(dtuGlobalData.pv1.current).c_str();
+  keyValueStore["pv1_P"] = String(dtuGlobalData.pv1.power).c_str();
+  keyValueStore["pv1_dailyEnergy"] = String(dtuGlobalData.pv1.dailyEnergy, 3).c_str();
+  if (dtuGlobalData.pv0.totalEnergy != 0)
+    keyValueStore["pv1_totalEnergy"] = String(dtuGlobalData.pv1.totalEnergy, 3).c_str();
 
-  keyValueStore["inverter_Temp"] = String(globalData.inverterTemp).c_str();
-  keyValueStore["inverter_PowerLimit"] = String(globalData.powerLimit).c_str();
-  keyValueStore["inverter_WifiRSSI"] = String(globalData.dtuRssi).c_str();
+  keyValueStore["inverter_Temp"] = String(dtuGlobalData.inverterTemp).c_str();
+  keyValueStore["inverter_PowerLimit"] = String(dtuGlobalData.powerLimit).c_str();
+  keyValueStore["inverter_WifiRSSI"] = String(dtuGlobalData.dtuRssi).c_str();
 
   for (const auto &pair : keyValueStore)
   {
@@ -1177,7 +723,7 @@ void updateDataToApis()
 {
   if (!dtuConnection.dtuActiveOffToCloudUpdate)
   {
-    if ((globalControls.getDataAuto || globalControls.getDataOnce) && globalData.uptodate)
+    if ((globalControls.getDataAuto || globalControls.getDataOnce) && dtuGlobalData.uptodate)
     {
       if (userConfig.openhabActive)
         updateValueToOpenhab();
@@ -1190,26 +736,25 @@ void updateDataToApis()
       }
       else
       {
-        Serial.print("\n+++ update at remote: " + dtuInterface.getTimeStringByTimestamp(globalData.respTimestamp) + " - uptodate: " + String(globalData.uptodate) + " --- ");
-        Serial.print("wifi rssi: " + String(globalData.dtuRssi) + " % (DTU->Cloud) - " + String(globalData.wifi_rssi_gateway) + " % (Client->AP) \n");
+        Serial.print("wifi rssi: " + String(dtuGlobalData.dtuRssi) + " % (DTU->Cloud) - " + String(dtuGlobalData.wifi_rssi_gateway) + " % (Client->AP) \n");
         dtuInterface.printDataAsTextToSerial();
       }
       if (globalControls.getDataOnce)
         globalControls.getDataOnce = false;
     }
-    else if ((globalData.currentTimestamp - globalData.lastRespTimestamp) > (5 * 60) && globalData.grid.voltage > 0) // globalData.grid.voltage > 0 indicates dtu/ inverter working
+    else if ((dtuGlobalData.currentTimestamp - dtuGlobalData.lastRespTimestamp) > (5 * 60) && dtuGlobalData.grid.voltage > 0) // dtuGlobalData.grid.voltage > 0 indicates dtu/ inverter working
     {
-      globalData.grid.power = 0;
-      globalData.grid.current = 0;
-      globalData.grid.voltage = 0;
+      dtuGlobalData.grid.power = 0;
+      dtuGlobalData.grid.current = 0;
+      dtuGlobalData.grid.voltage = 0;
 
-      globalData.pv0.power = 0;
-      globalData.pv0.current = 0;
-      globalData.pv0.voltage = 0;
+      dtuGlobalData.pv0.power = 0;
+      dtuGlobalData.pv0.current = 0;
+      dtuGlobalData.pv0.voltage = 0;
 
-      globalData.pv1.power = 0;
-      globalData.pv1.current = 0;
-      globalData.pv1.voltage = 0;
+      dtuGlobalData.pv1.power = 0;
+      dtuGlobalData.pv1.current = 0;
+      dtuGlobalData.pv1.voltage = 0;
 
       if (userConfig.openhabActive)
         updateValueToOpenhab();
@@ -1225,9 +770,19 @@ void updateDataToApis()
 
 void setup()
 {
-  // switch off SCK LED
-  // pinMode(14, OUTPUT);
-  // digitalWrite(14, LOW);
+// switch off SCK LED
+// pinMode(14, OUTPUT);
+// digitalWrite(14, LOW);
+
+// shortend chip id for ESP32  based on MAC - to be compliant with ESP8266 ESP.getChipId() output
+#if defined(ESP32)
+  platformData.chipID = 0;
+  for (int i = 0; i < 17; i = i + 8)
+  {
+    platformData.chipID |= ((ESP.getEfuseMac() >> (40 - i)) & 0xff) << i;
+  }
+  platformData.espUniqueName = String(AP_NAME_START) + "_" + platformData.chipID;
+#endif
 
   // initialize digital pin LED_BLINK as an output.
   pinMode(LED_BLINK, OUTPUT);
@@ -1235,20 +790,25 @@ void setup()
 
   Serial.begin(115200);
   Serial.print(F("\n\nBooting - with firmware version "));
-  Serial.println(VERSION);
+  Serial.println(platformData.fwVersion);
   Serial.println(F("------------------------------------------------------------------"));
 
   if (!configManager.begin())
   {
-    Serial.println("Failed to initialize UserConfigManager");
+    Serial.println(F("Failed to initialize UserConfigManager"));
     return;
   }
 
   if (configManager.loadConfig(userConfig))
     configManager.printConfigdata();
   else
-    Serial.println("Failed to load user config");
+    Serial.println(F("Failed to load user config"));
   // ------- user config loaded --------------------------------------------
+
+  // String("NicAndi-WLAN").toCharArray(userConfig.wifiSsid, sizeof(userConfig.wifiSsid));
+  // String("6264034908576867").toCharArray(userConfig.wifiPassword, sizeof(userConfig.wifiPassword));
+  // userConfig.wifiAPstart = false;
+  // configManager.saveConfig(userConfig);
 
   // init display according to userConfig
   if (userConfig.displayConnected == 0)
@@ -1267,8 +827,8 @@ void setup()
 
     // Connect to Wi-Fi as AP
     WiFi.mode(WIFI_AP);
-    WiFi.softAP(espUniqueName);
-    Serial.println("\n +++ serving access point with SSID: '" + espUniqueName + "' +++\n");
+    WiFi.softAP(platformData.espUniqueName);
+    Serial.println("\n +++ serving access point with SSID: '" + platformData.espUniqueName + "' +++\n");
 
     // IP Address of the ESP8266 on the AP network
     IPAddress apIP = WiFi.softAPIP();
@@ -1282,37 +842,33 @@ void setup()
     // display - change every reboot in first start mode
     if (userConfig.displayConnected == 0)
     {
-      displayOLED.drawFactoryMode(String(VERSION), espUniqueName, apIP.toString());
+      displayOLED.drawFactoryMode(String(platformData.fwVersion), platformData.espUniqueName, apIP.toString());
       userConfig.displayConnected = 1;
     }
     else if (userConfig.displayConnected == 1)
     {
-      displayTFT.drawFactoryMode(String(VERSION), espUniqueName, apIP.toString());
+      displayTFT.drawFactoryMode(String(platformData.fwVersion), platformData.espUniqueName, apIP.toString());
       userConfig.displayConnected = 0;
     }
     // deafult setting for mqtt main topic
-    ("dtu_" + String(chipID)).toCharArray(userConfig.mqttBrokerMainTopic, sizeof(userConfig.mqttBrokerMainTopic));
+    ("dtu_" + String(platformData.chipID)).toCharArray(userConfig.mqttBrokerMainTopic, sizeof(userConfig.mqttBrokerMainTopic));
     configManager.saveConfig(userConfig);
 
-    initializeWebServer();
+    dtuWebServer.start();
   }
   else
   {
     WiFi.mode(WIFI_STA);
   }
 
-  //
-  globalData.currentTimestamp = 0;
-  // setting startup interval for dtucylce
-  intervalMid = userConfig.dtuUpdateTime;
-  if (intervalMid < 1)
-    intervalMid = 31; // fix for corrupted config data - defaults to 31 sec
+  if (userConfig.dtuUpdateTime < 1)
+    userConfig.dtuUpdateTime = 31; // fix for corrupted config data - defaults to 31 sec
 
   Serial.print(F("\nsetup - setting dtu cycle to:"));
-  Serial.println(intervalMid);
+  Serial.println(userConfig.dtuUpdateTime);
 
   // setting startup for dtu cloud pause
-  dtuConnection.preventCloudErrors = userConfig.dtuCloudPauseActive;
+  // dtuConnection.preventCloudErrors = userConfig.dtuCloudPauseActive;
 
   // Interval in microsecs
   if (ITimer.setInterval(TIMER_INTERVAL_MS * 1000, timer1000MilliSeconds))
@@ -1330,38 +886,41 @@ void startServices()
   if (WiFi.waitForConnectResult() == WL_CONNECTED)
   {
     Serial.print(F("\nConnected! IP address: "));
-    dtuGatewayIP = WiFi.localIP();
-    Serial.println(dtuGatewayIP.toString());
+    platformData.dtuGatewayIP = WiFi.localIP();
+    Serial.println((platformData.dtuGatewayIP).toString());
     Serial.print(F("IP address of gateway: "));
     Serial.println(WiFi.gatewayIP());
 
-    httpUpdater.setup(&server);
+    // httpUpdater.setup(&server);
 
-    MDNS.begin(espUniqueName);
+    MDNS.begin(platformData.espUniqueName);
     MDNS.addService("http", "tcp", 80);
-    Serial.println("Ready! Open http://" + espUniqueName + ".local in your browser");
+    Serial.println("Ready! Open http://" + platformData.espUniqueName + ".local in your browser");
+
+    // start first search for available wifi networks
+    WiFi.scanNetworks(true);
+
+    delay(2000); // waiting time for wifi scan to prevent blockings of ip connections (only seen with ESP32)
+
+    dtuWebServer.start();
 
     // ntp time - offset in summertime 7200 else 3600
     timeClient.begin();
     timeClient.setTimeOffset(userConfig.timezoneOffest);
     // get first time
     timeClient.update();
-    starttime = timeClient.getEpochTime();
+    platformData.dtuGWstarttime = timeClient.getEpochTime();
     Serial.print(F("got time from time server: "));
-    Serial.println(String(starttime));
-
-    // start first search for available wifi networks
-    WiFi.scanNetworks(true);
-
-    initializeWebServer();
+    Serial.println(String(platformData.dtuGWstarttime));
 
     dtuInterface.setup();
+    dtuInterface.setServer(userConfig.dtuHostIpDomain);
 
-    if (userConfig.mqttActive)
-    {
-      Serial.println(F("MQTT: setup ..."));
-      mqttHandler.setup(userConfig.mqttHAautoDiscoveryON);
-    }
+    // if (userConfig.mqttActive)
+    // {
+    Serial.println(F("MQTT: setup ..."));
+    mqttHandler.setup(userConfig.mqttHAautoDiscoveryON);
+    // }
   }
   else
   {
@@ -1470,8 +1029,8 @@ void getSerialCommand(String cmd, String value)
   if (cmd == "setPower")
   {
     Serial.print(F("'setPower' to "));
-    globalData.powerLimitSet = val;
-    Serial.print(String(globalData.powerLimitSet));
+    dtuGlobalData.powerLimitSet = val;
+    Serial.print(String(dtuGlobalData.powerLimitSet));
   }
   else if (cmd == "getDataAuto")
   {
@@ -1532,12 +1091,12 @@ void getSerialCommand(String cmd, String value)
   }
   else if (cmd == "setInterval")
   {
-    intervalMid = long(val);
-    Serial.print("'setInterval' to " + String(intervalMid));
+    userConfig.dtuUpdateTime = long(val);
+    Serial.print("'setInterval' to " + String(userConfig.dtuUpdateTime));
   }
   else if (cmd == "getInterval")
   {
-    Serial.print("'getInterval' => " + String(intervalMid));
+    Serial.print("'getInterval' => " + String(userConfig.dtuUpdateTime));
   }
   else if (cmd == "setCloudSave")
   {
@@ -1578,7 +1137,7 @@ void getSerialCommand(String cmd, String value)
   //   if (val == 1)
   //   {
   //     Serial.print(F(" send reboot request "));
-  //     dtuInterface..writeCommandRestartDevice(globalData.currentTimestamp);
+  //     dtuInterface.writeCommandRestartDevice(dtuGlobalData.currentTimestamp);
   //   }
   // }
   else if (cmd == "selectDisplay")
@@ -1617,7 +1176,7 @@ bool IRAM_ATTR timer1000MilliSeconds(void *timerNo)
 {
 #endif
   // localtime counter - increase every second
-  globalData.currentTimestamp++;
+  dtuGlobalData.currentTimestamp++;
 #if defined(ESP32)
   return true;
 #endif
@@ -1627,11 +1186,12 @@ void loop()
 {
   unsigned long currentMillis = millis();
   // skip all tasks if update is running
-  if (updateRunning)
+  if (updateInfo.updateRunning)
     return;
 
-  // web server runner
-  server.handleClient();
+    // web server runner
+    // server.handleClient();
+
 #if defined(ESP8266)
   // serving domain name
   MDNS.update();
@@ -1640,7 +1200,7 @@ void loop()
   // runner for mqttClient to hold a already etablished connection
   if (userConfig.mqttActive && WiFi.status() == WL_CONNECTED)
   {
-    mqttHandler.loop(userConfig.mqttHAautoDiscoveryON, userConfig.mqttBrokerMainTopic, dtuGatewayIP.toString());
+    mqttHandler.loop(userConfig.mqttHAautoDiscoveryON, userConfig.mqttBrokerMainTopic, (platformData.dtuGatewayIP).toString());
   }
 
   // 50ms task
@@ -1652,9 +1212,9 @@ void loop()
     {
       // display tasks every 50ms = 20Hz
       if (userConfig.displayConnected == 0)
-        displayOLED.renderScreen(timeClient.getFormattedTime(), String(VERSION));
-      else if (userConfig.displayConnected == 1)
-        displayTFT.renderScreen(timeClient.getFormattedTime(), String(VERSION));
+        displayOLED.renderScreen(timeClient.getFormattedTime(), String(platformData.fwVersion));
+      // else if (userConfig.displayConnected == 1)
+      //   displayTFT.renderScreen(timeClient.getFormattedTime(), String(platformData.fwVersion));
     }
   }
 
@@ -1673,20 +1233,23 @@ void loop()
       PowerLimitSet lastSetting = mqttHandler.getPowerLimitSet();
       if (currentMillis - lastSetting.timestamp < 100)
       {
-        globalData.powerLimitSet = lastSetting.setValue;
-        Serial.println("\nMQTT: changed powerset value to '" + String(globalData.powerLimitSet) + "'");
+        dtuGlobalData.powerLimitSet = lastSetting.setValue;
+        Serial.println("\nMQTT: changed powerset value to '" + String(dtuGlobalData.powerLimitSet) + "'");
       }
     }
+
+    platformData.currentNTPtime = timeClient.getEpochTime();
+    platformData.currentNTPtimeFormatted = timeClient.getFormattedTime();
   }
 
   // CHANGE to precise 1 second timer increment
-  currentMillis = globalData.currentTimestamp;
+  currentMillis = dtuGlobalData.currentTimestamp;
 
   // short task
   if (currentMillis - previousMillisShort >= intervalShort)
   {
     // Serial.printf("\n>>>>> %02is task - state --> ", int(intervalShort));
-    // Serial.print("local: " + getTimeStringByTimestamp(globalData.currentTimestamp));
+    // Serial.print("local: " + getTimeStringByTimestamp(dtuGlobalData.currentTimestamp));
     // Serial.print(" --- NTP: " + timeClient.getFormattedTime() + " --- currentMillis " + String(currentMillis) + " --- ");
     previousMillisShort = currentMillis;
     // Serial.print(F("free mem: "));
@@ -1712,44 +1275,43 @@ void loop()
 
     if (WiFi.status() == WL_CONNECTED)
     {
-      if (globalData.updateReceived)
+      if (dtuGlobalData.updateReceived)
       {
+        Serial.println(F("---> got update from DTU - APIs will be updated"));
         updateDataToApis();
-        globalData.updateReceived = false;
+        dtuGlobalData.updateReceived = false;
       }
 
       if (dtuConnection.dtuActiveOffToCloudUpdate)
         blinkCode = BLINK_PAUSE_CLOUD_UPDATE;
 
-      if (userConfig.openhabActive)
+      if (userConfig.openhabActive && dtuConnection.dtuConnectState == DTU_STATE_CONNECTED)
         getPowerSetDataFromOpenHab();
 
       // direct request of new powerLimit
-      if (globalData.powerLimitSet != globalData.powerLimit && globalData.powerLimitSet != 101 && globalData.uptodate)
+      if (dtuGlobalData.powerLimitSet != dtuGlobalData.powerLimit && dtuGlobalData.powerLimitSet != 101 && dtuGlobalData.uptodate)
       {
-        Serial.print("\n----- ----- set new power limit from " + String(globalData.powerLimit) + " to " + String(globalData.powerLimitSet));
-        dtuInterface.setPowerLimit(globalData.powerLimitSet);
+        Serial.print("\n----- ----- set new power limit from " + String(dtuGlobalData.powerLimit) + " to " + String(dtuGlobalData.powerLimitSet));
+        dtuInterface.setPowerLimit(dtuGlobalData.powerLimitSet);
         // set next normal request in 5 seconds from now on, only if last data updated within last 2 times of user setted update rate
-        if (currentMillis - globalData.lastRespTimestamp < (intervalMid * 2))
-          previousMillisMid = currentMillis - (intervalMid - 5);
+        // if (currentMillis - dtuGlobalData.lastRespTimestamp < (userConfig.dtuUpdateTime * 2))
+        // platformData.dtuNextUpdateCounterSeconds = currentMillis - (userConfig.dtuUpdateTime - 5);
+        platformData.dtuNextUpdateCounterSeconds = dtuGlobalData.currentTimestamp - userConfig.dtuUpdateTime + 5;
       }
     }
-    //
-    if (updateInfoRequested)
-    {
-      if (updateInfoRequested)
-      {
-        getUpdateInfo();
-      }
-    }
+
+    //   if (updateInfo.updateInfoRequested)
+    //   {
+    //     getUpdateInfo();
+    //   }
   }
 
   // 5s task
   if (currentMillis - previousMillis5000ms >= interval5000ms)
   {
-    Serial.printf("\n>>>>> %02is task - state --> ", int(interval5000ms));
-    Serial.print("local: " + dtuInterface.getTimeStringByTimestamp(globalData.currentTimestamp));
-    Serial.print(" --- NTP: " + timeClient.getFormattedTime());
+    Serial.printf(">>>>> %02is task - state --> ", int(interval5000ms));
+    Serial.print("local: " + dtuInterface.getTimeStringByTimestamp(dtuGlobalData.currentTimestamp));
+    Serial.println(" --- NTP: " + timeClient.getFormattedTime());
 
     // Serial.print(" --- currentMillis " + String(currentMillis) + " --- ");
     previousMillis5000ms = currentMillis;
@@ -1761,30 +1323,30 @@ void loop()
       int wifiPercent = 2 * (WiFi.RSSI() + 100);
       if (wifiPercent > 100)
         wifiPercent = 100;
-      globalData.wifi_rssi_gateway = wifiPercent;
-      // Serial.print(" --- RSSI to AP: '" + String(WiFi.SSID()) + "': " + String(globalData.wifi_rssi_gateway) + " %");
+      dtuGlobalData.wifi_rssi_gateway = wifiPercent;
+      // Serial.print(" --- RSSI to AP: '" + String(WiFi.SSID()) + "': " + String(dtuGlobalData.wifi_rssi_gateway) + " %");
     }
 
     // for testing
-    // globalData.grid.totalEnergy = 1.34;
-    // globalData.pv0.totalEnergy = 1.0;
-    // globalData.pv1.totalEnergy = 0.34;
+    // dtuGlobalData.grid.totalEnergy = 1.34;
+    // dtuGlobalData.pv0.totalEnergy = 1.0;
+    // dtuGlobalData.pv1.totalEnergy = 0.34;
 
-    // globalData.grid.power = globalData.grid.power + 1;
+    // dtuGlobalData.grid.power = dtuGlobalData.grid.power + 1;
     // if (userConfig.mqttActive)
     //   updateValuesToMqtt(userConfig.mqttHAautoDiscoveryON);
-    // if (globalData.grid.power > 450)
-    //   globalData.grid.power = 0;
+    // if (dtuGlobalData.grid.power > 450)
+    //   dtuGlobalData.grid.power = 0;
   }
 
   // mid task
-  if (currentMillis - previousMillisMid >= intervalMid)
+  if (currentMillis - platformData.dtuNextUpdateCounterSeconds >= userConfig.dtuUpdateTime)
   {
-    Serial.printf("\n>>>>> %02is task - state --> ", int(intervalMid));
-    Serial.print("local: " + dtuInterface.getTimeStringByTimestamp(globalData.currentTimestamp));
-    Serial.print(" --- NTP: " + timeClient.getFormattedTime() + "\n");
+    Serial.printf(">>>>> %02is task - state --> ", int(userConfig.dtuUpdateTime));
+    Serial.print("local: " + dtuInterface.getTimeStringByTimestamp(dtuGlobalData.currentTimestamp));
+    Serial.println(" --- NTP: " + timeClient.getFormattedTime() + "\n");
 
-    previousMillisMid = currentMillis;
+    platformData.dtuNextUpdateCounterSeconds = currentMillis;
     // -------->
 
     // requesting data from DTU
@@ -1796,7 +1358,7 @@ void loop()
   if (currentMillis - previousMillisLong >= intervalLong)
   {
     // Serial.printf("\n>>>>> %02is task - state --> ", int(interval5000ms));
-    // Serial.print("local: " + getTimeStringByTimestamp(globalData.currentTimestamp));
+    // Serial.print("local: " + getTimeStringByTimestamp(dtuGlobalData.currentTimestamp));
     // Serial.print(" --- NTP: " + timeClient.getFormattedTime() + " --- currentMillis " + String(currentMillis) + " --- ");
 
     previousMillisLong = currentMillis;

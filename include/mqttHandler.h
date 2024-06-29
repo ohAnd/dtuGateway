@@ -58,4 +58,6 @@ private:
     void stopConnection();
 };
 
+extern MQTTHandler mqttHandler;
+
 #endif // MQTTHANDLER_H

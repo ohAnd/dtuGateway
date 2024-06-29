@@ -19,7 +19,7 @@ struct UserConfig
     char dtuHostIpDomain[128]     = "192.168.0.254";
     int dtuCloudPauseTime         = 40;
     boolean dtuCloudPauseActive   = true;
-    int dtuUpdateTime             = 31;
+    unsigned int dtuUpdateTime    = 31;
 
     char openhabHostIpDomain[128] = "192.168.1.100";
     char openItemPrefix[32]       = "inverter";
@@ -59,9 +59,11 @@ class UserConfigManager {
     private:
         const char *filePath;
         UserConfig defaultConfig;
-        JsonDocument mappingStructToJson();
+        JsonDocument mappingStructToJson(const UserConfig &config);
         void mappingJsonToStruct(JsonDocument doc);
         String createWebPage(bool updated);
 };
+
+extern UserConfigManager configManager;
 
 #endif // CONFIG_H

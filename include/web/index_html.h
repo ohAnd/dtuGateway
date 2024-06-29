@@ -17,9 +17,14 @@ const char INDEX_HTML[] PROGMEM = R"=====(
         <div class="bar" id="updateTime" style="width: 100%;">
         </div>
     </div>
+    <div class="alert" id="alertBox">
+        <button onclick="this.parentElement.style.display='none';" style="margin-right: 10px;">X</button>
+        <div id="alertText">...</div>
+    </div>
     <div class="popup" id="changeSettings">
         <div class="popupHeader">
-            <div class="popupHeaderTitle">settings <i style="font-size: x-small;float:right;"><a href="/config" target=_blank>advanced config</a></i>
+            <div class="popupHeaderTitle">settings <i style="font-size: x-small;float:right;"><a href="/config"
+                        target=_blank>advanced config</a></i>
                 <!-- <h2>settings</h2> -->
             </div>
             <div class="popupHeaderTabs">
@@ -84,7 +89,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                     <input type="text" id="mqttIP" class="ipv4Input" name="ipv4" placeholder="xxx.xxx.xxx.xxx">
                 </div>
                 <!-- <div> -->
-                    <!-- <input type="checkbox" id="mqttUseTLS"> TLS connection (e.g. 123456789.s1.eu.hivemq.cloud:8883) -->
+                <!-- <input type="checkbox" id="mqttUseTLS"> TLS connection (e.g. 123456789.s1.eu.hivemq.cloud:8883) -->
                 <!-- </div> -->
                 <div>
                     <br>specify user on your mqtt broker instance:
@@ -99,13 +104,16 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                     <input type="password" id="mqttPassword" value="admin12345" required maxlength="64">
                 </div>
                 <div>
-                    MQTT main topic for this dtu (e.g. dtu_12345678 will appear as 'dtu_12345678/grid/U' in the broker - has to be unique in your setup):
+                    MQTT main topic for this dtu (e.g. dtu_12345678 will appear as 'dtu_12345678/grid/U' in the broker -
+                    has to be unique in your setup):
                 </div>
                 <div>
                     <input type="text" id="mqttMainTopic" maxlength="32">
                 </div>
                 <div>
-                    <input type="checkbox" id="mqttHAautoDiscoveryON"> HomeAssistant Auto Discovery <br><small>(On = config is send once after every restart, Off = delete the sensor from HA instantly - using the same main topic as set above)</small><br>
+                    <input type="checkbox" id="mqttHAautoDiscoveryON"> HomeAssistant Auto Discovery <br><small>(On =
+                        config is send once after every restart, Off = delete the sensor from HA instantly - using the
+                        same main topic as set above)</small><br>
                 </div>
             </div>
             <hr>
@@ -133,17 +141,19 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                 <input type="checkbox" id="dtuCloudPause">
             </div>
             <hr>
-            <div>
-                dtu local wireless access point:
-            </div>
-            <div>
-                <input type="text" id="dtuSsid" value="please type in" required maxlength="64">
-            </div>
-            <div>
-                dtu wifi password (<i class="passcheck" value="invisible">show</i>):
-            </div>
-            <div>
-                <input type="password" id="dtuPassword" value="admin12345" required maxlength="64">
+            <div style="color: gray;">
+                <div><small><i>currently not supported/ needed</i></small><br>
+                    dtu local wireless access point:
+                </div>
+                <div>
+                    <input type="text" id="dtuSsid" value="please type in" required maxlength="64" disabled>
+                </div>
+                <div>
+                    dtu wifi password (<i class="passcheck" value="invisible">show</i>):
+                </div>
+                <div>
+                    <input type="password" id="dtuPassword" value="admin12345" required maxlength="64" disabled>
+                </div>
             </div>
 
             <div style="text-align: center;">
@@ -153,25 +163,26 @@ const char INDEX_HTML[] PROGMEM = R"=====(
         </div>
     </div>
     </div>
-    	 <div class="popup" id="updatePowerLimit" style="display: none;">
+    <div class="popup" id="updatePowerLimit" style="display: none;">
         <h2>Update power limit</h2>
         <div>
             <div id="PowerLimitInfo">
-				<div> power limit now in %
+                <div> power limit now in %
                     <p id="powerLimitNow"></p>
                 </div>
-				<hr>
+                <hr>
                 <div> power limit set in %
-             		<input type="number" id="powerLimitSetNew" min="2" max="100" placeholder="">
-                </div>             
+                    <input type="number" id="powerLimitSetNew" min="2" max="100" placeholder="">
+                </div>
             </div>
-            
+
             <hr>
-            
+
             <div style="text-align: center;">
-                <b onclick="changePowerLimit()" id="btnSetPowerLimit" class="form-button btn" style="opacity: 1;">set power limit</b>
+                <b onclick="changePowerLimit()" id="btnSetPowerLimit" class="form-button btn" style="opacity: 1;">set
+                    power limit</b>
             </div>
-        
+
             <div style="text-align: center;">
                 <b onclick="hide('#updatePowerLimit')" class="form-button btn">close</b>
             </div>
@@ -340,7 +351,8 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                     </div>
                     <div class="panelValueBoxDetail">
                         <small class="panelHead">limit set</small>
-                        <b id="powerLimitSet" class="panelValueButton valueText " onclick="show('#updatePowerLimit')" >00 </b>%
+                        <b id="powerLimitSet" class="panelValueButton valueText " onclick="show('#updatePowerLimit')">00
+                        </b>%
                     </div>
                     <div class="panelValueBoxDetail">
                         <small class="panelHead">limit now</small>
@@ -430,6 +442,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
 
         let timerInfoUpdate = 0;
         let cacheInfoData = {};
+        let cacheData = {};
 
         $(document).ready(function () {
             console.log("document loading done");
@@ -542,31 +555,28 @@ const char INDEX_HTML[] PROGMEM = R"=====(
 
             $('#uptime').html(getTime(data.lastResponse));
 
-            checkValueUpdate('#pv0_power', (data.pv0.p).toFixed(1), "W");
+            checkValueUpdate('#pv0_power', ((isNaN(data.pv0.p)) ? "--.-" : (data.pv0.p).toFixed(1)), "W");
             checkValueUpdate('#pv0_voltage', (data.pv0.v).toFixed(1), "V");
             checkValueUpdate('#pv0_current', (data.pv0.c).toFixed(1), "A");
             checkValueUpdate('#pv0_daily_energy', (data.pv0.dE).toFixed(3));
             checkValueUpdate('#pv0_total_energy', (data.pv0.tE).toFixed(3));
 
 
-            checkValueUpdate('#pv1_power', (data.pv1.p).toFixed(1), "W");
+            checkValueUpdate('#pv1_power', ((isNaN(data.pv0.p)) ? "--.-" : (data.pv1.p).toFixed(1)), "W");
             checkValueUpdate('#pv1_voltage', (data.pv1.v).toFixed(1), " V");
             checkValueUpdate('#pv1_current', (data.pv1.c).toFixed(1), "A");
             checkValueUpdate('#pv1_daily_energy', (data.pv1.dE).toFixed(3));
             checkValueUpdate('#pv1_total_energy', (data.pv1.tE).toFixed(3));
 
-            checkValueUpdate('#grid_power', (data.grid.p).toFixed(1), "W");
+            checkValueUpdate('#grid_power', ((isNaN(data.pv0.p)) ? "--.-" : (data.grid.p).toFixed(1)), "W");
             checkValueUpdate('#grid_voltage', (data.grid.v).toFixed(1) + "V");
             checkValueUpdate('#grid_current', (data.grid.c).toFixed(1) + "A");
             checkValueUpdate('#grid_daily_energy', (data.grid.dE).toFixed(3));
             checkValueUpdate('#grid_total_energy', (data.grid.tE).toFixed(3));
 
-            checkValueUpdate('#powerLimitSet', data.inverter.pLimSet);
+            checkValueUpdate('#powerLimitSet', ((isNaN(data.inverter.pLimSet)) ? "--.-" : data.inverter.pLimSet));
             checkValueUpdate('#powerLimit', data.inverter.pLim);
             checkValueUpdate('#powerLimitNow', data.inverter.pLim);
-            
-            // show last set value in input field
-            $('#powerLimitSetNew').val(data.inverter.pLimSet);
 
             checkValueUpdate('#inverterTemp', (data.inverter.temp).toFixed(1), "'C");
 
@@ -586,6 +596,9 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                     break;
                 case 4:
                     dtuConnect = "dtu rebooting";
+                    break;
+                case 5:
+                    dtuConnect = "connect error";
                     break;
                 default:
                     dtuConnect = "not known";
@@ -682,7 +695,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
         }
 
         function getBindingsData() {
-            // 
+            // active
             $('#btnSaveDtuSettings').css('opacity', '1.0');
             $('#btnSaveDtuSettings').attr('onclick', "changeDtuData();")
 
@@ -707,17 +720,17 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                 $('#mqttActive').prop("checked", false);
                 $('#mqttSection').css('color', 'grey');
             }
-            if(mqttData.mqttUseTLS) {
+            if (mqttData.mqttUseTLS) {
                 $('#mqttUseTLS').prop("checked", true);
             } else {
                 $('#mqttUseTLS').prop("checked", false);
             }
-            $('#mqttIP').val(mqttData.mqttIp+":"+mqttData.mqttPort);
+            $('#mqttIP').val(mqttData.mqttIp + ":" + mqttData.mqttPort);
             $('#mqttUser').val(mqttData.mqttUser);
             $('#mqttPassword').val(mqttData.mqttPass);
             $('#mqttMainTopic').val(mqttData.mqttMainTopic);
-            
-            if(mqttData.mqttHAautoDiscoveryON) {
+
+            if (mqttData.mqttHAautoDiscoveryON) {
                 $('#mqttHAautoDiscoveryON').prop("checked", true);
             } else {
                 $('#mqttHAautoDiscoveryON').prop("checked", false);
@@ -740,13 +753,14 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                 $('.passcheck').html("show");
             }
         });
-        
+
         function getPowerLimitData() {
             // 
             $('#btnSetPowerLimit').css('opacity', '1.0');
             $('#btnSetPowerLimit').attr('onclick', "changePowerLimit();")
 
-            //$('#powerLimitNow').val(data.inverter.pLim);
+            // show last set value in input field
+            $('#powerLimitSetNew').val(cacheData.inverter.pLimSet);
         }
 
         function changeWifiData() {
@@ -780,9 +794,17 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             // Finally, send our data.
             xmlHttp.send(urlEncodedData);
 
-            strResult = xmlHttp.responseText;
+            strResult = JSON.parse(xmlHttp.responseText);
             console.log("got from server: " + strResult);
-            alert("Wifi access data changed\n__________________________________\n\nplease connect to the choosen wifi and access with the new ip inside your network (maybe look inside your wifi router)");
+            console.log("got from server - strResult.wifiSSIDUser: " + strResult.wifiSSIDUser + " - cmp with: " + ssid);
+            console.log("got from server - strResult.wifiPassUser: " + strResult.wifiPassUser + " - cmp with: " + pwd);
+
+            if (strResult.wifiSSIDUser == ssid && strResult.wifiPassUser == pwd) {
+                console.log("check saved data - OK");
+                showAlert('Wifi access data changed', 'connect to the choosen wifi and to the new ip within your network', 'alert-success');
+            } else {
+                showAlert('Some error occured!', 'change Wifi access data could not be saved. Please try again!', 'alert-danger');
+            }
 
             $('#btnSaveWifiSettings').css('opacity', '0.3');
             $('#btnSaveWifiSettings').attr('onclick', "")
@@ -842,9 +864,9 @@ const char INDEX_HTML[] PROGMEM = R"=====(
 
             if (strResult.dtuHostIpDomain == dtuHostIpDomainSend && strResult.dtuSsid == dtuSsidSend && strResult.dtuPassword == dtuPasswordSend) {
                 console.log("check saved data - OK");
-                alert("dtu Settings change\n__________________________________\n\nYour settings were successfully changed.\n\nClient connection will be reconnected to the new IP.");
+                showAlert('dtu connection settings changed', 'The new settings will be applied.', 'alert-success');
             } else {
-                alert("dtu Settings change\n__________________________________\n\nSome error occured! Checking data from gateway are not as excpeted after sending to save.\n\nPlease try again!");
+                showAlert('Some error occured!', 'change dtu connection settings could not be saved. Please try again!', 'alert-danger');
             }
 
             //$('#btnSaveDtuSettings').css('opacity', '0.3');
@@ -867,9 +889,9 @@ const char INDEX_HTML[] PROGMEM = R"=====(
 
             var mqttIpSend = mqttIpPortString[0];
             var mqttPortSend = "1883";
-            if(mqttIpPortString[1] != undefined && !isNaN(mqttIpPortString[1])) {
+            if (mqttIpPortString[1] != undefined && !isNaN(mqttIpPortString[1])) {
                 mqttPortSend = mqttIpPortString[1];
-            }           
+            }
             var mqttUseTLSSend = 0;
             var mqttUserSend = $('#mqttUser').val();
             var mqttPassSend = $('#mqttPassword').val();
@@ -899,13 +921,13 @@ const char INDEX_HTML[] PROGMEM = R"=====(
 
             data["mqttIpSend"] = mqttIpSend;
             data["mqttPortSend"] = mqttPortSend;
-            data["mqttUseTLS"] = mqttUseTLSSend;
             data["mqttUserSend"] = mqttUserSend;
             data["mqttPassSend"] = mqttPassSend;
             data["mqttMainTopicSend"] = mqttMainTopicSend;
             data["mqttActiveSend"] = mqttActiveSend;
+            data["mqttUseTLSSend"] = mqttUseTLSSend;
             data["mqttHAautoDiscoveryONSend"] = mqttHAautoDiscoveryONSend;
-            
+
 
             console.log("send to server: openhabHostIpDomainSend: " + openhabHostIpDomainSend);
 
@@ -937,9 +959,9 @@ const char INDEX_HTML[] PROGMEM = R"=====(
 
             if (strResult.openhabHostIpDomain == openhabHostIpDomainSend && strResult.mqttBrokerIpDomain == mqttIpSend && strResult.mqttBrokerUser == mqttUserSend) {
                 console.log("check saved data - OK");
-                alert("bindings Settings change\n__________________________________\n\nYour settings were successfully changed.\n\nChanges will be applied.");
+                showAlert('change bindings settings', 'Your settings were successfully saved and will be applied.', 'alert-success');
             } else {
-                alert("bindings Settings change\n__________________________________\n\nSome error occured! Checking data from gateway are not as excpeted after sending to save.\n\nPlease try again!");
+                showAlert('Some error occured!', 'change bindings settings could not be saved. Please try again!', 'alert-danger');
             }
 
             hide('#changeSettings');
@@ -947,9 +969,9 @@ const char INDEX_HTML[] PROGMEM = R"=====(
         }
 
         function changePowerLimit() {
-                   
+
             var powerLimitSend = $('#powerLimitSetNew').val();
-            
+
             var data = {};
             data["powerLimitSend"] = powerLimitSend;
 
@@ -981,17 +1003,16 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             console.log("got from server: " + strResult);
             console.log("got from server - strResult.PowerLimit: " + strResult.PowerLimit + " - cmp with: " + powerLimitSend);
 
-           // if (strResult.openhabHostIp == openhabHostIpSend && strResult.mqttBrokerIp == mqttIpSend && strResult.mqttBrokerUser == mqttUserSend) {
-             //   console.log("check saved data - OK");
-             //   alert("bindings Settings change\n__________________________________\n\nYour settings were successfully changed.\n\nChanges will be applied.");
-           // } else {
+            // if (strResult.openhabHostIp == openhabHostIpSend && strResult.mqttBrokerIp == mqttIpSend && strResult.mqttBrokerUser == mqttUserSend) {
+            //   console.log("check saved data - OK");
+            //   alert("bindings Settings change\n__________________________________\n\nYour settings were successfully changed.\n\nChanges will be applied.");
+            // } else {
             //    alert("bindings Settings change\n__________________________________\n\nSome error occured! Checking data from gateway are not as excpeted after sending to save.\n\nPlease try again!");
-           // }
+            // }
 
             hide('#updatePowerLimit');
             return;
         }
-
 
         function changeReleaseChannel(channel) {
             if (cacheInfoData.firmware.selectedUpdateChannel == channel) return;
@@ -1036,16 +1057,16 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             xmlHttp.send(urlEncodedData);
 
             try {
-                strResult = JSON.parse(xmlHttp.responseText);
+                strResult = '';//JSON.parse(xmlHttp.responseText);
                 console.log("got from server: " + strResult);
-                console.log("got from server - strResult.dtuHostIpDomain: " + strResult.dtuHostIpDomain + " - cmp with: " + dtuHostIpDomainSend);
+                //console.log("got from server - strResult.dtuHostIpDomain: " + strResult.dtuHostIpDomain + " - cmp with: " + dtuHostIpDomainSend);
 
-                if (strResult.dtuHostIpDomain == dtuHostIpDomainSend && strResult.dtuSsid == dtuSsidSend && strResult.dtuPassword == dtuPasswordSend) {
-                    console.log("check saved data - OK");
-                    alert("dtu Settings change\n__________________________________\n\nYour settings were successfully changed.\n\nClient connection will be reconnected to the new IP.");
-                } else {
-                    alert("dtu Settings change\n__________________________________\n\nSome error occured! Checking data from gateway are not as excpeted after sending to save.\n\nPlease try again!");
-                }
+                //if (strResult.dtuHostIpDomain == dtuHostIpDomainSend && strResult.dtuSsid == dtuSsidSend && strResult.dtuPassword == dtuPasswordSend) {
+                //    console.log("check saved data - OK");
+                //    showAlert('change release channel', 'Your settings were successfully changed.','alert-success');
+                //} else {
+                //    showAlert('Some error occured!', 'change release channel could not be saved. Please try again!','alert-danger');
+                //}
             } catch (error) {
                 console.log("error at request change release channel: " + error);
             }
@@ -1188,6 +1209,18 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             }
         }
 
+        // alarmState = alert-success, alert-danger, alert-warning
+        function showAlert(text, info, alarmState = "") {
+            $('#alertBox').attr('class', "alert " + alarmState);
+            $('#alertText').html('<b>' + text + '</b><br><small>' + info + '</small>');
+            $('#alertBox').css('display', 'flex');
+
+            setTimeout(function () {
+                //$('#alertBox').css('display', 'none');
+                $('#alertBox').fadeOut();
+            }, 5000);
+        }
+
         // alternative if fontAwsome is not reachable
         document.addEventListener('DOMContentLoaded', function () {
             // Check if Font Awesome styles are applied to an element
@@ -1219,6 +1252,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                 processData: false,
                 timeout: 2000,
                 success: function (data) {
+                    cacheData = data;
                     refreshData(data);
                 },
                 error: function () {
