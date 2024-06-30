@@ -30,7 +30,7 @@ public:
 
 private:
     AsyncWebServer asyncDtuWebServer{80}; // Assuming port 80 for the web server
-    Ticker timer; // Timer object
+    Ticker webServerTimer; // Timer object
     static void backgroundTask(DTUwebserver* instance);
 
     static void handleRoot(AsyncWebServerRequest *request);

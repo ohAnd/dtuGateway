@@ -8,7 +8,7 @@ Display::Display() {}
 void Display::setup()
 {
     u8g2.begin();
-    Serial.println(F("OLED display initialized"));
+    Serial.println(F("OLED display:\t initialized"));
 }
 
 void Display::renderScreen(String time, String version)
@@ -132,7 +132,7 @@ void Display::drawFactoryMode(String version, String apName, String ip)
     u8g2.setFontDirection(0);
     u8g2.setFontRefHeightExtendedText();
 
-    Serial.println(F("OLED display - showing factory mode"));
+    Serial.println(F("OLED display:\t showing factory mode"));
     // header
     u8g2.setFont(u8g2_font_5x7_tf);
     u8g2.drawStr(0 + offset_x, 0 + offset_y, "dtuGateway");

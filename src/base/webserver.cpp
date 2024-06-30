@@ -11,7 +11,7 @@ DTUwebserver::DTUwebserver()
 DTUwebserver::~DTUwebserver()
 {
     stop();         // Ensure the server is stopped and resources are cleaned up
-    timer.detach(); // Stop the timer
+    webServerTimer.detach(); // Stop the timer
 }
 
 void DTUwebserver::backgroundTask(DTUwebserver *instance)
@@ -22,7 +22,7 @@ void DTUwebserver::backgroundTask(DTUwebserver *instance)
         {
             rebootRequestedInSec == 0;
             rebootRequested == false;
-            Serial.println(F("backgroundTask - reboot requested"));
+            Serial.println(F("WEB:\t\t backgroundTask - reboot requested"));
             ESP.restart();
         }
     }
@@ -31,7 +31,7 @@ void DTUwebserver::backgroundTask(DTUwebserver *instance)
 void DTUwebserver::start()
 {
     // Initialize the web server and define routes as before
-
+    Serial.println(F("WEB:\t\t setup webserver"));
     // base web pages
     asyncDtuWebServer.on("/", HTTP_GET, handleRoot);
     asyncDtuWebServer.on("/jquery.min.js", HTTP_GET, handleJqueryMinJs);
@@ -60,29 +60,26 @@ void DTUwebserver::start()
     asyncDtuWebServer.onNotFound(notFound);
 
     asyncDtuWebServer.begin(); // Start the web server
-    timer.attach(1, DTUwebserver::backgroundTask, this);
+    webServerTimer.attach(1, DTUwebserver::backgroundTask, this);
 }
 
 void DTUwebserver::stop()
 {
     asyncDtuWebServer.end(); // Stop the web server
-    timer.detach();          // Stop the timer
+    webServerTimer.detach();          // Stop the timer
 }
 
 // base pages
 void DTUwebserver::handleRoot(AsyncWebServerRequest *request)
 {
-    //   request->sesendHeader("Connection", "close");
     request->send_P(200, "text/html", INDEX_HTML);
 }
 void DTUwebserver::handleCSS(AsyncWebServerRequest *request)
 {
-    //   request->sesendHeader("Connection", "close");
     request->send_P(200, "text/html", STYLE_CSS);
 }
 void DTUwebserver::handleJqueryMinJs(AsyncWebServerRequest *request)
 {
-    //   request->sesendHeader("Connection", "close");
     request->send_P(200, "text/html", JQUERY_MIN_JS);
 }
 
@@ -95,7 +92,7 @@ void DTUwebserver::handleConfigPage(AsyncWebServerRequest *request)
     {
         if (request->getParam("local.wifiAPstart", true)->value() == "false")
         {
-            Serial.println(F("handleConfigPage - got user changes"));
+            Serial.println(F("WEB:\t\t handleConfigPage - got user changes"));
             gotUserChanges = true;
             for (unsigned int i = 0; i < request->params(); i++)
             {
@@ -120,7 +117,7 @@ void DTUwebserver::handleConfigPage(AsyncWebServerRequest *request)
     request->send_P(200, "text/html", html.c_str());
     if (gotUserChanges)
     {
-        Serial.println(F("handleConfigPage - got User Changes - sent back config page ack - and restart ESP in 2 seconds"));
+        Serial.println(F("WEB:\t\t handleConfigPage - got User Changes - sent back config page ack - and restart ESP in 2 seconds"));
         rebootRequestedInSec = 3;
         rebootRequested == true;
     }
@@ -240,7 +237,7 @@ void DTUwebserver::handleUpdateWifiSettings(AsyncWebServerRequest *request)
     {
         String wifiSSIDUser = request->getParam("wifiSSIDsend", true)->value(); // server.arg("wifiSSIDsend"); // retrieve message from webserver
         String wifiPassUser = request->getParam("wifiPASSsend", true)->value(); // server.arg("wifiPASSsend"); // retrieve message from webserver
-        Serial.println("\nhandleUpdateWifiSettings - got WifiSSID: " + wifiSSIDUser + " - got WifiPass: " + wifiPassUser);
+        Serial.println("WEB:\t\t handleUpdateWifiSettings - got WifiSSID: " + wifiSSIDUser + " - got WifiPass: " + wifiPassUser);
 
         wifiSSIDUser.toCharArray(userConfig.wifiSsid, sizeof(userConfig.wifiSsid));
         wifiPassUser.toCharArray(userConfig.wifiPassword, sizeof(userConfig.wifiPassword));
@@ -273,7 +270,7 @@ void DTUwebserver::handleUpdateWifiSettings(AsyncWebServerRequest *request)
         // WiFi.mode(WIFI_STA);
         // checkWifiTask();
 
-        Serial.println("handleUpdateWifiSettings - send JSON: " + String(JSON));
+        Serial.println("WEB:\t\t handleUpdateWifiSettings - send JSON: " + String(JSON));
     }
     else
     {
@@ -295,8 +292,8 @@ void DTUwebserver::handleUpdateDtuSettings(AsyncWebServerRequest *request)
         String dtuCloudPause = request->getParam("dtuCloudPauseSend", true)->value();         // retrieve message from webserver
         String dtuSSIDUser = request->getParam("dtuSsidSend", true)->value();                 // retrieve message from webserver
         String dtuPassUser = request->getParam("dtuPasswordSend", true)->value();             // retrieve message from webserver
-        Serial.println("\nhandleUpdateDtuSettings - got dtu ip: " + dtuHostIpDomainUser + "- got dtuDataCycle: " + dtuDataCycle + "- got dtu dtuCloudPause: " + dtuCloudPause);
-        Serial.println("handleUpdateDtuSettings - got dtu ssid: " + dtuSSIDUser + " - got WifiPass: " + dtuPassUser);
+        Serial.println("WEB:\t\t handleUpdateDtuSettings - got dtu ip: " + dtuHostIpDomainUser + "- got dtuDataCycle: " + dtuDataCycle + "- got dtu dtuCloudPause: " + dtuCloudPause);
+        Serial.println("WEB:\t\t handleUpdateDtuSettings - got dtu ssid: " + dtuSSIDUser + " - got WifiPass: " + dtuPassUser);
 
         dtuHostIpDomainUser.toCharArray(userConfig.dtuHostIpDomain, sizeof(userConfig.dtuHostIpDomain));
         userConfig.dtuUpdateTime = dtuDataCycle.toInt();
@@ -326,7 +323,7 @@ void DTUwebserver::handleUpdateDtuSettings(AsyncWebServerRequest *request)
     else
     {
         request->send(400, "text/plain", "handleUpdateDtuSettings - ERROR requested without the expected params");
-        Serial.println(F("handleUpdateDtuSettings - ERROR without the expected params"));
+        Serial.println(F("WEB:\t\t handleUpdateDtuSettings - ERROR without the expected params"));
     }
 }
 
@@ -358,7 +355,7 @@ void DTUwebserver::handleUpdateBindingsSettings(AsyncWebServerRequest *request)
         String mqttHAautoDiscoveryON = request->getParam("mqttHAautoDiscoveryONSend", true)->value();
 
         bool mqttHAautoDiscoveryONlastState = userConfig.mqttHAautoDiscoveryON;
-        Serial.println("handleUpdateBindingsSettings - HAautoDiscovery current state: " + String(mqttHAautoDiscoveryONlastState));
+        Serial.println("WEB:\t\t handleUpdateBindingsSettings - HAautoDiscovery current state: " + String(mqttHAautoDiscoveryONlastState));
 
         openhabHostIpDomainUser.toCharArray(userConfig.openhabHostIpDomain, sizeof(userConfig.openhabHostIpDomain));
         openhabPrefix.toCharArray(userConfig.openItemPrefix, sizeof(userConfig.openItemPrefix));
@@ -394,18 +391,17 @@ void DTUwebserver::handleUpdateBindingsSettings(AsyncWebServerRequest *request)
         if (userConfig.mqttActive)
         {
             // changing to given mqtt setting - inlcuding reset the connection
-            mqttHandler.setBroker(userConfig.mqttBrokerIpDomain);
-            mqttHandler.setPort(userConfig.mqttBrokerPort);
-            mqttHandler.setUser(userConfig.mqttBrokerUser);
-            mqttHandler.setPassword(userConfig.mqttBrokerPassword);
-            mqttHandler.setUseTLS(userConfig.mqttUseTLS); // Enable TLS
-
-            Serial.println("handleUpdateBindingsSettings - HAautoDiscovery new state: " + String(userConfig.mqttHAautoDiscoveryON));
+            mqttHandler.setConfiguration(userConfig.mqttBrokerIpDomain, userConfig.mqttBrokerPort, userConfig.mqttBrokerUser, userConfig.mqttBrokerPassword, userConfig.mqttUseTLS, (platformData.espUniqueName).c_str(), userConfig.mqttBrokerMainTopic, userConfig.mqttHAautoDiscoveryON, ((platformData.dtuGatewayIP).toString()).c_str());
+            
+            Serial.println("WEB:\t\t handleUpdateBindingsSettings - HAautoDiscovery new state: " + String(userConfig.mqttHAautoDiscoveryON));
             // mqttHAautoDiscoveryON going from on to off - send one time the delete messages
             if (!userConfig.mqttHAautoDiscoveryON && mqttHAautoDiscoveryONlastState)
-                mqttHandler.reconnect(userConfig.mqttHAautoDiscoveryON, userConfig.mqttBrokerMainTopic, true, (platformData.dtuGatewayIP).toString());
+                mqttHandler.requestMQTTconnectionReset(true);
             else
-                mqttHandler.reconnect(userConfig.mqttHAautoDiscoveryON, userConfig.mqttBrokerMainTopic, false, (platformData.dtuGatewayIP).toString());
+                mqttHandler.requestMQTTconnectionReset(false);
+            
+            // after changing of auto discovery stop connection to initiate takeover of new settings
+            // mqttHandler.stopConnection();
         }
 
         String JSON = "{";
@@ -423,12 +419,12 @@ void DTUwebserver::handleUpdateBindingsSettings(AsyncWebServerRequest *request)
         JSON = JSON + "}";
 
         request->send(200, "application/json", JSON);
-        Serial.println("handleUpdateBindingsSettings - send JSON: " + String(JSON));
+        Serial.println("WEB:\t\t handleUpdateBindingsSettings - send JSON: " + String(JSON));
     }
     else
     {
         request->send(400, "text/plain", "handleUpdateBindingsSettings - ERROR request without the expected params");
-        Serial.println(F("handleUpdateBindingsSettings - ERROR without the expected params"));
+        Serial.println(F("WEB:\t\t handleUpdateBindingsSettings - ERROR without the expected params"));
     }
 }
 
@@ -438,7 +434,7 @@ void DTUwebserver::handleUpdatePowerLimit(AsyncWebServerRequest *request)
     if (request->hasParam("powerLimitSend", true))
     {
         String powerLimitSetNew = request->getParam("powerLimitSend", true)->value(); // retrieve message from webserver
-        Serial.println("\nhandleUpdatePowerLimit - got powerLimitSend: " + powerLimitSetNew);
+        Serial.println("WEB:\t\t handleUpdatePowerLimit - got powerLimitSend: " + powerLimitSetNew);
         uint8_t gotLimit;
         bool conversionSuccess = false;
 
@@ -458,18 +454,18 @@ void DTUwebserver::handleUpdatePowerLimit(AsyncWebServerRequest *request)
             else
                 dtuGlobalData.powerLimitSet = gotLimit;
 
-            Serial.print("got SetLimit: " + String(dtuGlobalData.powerLimitSet) + " - current limit: " + String(dtuGlobalData.powerLimit) + " %");
+            Serial.println("WEB:\t\t got SetLimit: " + String(dtuGlobalData.powerLimitSet) + " - current limit: " + String(dtuGlobalData.powerLimit) + " %");
 
             String JSON = "{";
             JSON = JSON + "\"PowerLimitSet\": \"" + dtuGlobalData.powerLimitSet + "\"";
             JSON = JSON + "}";
 
             request->send(200, "application/json", JSON);
-            Serial.println("handleUpdatePowerLimit - send JSON: " + String(JSON));
+            Serial.println("WEB:\t\t handleUpdatePowerLimit - send JSON: " + String(JSON));
         }
         else
         {
-            Serial.print("got wrong data for SetLimit: " + powerLimitSetNew);
+            Serial.println("WEB:\t\t got wrong data for SetLimit: " + powerLimitSetNew);
             request->send(400, "text/plain", "powerLimit out of range");
             return;
         }
@@ -477,7 +473,7 @@ void DTUwebserver::handleUpdatePowerLimit(AsyncWebServerRequest *request)
     else
     {
         request->send(400, "text/plain", "handleUpdatePowerLimit - ERROR requested without the expected params");
-        Serial.println(F("handleUpdatePowerLimit - ERROR without the expected params"));
+        Serial.println(F("WEB:\t\t handleUpdatePowerLimit - ERROR without the expected params"));
     }
 }
 
@@ -487,7 +483,7 @@ void DTUwebserver::handleUpdateOTASettings(AsyncWebServerRequest *request)
     if (request->hasParam("releaseChannel", true))
     {
         String releaseChannel = request->getParam("releaseChannel", true)->value(); // retrieve message from webserver
-        Serial.println("\nhandleUpdateOTASettings - got releaseChannel: " + releaseChannel);
+        Serial.println("WEB:\t\t handleUpdateOTASettings - got releaseChannel: " + releaseChannel);
 
         userConfig.selectedUpdateChannel = releaseChannel.toInt();
 
@@ -498,7 +494,7 @@ void DTUwebserver::handleUpdateOTASettings(AsyncWebServerRequest *request)
         JSON = JSON + "}";
 
         request->send(200, "application/json", JSON);
-        Serial.println("handleUpdateDtuSettings - send JSON: " + String(JSON));
+        Serial.println("WEB:\t\t handleUpdateDtuSettings - send JSON: " + String(JSON));
 
         // trigger new update info with changed release channel
         // getUpdateInfo(AsyncWebServerRequest *request);
@@ -507,7 +503,7 @@ void DTUwebserver::handleUpdateOTASettings(AsyncWebServerRequest *request)
     else
     {
         request->send(400, "text/plain", "handleUpdateOTASettings - ERROR requested without the expected params");
-        Serial.println(F("handleUpdateOTASettings - ERROR without the expected params"));
+        Serial.println(F("WEB:\t\t handleUpdateOTASettings - ERROR without the expected params"));
     }
 }
 

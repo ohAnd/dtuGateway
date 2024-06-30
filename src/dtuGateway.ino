@@ -124,7 +124,7 @@ DisplayTFT displayTFT;
 
 DTUInterface dtuInterface("192.168.0.254"); // initialize with default IP
 
-MQTTHandler mqttHandler(userConfig.mqttBrokerIpDomain, userConfig.mqttBrokerPort, userConfig.mqttBrokerUser, userConfig.mqttBrokerPassword, userConfig.mqttUseTLS, platformData.espUniqueName.c_str());
+MQTTHandler mqttHandler(userConfig.mqttBrokerIpDomain, userConfig.mqttBrokerPort, userConfig.mqttBrokerUser, userConfig.mqttBrokerPassword, userConfig.mqttUseTLS);
 
 // #if defined(ESP8266)
 // ESP8266WebServer server(80);
@@ -149,16 +149,16 @@ boolean checkWifiTask()
     if (reconnectsCnt >= 25)
     {
       reconnectsCnt = 0;
-      Serial.println(F("No Wifi connection after 25 tries!"));
+      Serial.println(F("CheckWifi:\t  no Wifi connection after 25 tries!"));
       // after 20 reconnects inner 7 min - write defaults
       if ((platformData.currentNTPtime - reconnects[0]) < (WIFI_RETRY_TIME_SECONDS * 1000)) //
       {
-        Serial.println(F("No Wifi connection after 5 tries and inner 5 minutes"));
+        Serial.println(F("CheckWifi:\t no Wifi connection after 5 tries and inner 5 minutes"));
       }
     }
 
     // try to connect with current values
-    Serial.println("No Wifi connection! Connecting... try to connect to wifi: '" + String(userConfig.wifiSsid) + "' with pass: '" + userConfig.wifiPassword + "'");
+    Serial.println("CheckWifi:\t No Wifi connection! Connecting... try to connect to wifi: '" + String(userConfig.wifiSsid) + "' with pass: '" + userConfig.wifiPassword + "'");
 
     WiFi.disconnect();
     WiFi.begin(userConfig.wifiSsid, userConfig.wifiPassword);
@@ -170,12 +170,12 @@ boolean checkWifiTask()
   }
   else if (WiFi.status() != WL_CONNECTED && wifi_connecting && wifiTimeoutShort > 0) // check during connecting wifi and decrease for short timeout
   {
-    // Serial.printf("\ncheckWifiTask - connecting - timeout: %i ", wifiTimeoutShort);
+    // Serial.printf("CheckWifi:\t connecting - timeout: %i ", wifiTimeoutShort);
     // Serial.print(".");
     wifiTimeoutShort--;
     if (wifiTimeoutShort == 0)
     {
-      Serial.println("\nstill no Wifi connection - next try in " + String(wifiTimeoutLong) + " seconds (current retry count: " + String(reconnectsCnt) + ")");
+      Serial.println("CheckWifi:\t still no Wifi connection - next try in " + String(wifiTimeoutLong) + " seconds (current retry count: " + String(reconnectsCnt) + ")");
       WiFi.disconnect();
       blinkCode = BLINK_WAITING_NEXT_TRY_DTU;
     }
@@ -183,7 +183,7 @@ boolean checkWifiTask()
   }
   else if (WiFi.status() != WL_CONNECTED && wifi_connecting && wifiTimeoutShort == 0 && wifiTimeoutLong-- <= 0) // check during connecting wifi and decrease for short timeout
   {
-    Serial.println(F("\ncheckWifiTask - state 'connecting' - wait time done"));
+    Serial.println(F("CheckWifi:\t state 'connecting' - wait time done"));
     wifiTimeoutShort = WIFI_RETRY_TIMEOUT_SECONDS;
     wifiTimeoutLong = WIFI_RETRY_TIME_SECONDS;
     wifi_connecting = false;
@@ -191,7 +191,7 @@ boolean checkWifiTask()
   }
   else if (WiFi.status() == WL_CONNECTED && wifi_connecting) // is connected after connecting
   {
-    Serial.println(F("\ncheckWifiTask - is now connected after state: 'connecting'"));
+    Serial.println(F("CheckWifi:\t is now connected after state: 'connecting'"));
     wifi_connecting = false;
     wifiTimeoutShort = WIFI_RETRY_TIMEOUT_SECONDS;
     wifiTimeoutLong = WIFI_RETRY_TIME_SECONDS;
@@ -200,7 +200,7 @@ boolean checkWifiTask()
   }
   else if (WiFi.status() == WL_CONNECTED) // everything fine & connected
   {
-    // Serial.println(F("Wifi connection: checked and fine ..."));
+    // Serial.println(F("CheckWifi:\t Wifi connection: checked and fine ..."));
     blinkCode = BLINK_NORMAL_CONNECTION;
     return true;
   }
@@ -217,7 +217,7 @@ boolean scanNetworksResult()
   // print out Wi-Fi network scan result upon completion
   if (networksFound > 0)
   {
-    Serial.print(F("\nscan for wifi networks done: "));
+    Serial.print(F("WIFI_SCAN:\t done: "));
     Serial.println(String(networksFound) + " wifi's found");
     platformData.wifiNetworkCount = networksFound;
     platformData.wifiFoundNetworks = "[";
@@ -558,7 +558,7 @@ boolean postMessageToOpenhab(String key, String value)
     if (httpCode == HTTPC_ERROR_CONNECTION_REFUSED || httpCode == HTTPC_ERROR_SEND_HEADER_FAILED ||
         httpCode == HTTPC_ERROR_SEND_PAYLOAD_FAILED)
     {
-      Serial.print("\n[HTTP] postMessageToOpenhab (" + key + ") Timeout error: " + String(httpCode) + "\n");
+      Serial.println("OpenHAB:\t\t [HTTP] postMessageToOpenhab (" + key + ") Timeout error: " + String(httpCode));
       http.end();
       return false; // Return timeout error
     }
@@ -569,7 +569,7 @@ boolean postMessageToOpenhab(String key, String value)
   }
   else
   {
-    Serial.print("[HTTP] postMessageToOpenhab Unable to connect " + openhabHost + " \n");
+    Serial.println("OpenHAB:\t\t [HTTP] postMessageToOpenhab Unable to connect " + openhabHost);
     return false;
   }
 }
@@ -595,13 +595,13 @@ String getMessageFromOpenhab(String key)
     }
     else
     {
-      Serial.print("[HTTP] getMessageFromOpenhab Unable to connect " + openhabHost + " \n");
+      Serial.println("OpenHAB:\t\t [HTTP] getMessageFromOpenhab Unable to connect " + openhabHost);
       return "connectError";
     }
   }
   else
   {
-    Serial.print("getMessageFromOpenhab - can not connect to openhab - wifi not connected \n");
+    Serial.println("OpenHAB:\t\t getMessageFromOpenhab - can not connect to openhab - wifi not connected");
     return "connectError";
   }
 }
@@ -630,10 +630,10 @@ boolean getPowerSetDataFromOpenHab()
   }
   else
   {
-    Serial.println("\ngot wrong data for SetLimit - openhab response: ->" + openhabMessage + "<-");
+    Serial.println("OpenHAB:\t\t got wrong data for SetLimit - openhab response: ->" + openhabMessage + "<-");
     return false;
   }
-  // Serial.print("got SetLimit: " + String(dtuGlobalData.powerLimitSet) + " - current limit: " + String(dtuGlobalData.powerLimit) + " %");
+  // Serial.println("OpenHAB:\t\t got SetLimit: " + String(dtuGlobalData.powerLimitSet) + " - current limit: " + String(dtuGlobalData.powerLimit) + " %");
   return true;
 }
 // update all values to openhab
@@ -673,14 +673,14 @@ boolean updateValueToOpenhab()
       postMessageToOpenhab(String(userConfig.openItemPrefix) + "_PowerLimit", (String)dtuGlobalData.powerLimit);
     postMessageToOpenhab(String(userConfig.openItemPrefix) + "_WifiRSSI", (String)dtuGlobalData.dtuRssi);
   }
-  Serial.println(F("\nsent values to openHAB"));
+  Serial.println(F("OpenHAB:\t\t updated values were sent"));
   return true;
 }
 
 // mqtt client - publishing data in standard or HA mqtt auto discovery format
 void updateValuesToMqtt(boolean haAutoDiscovery = false)
 {
-  Serial.println("\nMQTT: publish data (HA autoDiscovery = " + String(haAutoDiscovery) + ")");
+  Serial.println("MQTT:\t\t publish data (HA autoDiscovery = " + String(haAutoDiscovery) + ")");
   std::map<std::string, std::string> keyValueStore;
 
   keyValueStore["time_stamp"] = String(dtuGlobalData.currentTimestamp).c_str();
@@ -712,9 +712,9 @@ void updateValuesToMqtt(boolean haAutoDiscovery = false)
 
   for (const auto &pair : keyValueStore)
   {
-    String subtopic = (pair.first).c_str();
-    subtopic.replace("_", "/");
-    mqttHandler.publishStandardData(String(userConfig.mqttBrokerMainTopic) + "/" + subtopic, (pair.second).c_str());
+    String entity = (pair.first).c_str();
+    // subtopic.replace("_", "/");
+    mqttHandler.publishStandardData(entity, (pair.second).c_str());
   }
 }
 
@@ -736,7 +736,6 @@ void updateDataToApis()
       }
       else
       {
-        Serial.print("wifi rssi: " + String(dtuGlobalData.dtuRssi) + " % (DTU->Cloud) - " + String(dtuGlobalData.wifi_rssi_gateway) + " % (Client->AP) \n");
         dtuInterface.printDataAsTextToSerial();
       }
       if (globalControls.getDataOnce)
@@ -819,8 +818,6 @@ void setup()
   if (userConfig.wifiAPstart)
   {
     Serial.println(F("\n+++ device in 'first start' mode - have to be initialized over own served wifi +++\n"));
-    // first scan of networks - synchronous
-    // scanNetworksResult(WiFi.scanNetworks());
 
     WiFi.scanNetworks();
     scanNetworksResult();
@@ -863,46 +860,41 @@ void setup()
 
   if (userConfig.dtuUpdateTime < 1)
     userConfig.dtuUpdateTime = 31; // fix for corrupted config data - defaults to 31 sec
-
-  Serial.print(F("\nsetup - setting dtu cycle to:"));
-  Serial.println(userConfig.dtuUpdateTime);
+  Serial.print(F("\nsetup - set dtu update cycle to user defined value: "));
+  Serial.println(String(userConfig.dtuUpdateTime) + " seconds");
 
   // setting startup for dtu cloud pause
-  // dtuConnection.preventCloudErrors = userConfig.dtuCloudPauseActive;
+  dtuConnection.preventCloudErrors = userConfig.dtuCloudPauseActive;
 
   // Interval in microsecs
   if (ITimer.setInterval(TIMER_INTERVAL_MS * 1000, timer1000MilliSeconds))
   {
     unsigned long lastMillis = millis();
-    Serial.print(F("Starting  ITimer OK, millis() = "));
+    Serial.print(F("ISR_TIMER:\t starting  ITimer OK, millis() = "));
     Serial.println(lastMillis);
   }
   else
     Serial.println(F("Can't set ITimer correctly. Select another freq. or interval"));
+  // delay for startup background tasks in ESP
+  delay(1500);
 }
+
 // after startup or reconnect with wifi
 void startServices()
 {
   if (WiFi.waitForConnectResult() == WL_CONNECTED)
   {
-    Serial.print(F("\nConnected! IP address: "));
+    Serial.print(F("WIFIclient:\t connected! IP address: "));
     platformData.dtuGatewayIP = WiFi.localIP();
     Serial.println((platformData.dtuGatewayIP).toString());
-    Serial.print(F("IP address of gateway: "));
+    Serial.print(F("WIFIclient:\t IP address of gateway: "));
     Serial.println(WiFi.gatewayIP());
 
     // httpUpdater.setup(&server);
 
     MDNS.begin(platformData.espUniqueName);
     MDNS.addService("http", "tcp", 80);
-    Serial.println("Ready! Open http://" + platformData.espUniqueName + ".local in your browser");
-
-    // start first search for available wifi networks
-    WiFi.scanNetworks(true);
-
-    delay(2000); // waiting time for wifi scan to prevent blockings of ip connections (only seen with ESP32)
-
-    dtuWebServer.start();
+    Serial.println("MDNS:\t\t ready! Open http://" + platformData.espUniqueName + ".local in your browser");
 
     // ntp time - offset in summertime 7200 else 3600
     timeClient.begin();
@@ -910,21 +902,19 @@ void startServices()
     // get first time
     timeClient.update();
     platformData.dtuGWstarttime = timeClient.getEpochTime();
-    Serial.print(F("got time from time server: "));
+    Serial.print(F("NTPclient:\t got time from time server: "));
     Serial.println(String(platformData.dtuGWstarttime));
 
-    dtuInterface.setup();
-    dtuInterface.setServer(userConfig.dtuHostIpDomain);
+    dtuWebServer.start();
 
-    // if (userConfig.mqttActive)
-    // {
-    Serial.println(F("MQTT: setup ..."));
-    mqttHandler.setup(userConfig.mqttHAautoDiscoveryON);
-    // }
+    dtuInterface.setup(userConfig.dtuHostIpDomain);
+
+    mqttHandler.setConfiguration(userConfig.mqttBrokerIpDomain, userConfig.mqttBrokerPort, userConfig.mqttBrokerUser, userConfig.mqttBrokerPassword, userConfig.mqttUseTLS, (platformData.espUniqueName).c_str(), userConfig.mqttBrokerMainTopic, userConfig.mqttHAautoDiscoveryON, ((platformData.dtuGatewayIP).toString()).c_str());
+    mqttHandler.setup();
   }
   else
   {
-    Serial.println(F("WiFi Failed"));
+    Serial.println(F("WIFIclient:\t connection failed"));
   }
 }
 
@@ -1200,7 +1190,7 @@ void loop()
   // runner for mqttClient to hold a already etablished connection
   if (userConfig.mqttActive && WiFi.status() == WL_CONNECTED)
   {
-    mqttHandler.loop(userConfig.mqttHAautoDiscoveryON, userConfig.mqttBrokerMainTopic, (platformData.dtuGatewayIP).toString());
+    mqttHandler.loop();
   }
 
   // 50ms task
@@ -1277,7 +1267,8 @@ void loop()
     {
       if (dtuGlobalData.updateReceived)
       {
-        Serial.println(F("---> got update from DTU - APIs will be updated"));
+        Serial.print(F("---> got update from DTU - APIs will be updated"));
+        Serial.println(" --- wifi rssi: " + String(dtuGlobalData.dtuRssi) + " % (DTU -> cloud) - " + String(dtuGlobalData.wifi_rssi_gateway) + " % (client -> local wifi)");
         updateDataToApis();
         dtuGlobalData.updateReceived = false;
       }
@@ -1291,7 +1282,7 @@ void loop()
       // direct request of new powerLimit
       if (dtuGlobalData.powerLimitSet != dtuGlobalData.powerLimit && dtuGlobalData.powerLimitSet != 101 && dtuGlobalData.uptodate)
       {
-        Serial.print("\n----- ----- set new power limit from " + String(dtuGlobalData.powerLimit) + " to " + String(dtuGlobalData.powerLimitSet));
+        Serial.println("----- ----- set new power limit from " + String(dtuGlobalData.powerLimit) + " %% to " + String(dtuGlobalData.powerLimitSet) + " %% ----- ----- ");
         dtuInterface.setPowerLimit(dtuGlobalData.powerLimitSet);
         // set next normal request in 5 seconds from now on, only if last data updated within last 2 times of user setted update rate
         // if (currentMillis - dtuGlobalData.lastRespTimestamp < (userConfig.dtuUpdateTime * 2))
@@ -1326,17 +1317,6 @@ void loop()
       dtuGlobalData.wifi_rssi_gateway = wifiPercent;
       // Serial.print(" --- RSSI to AP: '" + String(WiFi.SSID()) + "': " + String(dtuGlobalData.wifi_rssi_gateway) + " %");
     }
-
-    // for testing
-    // dtuGlobalData.grid.totalEnergy = 1.34;
-    // dtuGlobalData.pv0.totalEnergy = 1.0;
-    // dtuGlobalData.pv1.totalEnergy = 0.34;
-
-    // dtuGlobalData.grid.power = dtuGlobalData.grid.power + 1;
-    // if (userConfig.mqttActive)
-    //   updateValuesToMqtt(userConfig.mqttHAautoDiscoveryON);
-    // if (dtuGlobalData.grid.power > 450)
-    //   dtuGlobalData.grid.power = 0;
   }
 
   // mid task
@@ -1368,7 +1348,7 @@ void loop()
       timeClient.update();
     }
     // start async scan for wifi'S
-    Serial.print(F("\nstart scan for wifi's\n"));
+    Serial.println(F("WIFI_SCAN:\t start async scan"));
     WiFi.scanNetworks(true);
   }
   scanNetworksResult();

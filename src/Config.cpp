@@ -121,7 +121,7 @@ void UserConfigManager::printConfigdata()
     Serial.println(userConfig.openhabHostIpDomain);
     Serial.print(F("openhab item prefix: \t"));
     Serial.println(userConfig.openItemPrefix);
-    Serial.print(F("openhab binding active: "));
+    Serial.print(F("openhab binding active:\t"));
     Serial.println(userConfig.openhabActive);
 
     Serial.print(F("mqtt host: \t\t"));
@@ -150,7 +150,7 @@ void UserConfigManager::printConfigdata()
     Serial.print(F("cloud pause time: \t"));
     Serial.println(userConfig.dtuCloudPauseTime);
 
-    Serial.print(F("update channel: \t"));
+    Serial.print(F("update channel: \t\t"));
     Serial.println(userConfig.selectedUpdateChannel);
 
     Serial.print(F("dtu host: \t\t"));

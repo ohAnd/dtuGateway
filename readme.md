@@ -279,48 +279,55 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
 
 - set the IP to your MQTT broker
 - set the MQTT user and MQTT password
-- set the main topic e.g. 'dtu_12345678' for the pubished data (default: is `dtu_<ESP chip id>` and has to be unique in your environment)
+- set the main topic e.g. 'dtuGateway_12345678' for the pubished data (default: is `dtuGateway_<ESP chip id>` and has to be unique in your environment)
 - [2024-06-29 still in development] ~~choosing unsecure or TLS based connection to your MQTT broker~~
 - to set the Power Limit from your environment
-  - you have to publish to `dtu_<ESP chip id>/inverter/PowerLimit_Set` a value between 2...100 (possible range at DTU)
+  - you have to publish to `<main topic>/inverter/PowerLimit_Set` a value between 2...100 (possible range at DTU)
   - the incoming value will be checked for this interval and locally corrected to 2 or 100 if exceeds
-  - (optional: with retain flag, to get the last set value after restart / reconnect of the dtuGateway)
-- data will be published as following ('dtu_12345678' is configurable in the settings):
+  - with retain flag, to get the last set value after restart / reconnect of the dtuGateway
+- data will be published as following ('dtuGateway_12345678' is configurable in the settings):
   <details>
   <summary>expand to see to details</summary>
   
   ```
-  dtu_12345678/timestamp
+  dtuGateway_12345678/timestamp
 
-  dtu_12345678/grid/U
-  dtu_12345678/grid/I
-  dtu_12345678/grid/P
-  dtu_12345678/grid/dailyEnergy
-  dtu_12345678/grid/totalEnergy
+  dtuGateway_12345678/grid/U
+  dtuGateway_12345678/grid/I
+  dtuGateway_12345678/grid/P
+  dtuGateway_12345678/grid/dailyEnergy
+  dtuGateway_12345678/grid/totalEnergy
   
-  dtu_12345678/pv0/U
-  dtu_12345678/pv0/I
-  dtu_12345678/pv0/P
-  dtu_12345678/pv0/dailyEnergy
-  dtu_12345678/pv0/totalEnergy
+  dtuGateway_12345678/pv0/U
+  dtuGateway_12345678/pv0/I
+  dtuGateway_12345678/pv0/P
+  dtuGateway_12345678/pv0/dailyEnergy
+  dtuGateway_12345678/pv0/totalEnergy
   
-  dtu_12345678/pv1/U
-  dtu_12345678/pv1/I
-  dtu_12345678/pv1/P
-  dtu_12345678/pv1/dailyEnergy
-  dtu_12345678/pv1/totalEnergy
+  dtuGateway_12345678/pv1/U
+  dtuGateway_12345678/pv1/I
+  dtuGateway_12345678/pv1/P
+  dtuGateway_12345678/pv1/dailyEnergy
+  dtuGateway_12345678/pv1/totalEnergy
 
-  dtu_12345678/inverter/Temp
-  dtu_12345678/inverter/PowerLimit
-  dtu_12345678/inverter/PowerLimit_Set // <-- this topic will be subscribed to get the power limit to set from your broker
-  dtu_12345678/inverter/WifiRSSI
+  dtuGateway_12345678/inverter/Temp
+  dtuGateway_12345678/inverter/PowerLimit
+  dtuGateway_12345678/inverter/PowerLimit_Set // <-- this topic will be subscribed to get the power limit to set from your broker
+  dtuGateway_12345678/inverter/WifiRSSI
   ```
   </details>
 
 - Home Assistant Auto Discovery
-  - you can set HomeAssistant Auto Discovery, if you want to auto configure the dtuGateway for your HA installation
+  - you can set HomeAssistant Auto Discovery, if you want to auto configure the dtuGateway for your HA installation 
   - switch to ON means - with every restart/ reconnection of the dtuGateway the so called config messages will be published for HA and HA will configure (or update) all the given entities of dtuGateway incl. the set value for PowerLimit
   - switch to OFF means - all the config messages will be deleted and therefore the dtuGateway will be removed from HA (base publishing of data will be remain the same, if MQTT is activated)
+  - detail note:
+    - if you use the default main topic e.g. `dtuGateway_<ESP chip id>` then config and state topic will be placed at the same standard HA auto discovery path, e.g. for panel 0 voltage
+      - config: `homeassistant/sensor/dtuGateway_12345678/pv0_U/config`
+      - state: `homeassistant/sensor/dtuGateway_12345678/pv0_U/state`
+    - if you choose another location for the main topic path (let's assume 'myDTU_1') then it will looks like this on your broker, e.g.
+      - config: `homeassistant/sensor/dtuGateway_12345678/pv0_U/config`
+      - state: `myDTU_1/pv0/U` - this path will be integrated in the config message and with this HA will be informed to get the data value from right location
 
 ## known bugs
 - sometimes out-of-memory resets with instant reboots (rare after some hours or more often after some days)

@@ -64,7 +64,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                     <p>define your openhab instance</p>
                 </div>
                 <div>
-                    IP to openhab:
+                    IP to OpenHAB:\t\t
                 </div>
                 <div>
                     <input type="text" id="openhabIP" class="ipv4Input" name="ipv4" placeholder="xxx.xxx.xxx.xxx">

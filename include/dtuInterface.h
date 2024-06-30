@@ -107,7 +107,7 @@ public:
 
     void setServer(const char* server);
 
-    void setup();
+    void setup(const char *server);
     void connect();
     void disconnect(uint8_t tgtState);
     void keepAlive(); // Method to send keep-alive messages
