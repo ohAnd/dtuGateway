@@ -131,7 +131,7 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
     - display selection (0 - OLED, 1 - round TFT)
     - timeZone Offset -xxxx sec <-> xxxx sec e.g. 3600 for CET(+1h) /7200 for CEST(+2)/-21600 for CST
 - [2024-06-29 currently open issue during the rafactoring transferring to multi arch ESP8266/ESP32] ~~OTA with direct connection to the github build pipeline - available updates will be checked by web app and device. Notification in web app, if update available and user can decide for direct online update~~
-- [2024-06-29 currently open issue during the refactoring] ~~manual OTA Update through simple upload page~~
+- [2024-06-29 it is an issue during the refactoring - and therefore currently only for ESP32] manual OTA Update through simple upload page
 
 [^2]: 'advanced config' aka. 'dtuGateway Configuration Interface' it is something like an expert mode, that means you have to know which parameter you want to change with which effect.
 

@@ -10,6 +10,17 @@
 #endif
 
 #include <ESPAsyncWebServer.h>
+#include <ArduinoOTA.h>
+
+#if defined(ESP8266)
+    // For ESP8266, define the maximum update size based on your device's flash size
+    // Example for 4M flash size: 1024 * 1024 * 3 (leave 1M for SPIFFS)
+    #define MAX_UPDATE_SIZE (1024 * 1024 * 2)
+#elif defined(ESP32)
+    // For ESP32, use UPDATE_SIZE_UNKNOWN
+    #define MAX_UPDATE_SIZE UPDATE_SIZE_UNKNOWN
+#endif
+
 #include <Ticker.h>
 
 #include <base/platformData.h>
@@ -27,6 +38,8 @@ public:
     ~DTUwebserver();
     void start();
     void stop();
+
+    void setupOTA();
 
 private:
     AsyncWebServer asyncDtuWebServer{80}; // Assuming port 80 for the web server

@@ -1,10 +1,3 @@
-// #ifndef PLATFORMDATA_H
-// #define PLATFORMDATA_H
-
-#include "version.h"
-
-#define AP_NAME_START "dtuGateway"
-
 #ifndef PLATFORMDATA_H
 #define PLATFORMDATA_H
 
@@ -62,5 +55,3 @@ struct baseUpdateInfoStruct
 extern baseUpdateInfoStruct updateInfo;
 
 #endif // PLATFORMDATA_H
-
-// #endif // PLATFORMDATA_H

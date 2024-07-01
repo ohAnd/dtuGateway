@@ -804,11 +804,6 @@ void setup()
     Serial.println(F("Failed to load user config"));
   // ------- user config loaded --------------------------------------------
 
-  // String("NicAndi-WLAN").toCharArray(userConfig.wifiSsid, sizeof(userConfig.wifiSsid));
-  // String("6264034908576867").toCharArray(userConfig.wifiPassword, sizeof(userConfig.wifiPassword));
-  // userConfig.wifiAPstart = false;
-  // configManager.saveConfig(userConfig);
-
   // init display according to userConfig
   if (userConfig.displayConnected == 0)
     displayOLED.setup();
@@ -842,11 +837,11 @@ void setup()
       displayOLED.drawFactoryMode(String(platformData.fwVersion), platformData.espUniqueName, apIP.toString());
       userConfig.displayConnected = 1;
     }
-    else if (userConfig.displayConnected == 1)
-    {
-      displayTFT.drawFactoryMode(String(platformData.fwVersion), platformData.espUniqueName, apIP.toString());
-      userConfig.displayConnected = 0;
-    }
+    // else if (userConfig.displayConnected == 1)
+    // {
+    //   displayTFT.drawFactoryMode(String(platformData.fwVersion), platformData.espUniqueName, apIP.toString());
+    //   userConfig.displayConnected = 0;
+    // }
     // deafult setting for mqtt main topic
     ("dtu_" + String(platformData.chipID)).toCharArray(userConfig.mqttBrokerMainTopic, sizeof(userConfig.mqttBrokerMainTopic));
     configManager.saveConfig(userConfig);
@@ -1179,8 +1174,9 @@ void loop()
   if (updateInfo.updateRunning)
     return;
 
-    // web server runner
-    // server.handleClient();
+  // web server runner
+  // server.handleClient();
+  ArduinoOTA.handle();
 
 #if defined(ESP8266)
   // serving domain name
@@ -1254,13 +1250,16 @@ void loop()
 
     // -------->
 
-    if (globalControls.wifiSwitch && !userConfig.wifiAPstart)
-      checkWifiTask();
-    else
+    if (!userConfig.wifiAPstart)
     {
-      // stopping connection to DTU before go wifi offline
-      dtuInterface.disconnect(DTU_STATE_OFFLINE);
-      WiFi.disconnect();
+      if (globalControls.wifiSwitch)
+        checkWifiTask();
+      else
+      {
+        // stopping connection to DTU before go wifi offline
+        dtuInterface.disconnect(DTU_STATE_OFFLINE);
+        WiFi.disconnect();
+      }
     }
 
     if (WiFi.status() == WL_CONNECTED)
@@ -1280,9 +1279,9 @@ void loop()
         getPowerSetDataFromOpenHab();
 
       // direct request of new powerLimit
-      if (dtuGlobalData.powerLimitSet != dtuGlobalData.powerLimit && dtuGlobalData.powerLimitSet != 101 && dtuGlobalData.uptodate)
+      if (dtuGlobalData.powerLimitSet != dtuGlobalData.powerLimit && dtuGlobalData.powerLimitSet != 101 && dtuGlobalData.uptodate && dtuConnection.dtuConnectState == DTU_STATE_CONNECTED)
       {
-        Serial.println("----- ----- set new power limit from " + String(dtuGlobalData.powerLimit) + " %% to " + String(dtuGlobalData.powerLimitSet) + " %% ----- ----- ");
+        Serial.println("----- ----- set new power limit from " + String(dtuGlobalData.powerLimit) + " % to " + String(dtuGlobalData.powerLimitSet) + " % ----- ----- ");
         dtuInterface.setPowerLimit(dtuGlobalData.powerLimitSet);
         // set next normal request in 5 seconds from now on, only if last data updated within last 2 times of user setted update rate
         // if (currentMillis - dtuGlobalData.lastRespTimestamp < (userConfig.dtuUpdateTime * 2))

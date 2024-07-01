@@ -10,7 +10,7 @@ DTUwebserver::DTUwebserver()
 
 DTUwebserver::~DTUwebserver()
 {
-    stop();         // Ensure the server is stopped and resources are cleaned up
+    stop();                  // Ensure the server is stopped and resources are cleaned up
     webServerTimer.detach(); // Stop the timer
 }
 
@@ -20,8 +20,8 @@ void DTUwebserver::backgroundTask(DTUwebserver *instance)
     {
         if (rebootRequestedInSec-- == 1)
         {
-            rebootRequestedInSec == 0;
-            rebootRequested == false;
+            rebootRequestedInSec = 0;
+            rebootRequested = false;
             Serial.println(F("WEB:\t\t backgroundTask - reboot requested"));
             ESP.restart();
         }
@@ -57,16 +57,48 @@ void DTUwebserver::start()
     asyncDtuWebServer.on("/updateGetInfo", handleUpdateInfoRequest);
     // asyncDtuWebServer.on("/updateRequest", handleUpdateRequest);
 
+    asyncDtuWebServer.on("/update", HTTP_GET, [](AsyncWebServerRequest *request)
+                         { request->send(200, "text/html", "<form method='POST' action='/doupdate' enctype='multipart/form-data'><input type='file' name='update'><input type='submit' value='Update Firmware'></form>"); });
+    asyncDtuWebServer.on("/doupdate", HTTP_POST, [](AsyncWebServerRequest *request)
+                         {
+                                // Redirect to the main page once the upload is finished
+                                request->send(200, "text/plain", "Update Complete. Rebooting...");
+                                delay(2000);
+                                ESP.restart(); }, [](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final)
+                         {
+                                // Handle the uploaded file
+                                if (!index) {
+                                    Serial.printf("Update Start: %s\n", filename.c_str());
+                                    if (!Update.begin(MAX_UPDATE_SIZE)) { // Start with max available size
+                                        Serial.printf("UPDATE: got error during update: %s\n", filename.c_str());
+                                        Update.printError(Serial);
+                                    }
+                                }
+                                if (!Update.hasError()) {
+                                    if (Update.write(data, len) != len) {
+                                        Serial.printf("ERROR: got error during update: %s\n", filename.c_str());
+                                        Update.printError(Serial);
+                                    }
+                                }
+                                if (final) {
+                                    if (Update.end(true)) { // true to set the size to the current progress
+                                        Serial.printf("Update Success: %uB\n", index + len);
+                                    } else {
+                                        Update.printError(Serial);
+                                    }
+                                 } });
+
     asyncDtuWebServer.onNotFound(notFound);
 
     asyncDtuWebServer.begin(); // Start the web server
+    setupOTA();
     webServerTimer.attach(1, DTUwebserver::backgroundTask, this);
 }
 
 void DTUwebserver::stop()
 {
     asyncDtuWebServer.end(); // Stop the web server
-    webServerTimer.detach();          // Stop the timer
+    webServerTimer.detach(); // Stop the timer
 }
 
 // base pages
@@ -119,7 +151,7 @@ void DTUwebserver::handleConfigPage(AsyncWebServerRequest *request)
     {
         Serial.println(F("WEB:\t\t handleConfigPage - got User Changes - sent back config page ack - and restart ESP in 2 seconds"));
         rebootRequestedInSec = 3;
-        rebootRequested == true;
+        rebootRequested = true;
     }
 }
 
@@ -254,6 +286,10 @@ void DTUwebserver::handleUpdateWifiSettings(AsyncWebServerRequest *request)
             }
             else if (userConfig.displayConnected == 1)
                 userConfig.displayConnected = 0;
+            
+            // and schedule a reboot to start fresh with new settings
+            rebootRequestedInSec = 2;
+            rebootRequested = true;
         }
 
         configManager.saveConfig(userConfig);
@@ -392,14 +428,14 @@ void DTUwebserver::handleUpdateBindingsSettings(AsyncWebServerRequest *request)
         {
             // changing to given mqtt setting - inlcuding reset the connection
             mqttHandler.setConfiguration(userConfig.mqttBrokerIpDomain, userConfig.mqttBrokerPort, userConfig.mqttBrokerUser, userConfig.mqttBrokerPassword, userConfig.mqttUseTLS, (platformData.espUniqueName).c_str(), userConfig.mqttBrokerMainTopic, userConfig.mqttHAautoDiscoveryON, ((platformData.dtuGatewayIP).toString()).c_str());
-            
+
             Serial.println("WEB:\t\t handleUpdateBindingsSettings - HAautoDiscovery new state: " + String(userConfig.mqttHAautoDiscoveryON));
             // mqttHAautoDiscoveryON going from on to off - send one time the delete messages
             if (!userConfig.mqttHAautoDiscoveryON && mqttHAautoDiscoveryONlastState)
                 mqttHandler.requestMQTTconnectionReset(true);
             else
                 mqttHandler.requestMQTTconnectionReset(false);
-            
+
             // after changing of auto discovery stop connection to initiate takeover of new settings
             // mqttHandler.stopConnection();
         }
@@ -518,4 +554,31 @@ void DTUwebserver::handleUpdateInfoRequest(AsyncWebServerRequest *request)
 void DTUwebserver::notFound(AsyncWebServerRequest *request)
 {
     request->send(404, "text/plain", "Not found");
+}
+
+void DTUwebserver::setupOTA()
+{
+    ArduinoOTA.onStart([]()
+                       {
+                        String type;
+                        if (ArduinoOTA.getCommand() == U_FLASH) {
+                        type = "sketch";
+                        } else { // U_SPIFFS
+                        type = "filesystem";
+                        }
+                        // NOTE: if updating SPIFFS this would be the place to unmount SPIFFS using SPIFFS.end()
+                        Serial.println("setupOTA - Start updating " + type); });
+    ArduinoOTA.onEnd([]()
+                     { Serial.println("\nsetupOTA - End"); });
+    ArduinoOTA.onProgress([](unsigned int progress, unsigned int total)
+                          { Serial.printf("setupOTA - Progress: %u%%\r", (progress / (total / 100))); });
+    ArduinoOTA.onError([](ota_error_t error)
+                       {
+                        Serial.printf("Error[%u]: ", error);
+                        if (error == OTA_AUTH_ERROR) Serial.println("setupOTA - Auth Failed");
+                        else if (error == OTA_BEGIN_ERROR) Serial.println("setupOTA - Begin Failed");
+                        else if (error == OTA_CONNECT_ERROR) Serial.println("setupOTA - Connect Failed");
+                        else if (error == OTA_RECEIVE_ERROR) Serial.println("setupOTA - Receive Failed");
+                        else if (error == OTA_END_ERROR) Serial.println("setupOTA - End Failed"); });
+    ArduinoOTA.begin();
 }
