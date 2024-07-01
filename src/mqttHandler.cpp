@@ -202,7 +202,7 @@ void MQTTHandler::reconnect()
 {
     if (!client.connected() && (millis() - lastReconnectAttempt > 5000))
     {
-        Serial.print("\nMQTT:\t\t Attempting connection... (HA AutoDiscover: " + String(autoDiscoveryActive) + ") ... ");
+        Serial.println("\nMQTT:\t\t Attempting connection... (HA AutoDiscover: " + String(autoDiscoveryActive) + ") ... ");
         if (client.connect(deviceGroupName, mqtt_user, mqtt_password))
         {
             Serial.println("\nMQTT:\t\t Attempting connection is now connected");

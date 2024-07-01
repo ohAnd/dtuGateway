@@ -33,7 +33,6 @@ void DTUInterface::setup(const char *server)
             client->onData(onDataReceived, this);
 
             initializeCRC();
-            
         }
         loopTimer.attach(5, DTUInterface::dtuLoopStatic, this);
     }
@@ -41,6 +40,8 @@ void DTUInterface::setup(const char *server)
 
 void DTUInterface::dtuLoop()
 {
+    txrxStateObserver();
+
     if (dtuConnection.preventCloudErrors)
         cloudPauseActiveControl();
     else
@@ -87,6 +88,22 @@ void DTUInterface::dtuLoop()
                 }
             }
         }
+    }
+}
+
+void DTUInterface::txrxStateObserver()
+{
+    // check current txrx state and set seen at time and check for timeout
+    if (dtuConnection.dtuTxRxState != dtuConnection.dtuTxRxStateLast)
+    {
+        Serial.println("DTUinterface:\t stateObserver - change from " + String(dtuConnection.dtuTxRxStateLast) + " to " + String(dtuConnection.dtuTxRxState) + " - difference: " + String(millis() - dtuConnection.dtuTxRxStateLastChange) + " ms");
+        dtuConnection.dtuTxRxStateLast = dtuConnection.dtuTxRxState;
+        dtuConnection.dtuTxRxStateLastChange = millis();
+    }
+    else if (millis() - dtuConnection.dtuTxRxStateLastChange > 15000 && dtuConnection.dtuTxRxState != DTU_TXRX_STATE_IDLE)
+    {
+        Serial.println(F("DTUinterface:\t stateObserver - timeout - reset txrx state to DTU_TXRX_STATE_IDLE"));
+        dtuConnection.dtuTxRxState = DTU_TXRX_STATE_IDLE;
     }
 }
 
@@ -214,6 +231,7 @@ void DTUInterface::handleError(uint8_t errorState)
 // Callback method to handle incoming data
 void DTUInterface::onDataReceived(void *arg, AsyncClient *client, void *data, size_t len)
 {
+    txrxStateObserver();
     DTUInterface *dtuInterface = static_cast<DTUInterface *>(arg);
     // first 10 bytes are header or similar and actual data starts from the 11th byte
     pb_istream_t istream = pb_istream_from_buffer(static_cast<uint8_t *>(data) + 10, len - 10);
@@ -753,7 +771,7 @@ void DTUInterface::readRespGetConfig(pb_istream_t istream)
     if (getconfigreqdto.request_time != 0 && dtuConnection.dtuErrorState == DTU_ERROR_NO_TIME)
     {
         dtuGlobalData.respTimestamp = uint32_t(getconfigreqdto.request_time);
-        Serial.print(" --> redundant remote time takeover to local");
+        Serial.println(F(" --> redundant remote time takeover to local"));
     }
 
     int powerLimit = int(calcValue(getconfigreqdto.limit_power_mypower));
@@ -872,7 +890,10 @@ boolean DTUInterface::readRespCommand(pb_istream_t istream)
 boolean DTUInterface::writeCommandRestartDevice()
 {
     if (!client->connected())
+    {
+        Serial.println(F("DTUinterface:\t writeCommandRestartDevice - not possible - currently not connect"));
         return false;
+    }
 
     // request message
     uint8_t buffer[200];

@@ -59,6 +59,8 @@ struct connectionControl
   uint8_t dtuConnectState = DTU_STATE_OFFLINE;
   uint8_t dtuErrorState = DTU_ERROR_NO_ERROR;
   uint8_t dtuTxRxState = DTU_TXRX_STATE_IDLE;
+  uint8_t dtuTxRxStateLast = DTU_TXRX_STATE_IDLE;
+  unsigned long dtuTxRxStateLastChange = 0;
   uint8_t dtuConnectRetriesShort = 0;
   uint8_t dtuConnectRetriesLong = 0;
   unsigned long pauseStartTime = 0;
@@ -133,6 +135,8 @@ private:
 
     void handleError(uint8_t errorState = DTU_ERROR_NO_ERROR);
     void initializeCRC();
+
+    static void txrxStateObserver();
 
     const char* serverIP;
     uint16_t serverPort;
