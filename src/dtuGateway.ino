@@ -533,7 +533,7 @@ void handleUpdatePowerLimit()
       globalData.powerLimitSet = gotLimit;
 
     // Serial.print("got SetLimit: " + String(globalData.powerLimitSet) + " - current limit: " + String(globalData.powerLimit) + " %");
-  
+
     String JSON = "{";
     JSON = JSON + "\"PowerLimitSet\": \"" + globalData.powerLimitSet + "\"";
     JSON = JSON + "}";
@@ -544,14 +544,14 @@ void handleUpdatePowerLimit()
   else
   {
     Serial.print("got wrong data for SetLimit: " + powerLimitSetNew);
-      
-      server.send(400, "text/plain", "powerLimit out of range");
-      return;
+
+    server.send(400, "text/plain", "powerLimit out of range");
+    return;
   }
-  
+
   // trigger new update info with changed release channel
   // getUpdateInfo(AsyncWebServerRequest *request);
-  //updateInfoRequested = true;
+  // updateInfoRequested = true;
 }
 
 void handleUpdateOTASettings()
@@ -1482,13 +1482,14 @@ void loop()
   if (updateRunning)
     return;
 
+  // if (WiFi.status() == WL_CONNECTED)
+  // {
+  // web server runner
+  server.handleClient();
+  // serving domain name
+  MDNS.update();
   if (WiFi.status() == WL_CONNECTED)
   {
-    // web server runner
-    server.handleClient();
-    // serving domain name
-    MDNS.update();
-
     // runner for mqttClient to hold a already etablished connection
     if (userConfig.mqttActive)
     {
@@ -1554,13 +1555,16 @@ void loop()
 
     // -------->
 
-    if (globalControls.wifiSwitch && !userConfig.wifiAPstart)
-      checkWifiTask();
-    else
+    if (!userConfig.wifiAPstart)
     {
-      // stopping connection to DTU before go wifi offline
-      dtuConnectionStop(&dtuClient, DTU_STATE_OFFLINE);
-      WiFi.disconnect();
+      if (globalControls.wifiSwitch)
+        checkWifiTask();
+      else
+      {
+        // stopping connection to DTU before go wifi offline
+        dtuConnectionStop(&dtuClient, DTU_STATE_OFFLINE);
+        WiFi.disconnect();
+      }
     }
 
     if (dtuConnection.preventCloudErrors)
