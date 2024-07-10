@@ -38,6 +38,88 @@ void DTUInterface::setup(const char *server)
     }
 }
 
+void DTUInterface::setServer(const char *server)
+{
+    serverIP = server;
+    disconnect(DTU_STATE_OFFLINE);
+}
+
+void DTUInterface::connect()
+{
+    if (client && !client->connected() && !dtuConnection.dtuActiveOffToCloudUpdate)
+    {
+        Serial.println("DTUinterface:\t client not connected with DTU! try to connect (server: " + String(serverIP) + " - port: " + String(serverPort) + ") ...");
+        if (client->connect(serverIP, serverPort))
+        {
+            // Serial.println(F("DTUinterface:\t connection attempt successfully started..."));
+        }
+        else
+        {
+            Serial.println(F("DTUinterface:\t connection attempt failed..."));
+        }
+    }
+}
+
+void DTUInterface::disconnect(uint8_t tgtState)
+{
+    // Serial.println(F("DTUinterface:\t disconnect request - try to disconnect from DTU ..."));
+    if (client && client->connected())
+    {
+        client->close(true);
+        dtuConnection.dtuConnectState = tgtState;
+        dtuGlobalData.dtuRssi = 0;
+        Serial.println(F("DTUinterface:\t disconnect request - DTU connection closed"));
+    }
+    else if (dtuConnection.dtuConnectState != DTU_STATE_CLOUD_PAUSE && tgtState != DTU_STATE_STOPPED)
+    {
+        Serial.println(F("DTUinterface:\t disconnect request - no DTU connection to close"));
+    }
+}
+
+void DTUInterface::getDataUpdate()
+{
+    if (!dtuConnection.dtuActiveOffToCloudUpdate)
+    {
+        if (client->connected())
+            writeReqRealDataNew();
+        else
+        {
+            dtuGlobalData.uptodate = false;
+            Serial.println(F("DTUinterface:\t getDataUpdate - ERROR - not connected to DTU!"));
+            // handleError(DTU_ERROR_NO_TIME);
+        }
+    }
+}
+
+void DTUInterface::setPowerLimit(int limit)
+{
+    dtuGlobalData.powerLimitSet = limit;
+    if (client->connected())
+    {
+        Serial.println("DTUinterface:\t setPowerLimit: " + String(limit) + " - send command to DTU ...");
+        writeReqCommand(limit);
+    }
+    else
+    {
+        Serial.println(F("DTUinterface:\t try to setPowerLimit - client not connected."));
+    }
+}
+
+void DTUInterface::requestRestartDevice() {
+    if (client->connected())
+    {
+        Serial.println(F("DTUinterface:\t requestRestartDevice - send command to DTU ..."));
+        writeCommandRestartDevice();
+    }
+    else
+    {
+        Serial.println(F("DTUinterface:\t requestRestartDevice - client not connected."));
+    }
+
+}
+
+// internal control methods
+
 void DTUInterface::dtuLoop()
 {
     txrxStateObserver();
@@ -52,7 +134,7 @@ void DTUInterface::dtuLoop()
         if (client->connected())
             disconnect(DTU_STATE_CLOUD_PAUSE);
     }
-    else
+    else if(dtuConnection.dtuConnectState != DTU_STATE_STOPPED)
     {
         // Check if we are in a pause period and if 60 seconds have passed
         if (dtuConnection.dtuConnectRetriesLong > 0)
@@ -137,44 +219,7 @@ void DTUInterface::keepAliveStatic(DTUInterface *dtuInterface)
     }
 }
 
-void DTUInterface::setServer(const char *server)
-{
-    serverIP = server;
-    disconnect(DTU_STATE_OFFLINE);
-}
-
-void DTUInterface::connect()
-{
-    if (client && !client->connected() && !dtuConnection.dtuActiveOffToCloudUpdate)
-    {
-        Serial.println("DTUinterface:\t client not connected with DTU! try to connect (server: " + String(serverIP) + " - port: " + String(serverPort) + ") ...");
-        if (client->connect(serverIP, serverPort))
-        {
-            // Serial.println(F("DTUinterface:\t connection attempt successfully started..."));
-        }
-        else
-        {
-            Serial.println(F("DTUinterface:\t connection attempt failed..."));
-        }
-    }
-}
-
-void DTUInterface::disconnect(uint8_t tgtState)
-{
-    // Serial.println(F("DTUinterface:\t disconnect request - try to disconnect from DTU ..."));
-    if (client && client->connected())
-    {
-        client->close(true);
-        dtuConnection.dtuConnectState = tgtState;
-        dtuGlobalData.dtuRssi = 0;
-        Serial.println(F("DTUinterface:\t disconnect request - DTU connection closed"));
-    }
-    else if (dtuConnection.dtuConnectState != DTU_STATE_CLOUD_PAUSE)
-    {
-        Serial.println(F("DTUinterface:\t disconnect request - no DTU connection to close"));
-    }
-}
-
+// event driven methods
 void DTUInterface::onConnect(void *arg, AsyncClient *c)
 {
     // Connection established
@@ -263,34 +308,7 @@ void DTUInterface::onDataReceived(void *arg, AsyncClient *client, void *data, si
     }
 }
 
-void DTUInterface::getDataUpdate()
-{
-    if (!dtuConnection.dtuActiveOffToCloudUpdate)
-    {
-        if (client->connected())
-            writeReqRealDataNew();
-        else
-        {
-            dtuGlobalData.uptodate = false;
-            Serial.println(F("DTUinterface:\t getDataUpdate - ERROR - not connected to DTU!"));
-            // handleError(DTU_ERROR_NO_TIME);
-        }
-    }
-}
-
-void DTUInterface::setPowerLimit(int limit)
-{
-    dtuGlobalData.powerLimitSet = limit;
-    if (client->connected())
-    {
-        Serial.println("DTUinterface:\t setPowerLimit: " + String(limit) + " - send command to DTU ...");
-        writeReqCommand(limit);
-    }
-    else
-    {
-        Serial.println(F("DTUinterface:\t try to setPowerLimit - client not connected."));
-    }
-}
+// output data methods
 
 void DTUInterface::printDataAsTextToSerial()
 {

@@ -92,7 +92,7 @@ int wifiTimeoutLong = WIFI_RETRY_TIME_SECONDS;
 #define LED_BLINK_ON LOW
 #define LED_BLINK_OFF HIGH
 #elif defined(ESP32)
-#define LED_BLINK 2
+#define LED_BLINK 2 // double occupancy with TFT display SPI DC pin
 #define LED_BLINK_ON HIGH
 #define LED_BLINK_OFF LOW
 #endif
@@ -237,6 +237,7 @@ boolean scanNetworksResult()
     }
     platformData.wifiFoundNetworks = platformData.wifiFoundNetworks + "]";
     WiFi.scanDelete();
+    dtuWebServer.setWifiScanIsRunning(false);
     return true;
   }
   else
@@ -518,23 +519,23 @@ boolean scanNetworksResult()
 // void update_started()
 // {
 //   Serial.println(F("CALLBACK:  HTTP update process started"));
-//   strcpy(updateInfo.updateState, "started");
+//   strcpy(updateInfo.updateStateText, "started");
 // }
 // void update_finished()
 // {
 //   Serial.println(F("CALLBACK:  HTTP update process finished"));
-//   strcpy(updateInfo.updateState, "done");
+//   strcpy(updateInfo.updateStateText, "done");
 // }
 // void update_progress(int cur, int total)
 // {
 //   updateInfo.updateProgress = ((float)cur / (float)total) * 100;
-//   strcpy(updateInfo.updateState, "running");
+//   strcpy(updateInfo.updateStateText, "running");
 //   Serial.print("CALLBACK:  HTTP update process at " + String(cur) + "  of " + String(total) + " bytes - " + String(updateInfo.updateProgress, 1) + " %\n");
 // }
 // void update_error(int err)
 // {
 //   Serial.printf("CALLBACK:  HTTP update fatal error code %d\n", err);
-//   strcpy(updateInfo.updateState, "error");
+//   strcpy(updateInfo.updateStateText, "error");
 // }
 
 // APIs (non REST)
@@ -837,11 +838,11 @@ void setup()
       displayOLED.drawFactoryMode(String(platformData.fwVersion), platformData.espUniqueName, apIP.toString());
       userConfig.displayConnected = 1;
     }
-    // else if (userConfig.displayConnected == 1)
-    // {
-    //   displayTFT.drawFactoryMode(String(platformData.fwVersion), platformData.espUniqueName, apIP.toString());
-    //   userConfig.displayConnected = 0;
-    // }
+    else if (userConfig.displayConnected == 1)
+    {
+      displayTFT.drawFactoryMode(String(platformData.fwVersion), platformData.espUniqueName, apIP.toString());
+      userConfig.displayConnected = 0;
+    }
     // deafult setting for mqtt main topic
     ("dtu_" + String(platformData.chipID)).toCharArray(userConfig.mqttBrokerMainTopic, sizeof(userConfig.mqttBrokerMainTopic));
     configManager.saveConfig(userConfig);
@@ -871,7 +872,7 @@ void setup()
   else
     Serial.println(F("Can't set ITimer correctly. Select another freq. or interval"));
   // delay for startup background tasks in ESP
-  delay(1500);
+  delay(2000);
 }
 
 // after startup or reconnect with wifi
@@ -1116,15 +1117,15 @@ void getSerialCommand(String cmd, String value)
       ESP.restart();
     }
   }
-  // else if (cmd == "rebootDTU")
-  // {
-  //   Serial.print(F(" rebootDTU "));
-  //   if (val == 1)
-  //   {
-  //     Serial.print(F(" send reboot request "));
-  //     dtuInterface.writeCommandRestartDevice(dtuGlobalData.currentTimestamp);
-  //   }
-  // }
+  else if (cmd == "rebootDTU")
+  {
+    Serial.print(F(" rebootDTU "));
+    if (val == 1)
+    {
+      Serial.println(F(" request DTU reboot at DTUinterface ... "));
+      dtuInterface.requestRestartDevice();
+    }
+  }
   else if (cmd == "selectDisplay")
   {
     Serial.print(F(" selected Display"));
@@ -1171,12 +1172,16 @@ void loop()
 {
   unsigned long currentMillis = millis();
   // skip all tasks if update is running
-  if (updateInfo.updateRunning)
+  if (updateInfo.updateRunning) {
+    dtuInterface.disconnect(DTU_STATE_STOPPED);
     return;
+  }
 
-  // web server runner
-  // server.handleClient();
-  ArduinoOTA.handle();
+  // basic OTA
+  // ArduinoOTA.handle();
+
+  // check for wifi networks scan results
+  scanNetworksResult();
 
 #if defined(ESP8266)
   // serving domain name
@@ -1185,9 +1190,7 @@ void loop()
 
   // runner for mqttClient to hold a already etablished connection
   if (userConfig.mqttActive && WiFi.status() == WL_CONNECTED)
-  {
     mqttHandler.loop();
-  }
 
   // 50ms task
   if (currentMillis - previousMillis50ms >= interval50ms)
@@ -1199,8 +1202,8 @@ void loop()
       // display tasks every 50ms = 20Hz
       if (userConfig.displayConnected == 0)
         displayOLED.renderScreen(timeClient.getFormattedTime(), String(platformData.fwVersion));
-      // else if (userConfig.displayConnected == 1)
-      //   displayTFT.renderScreen(timeClient.getFormattedTime(), String(platformData.fwVersion));
+      else if (userConfig.displayConnected == 1)
+        displayTFT.renderScreen(timeClient.getFormattedTime(), String(platformData.fwVersion));
     }
   }
 
@@ -1346,9 +1349,5 @@ void loop()
     {
       timeClient.update();
     }
-    // start async scan for wifi'S
-    Serial.println(F("WIFI_SCAN:\t start async scan"));
-    WiFi.scanNetworks(true);
   }
-  scanNetworksResult();
 }

@@ -32,6 +32,7 @@
 #include "web/jquery_min_js.h"
 #include "web/style_css.h"
 
+
 class DTUwebserver {
 public:
     DTUwebserver();
@@ -39,7 +40,7 @@ public:
     void start();
     void stop();
 
-    void setupOTA();
+    void setWifiScanIsRunning(bool state);
 
 private:
     AsyncWebServer asyncDtuWebServer{80}; // Assuming port 80 for the web server
@@ -49,6 +50,13 @@ private:
     static void handleRoot(AsyncWebServerRequest *request);
     static void handleCSS(AsyncWebServerRequest *request);
     static void handleJqueryMinJs(AsyncWebServerRequest *request);
+
+    static void handleUpdateStart();
+    static void handleUpdateProgress(AsyncWebServerRequest *request);
+
+    static void startUpdateHandler(AsyncWebServerRequest *request, String filename);
+    static void progressUpdateHandler(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len);
+    static void finalizeUpdateHandler(AsyncWebServerRequest *request, String filename, size_t index, size_t len, bool final);
     
     static void handleDataJson(AsyncWebServerRequest *request);
     static void handleInfojson(AsyncWebServerRequest *request);
@@ -57,6 +65,7 @@ private:
     static void handleUpdateDtuSettings(AsyncWebServerRequest *request);
     static void handleUpdateBindingsSettings(AsyncWebServerRequest *request);
     static void handleUpdatePowerLimit(AsyncWebServerRequest *request);
+    static void handleGetWifiNetworks(AsyncWebServerRequest *request);
 
     static void handleUpdateOTASettings(AsyncWebServerRequest *request);
     static void handleUpdateInfoRequest(AsyncWebServerRequest *request);

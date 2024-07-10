@@ -32,6 +32,13 @@ struct baseDataStruct
 
 extern baseDataStruct platformData;
 
+#define UPDATE_STATE_IDLE 0
+#define UPDATE_STATE_START 1
+#define UPDATE_STATE_INSTALLING 2
+#define UPDATE_STATE_RESTART 3
+#define UPDATE_STATE_FAILED 4
+
+
 #ifndef baseUpdateInfoStruct
 struct baseUpdateInfoStruct
 {
@@ -45,10 +52,12 @@ struct baseUpdateInfoStruct
     char versiondateServerRelease[32] = "...";
     char updateURLRelease[196] = ""; // will be read by getting -> updateInfoWebPath
     boolean updateAvailable = false;
-    boolean updateRunning = false;
     boolean updateInfoRequested = false;
+    char updateStateText[16] = "waiting";
+
+    boolean updateRunning = false;
     float updateProgress = 0;
-    char updateState[16] = "waiting";
+    uint8_t updateState = UPDATE_STATE_IDLE;
 };
 #endif
 

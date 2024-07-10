@@ -423,6 +423,14 @@ input[type=checkbox] {
     top: 0.3em;
 }
 
+input[type=file] {
+    width:1.5em;
+    height:1.5em;
+    display:inline;
+    position: relative;
+    top: 0.3em;
+}
+
 #frame {
     background: #000000;
     /* max-width: 100%; */
@@ -690,6 +698,23 @@ td {
 
 .passcheck {
     cursor: pointer;
+}
+
+#wifiSearch::after {
+    content: '';
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 2px solid #3498db;
+    border-top: 2px solid transparent;
+    border-radius: 50%;
+    margin-left: 5px;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
 }
 
 )=====";

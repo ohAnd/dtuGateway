@@ -34,27 +34,33 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             </div>
         </div>
         <div class="popupContent" id="wifi" style="display: block;">
-            <div style="padding-bottom: 10px;">
-                <p>available wifi's (<b id="networkCount">0</b>) - currently connected: <b id="wifiSSID"></b>
-                </p>
-                <div id="networks">
+            <div id="wifiSearchBox"
+                style="display: none; position: relative;top: 45%;z-index: 1;text-align: center;background-color: lightgray;">
+                <h2 id="wifiSearch">searching for wifi networks ... </h2>
+            </div>
+            <div id="wifiContent">
+                <div style="padding-bottom: 10px;">
+                    <p>available wifi's (<b id="networkCount">0</b>) - currently connected: <b id="wifiSSID"></b>
+                    </p>
+                    <div id="networks">
+                    </div>
                 </div>
-            </div>
-            <div>
-                connect to wifi:
-            </div>
-            <div>
-                <input type="text" id="wifiSSIDsend" value="please choose above or type in" required maxlength="64">
-            </div>
-            <div>
-                wifi password (<i class="passcheck" value="invisible">show</i>):
-            </div>
-            <div>
-                <input type="password" id="wifiPASSsend" value="admin12345" required maxlength="64">
-            </div>
-            <div style="text-align: center;">
-                <b onclick="changeWifiData()" id="btnSaveWifiSettings" class="form-button btn">save</b>
-                <b onclick="hide('#changeSettings')" id="btnSettingsClose" class="form-button btn">close</b>
+                <div>
+                    connect to wifi:
+                </div>
+                <div>
+                    <input type="text" id="wifiSSIDsend" value="please choose above or type in" required maxlength="64">
+                </div>
+                <div>
+                    wifi password (<i class="passcheck" value="invisible">show</i>):
+                </div>
+                <div>
+                    <input type="password" id="wifiPASSsend" value="admin12345" required maxlength="64">
+                </div>
+                <div style="text-align: center;">
+                    <b onclick="changeWifiData()" id="btnSaveWifiSettings" class="form-button btn">save</b>
+                    <b onclick="hide('#changeSettings')" id="btnSettingsClose" class="form-button btn">close</b>
+                </div>
             </div>
         </div>
         <div class="popupContent" id="bindings">
@@ -64,7 +70,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                     <p>define your openhab instance</p>
                 </div>
                 <div>
-                    IP to OpenHAB:\t\t
+                    IP to openhab:
                 </div>
                 <div>
                     <input type="text" id="openhabIP" class="ipv4Input" name="ipv4" placeholder="xxx.xxx.xxx.xxx">
@@ -192,7 +198,8 @@ const char INDEX_HTML[] PROGMEM = R"=====(
         <h2>Update</h2>
         <div>
             <div style="padding-bottom: 10px;">
-                <p id="updateState">currently no update available</p>
+                direct online update -
+                <i id="updateState">currently no update available</i>
             </div>
             <div id="updateInfo">
                 <div>
@@ -230,13 +237,26 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                 <b onclick="" id="btnUpdateStart" class="form-button btn">start update</b>
             </div>
             <hr>
+            <div style="padding-bottom: 10px;">
+                <p>manual update</p>
+            </div>
+            <div id="updateManual" style="text-align: center;">
+                <!-- <input type='file' name='update'> -->
+                <input type="file" id="fileInput" style="display: none;" onchange="showFileName()">
+                <label for="fileInput" class="form-button btn">Choose File</label>
+                <span id="fileNameDisplay"></span>
+                <b id="manualUpdateStart" onClick="updateManualWithFile()" class="form-button btn"
+                    style="display: none;">update manual
+                    selected firmware</b>
+            </div>
+            <hr>
             <div style="text-align: center;">
                 <b onclick="hide('#updateMenu')" class="form-button btn">close</b>
             </div>
-            <hr>
             <div>
-                <small style="text-align:center;"><a href="/update">manual update</a></small>
+                <small style="text-align:center;"><a href="/update">manual update direct link</a></small>
             </div>
+
         </div>
     </div>
     <div class="popup" id="updateProgress">
@@ -245,7 +265,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
         <div style="padding-bottom: 10px;text-align: center;">
             <p id="updateStateNow">update to version <span id="newVersionProgress">0.0.0</span> in progress
             </p>
-            <p>remaining time: <span id="updateTimeout"></span></p>
+            <p id="remainingTime">remaining time: <span id="updateTimeout"></span></p>
         </div>
         <div style="border-color: #3498db; border-style: solid;border-radius: 5px;border-width: 1px;">
             <div id="progressbar" class="ui-progressbar-value" style="width:0%;">&nbsp;</div>
@@ -653,9 +673,43 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             $('#btnSaveWifiSettings').css('opacity', '1.0');
             $('#btnSaveWifiSettings').attr('onclick', "changeWifiData();")
 
+
+
+
+            requestWifiScan();
+            cacheInfoData.wifiConnection.wifiScanIsRunning = 1;
+
+            let intervalId = setInterval(() => {
+                console.log("Interval action");
+                getInfoValues();
+                displayWIFIdata();
+                if (cacheInfoData.wifiConnection.wifiScanIsRunning == 0) {
+                    clearInterval(intervalId);
+                    $('#wifiSearchBox').hide();
+                    $('#wifiContent').css('opacity', '1.0');
+                    //console.log("Interval ended due to scan ends");
+                }
+            }, 250);
+
+            setTimeout(() => {
+                clearInterval(intervalId);
+                //console.log("Interval ended after 15 seconds");
+            }, 15000);
+
+            displayWIFIdata();
+        }
+
+        function displayWIFIdata() {
+            // opacity until wifi scan done
+            if (cacheInfoData.wifiConnection.wifiScanIsRunning == 1) {
+                $('#wifiContent').css('opacity', '0.3');
+                $('#wifiSearchBox').show();
+            }
+
             wifiData = cacheInfoData.wifiConnection;
             wifiDataNw = wifiData.foundNetworks;
             // get networkdata
+            //console.log("wifi scan: " + wifiData.wifiScanIsRunning);
             $('#wifiSSID').html(wifiData.wifiSsid);
             $('#wifiPASSsend').val(wifiData.wifiPassword);
             $('#networkCount').html(wifiData.networkCount);
@@ -1169,6 +1223,101 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             return true;
         }
 
+        function showFileName() {
+            var fileInput = document.getElementById('fileInput');
+            var fileNameDisplay = document.getElementById('fileNameDisplay');
+            if (fileInput.files.length > 0) {
+                var fileName = fileInput.files[0].name;
+                fileNameDisplay.textContent = "choosen firmware file: " + fileName;
+                $('#manualUpdateStart').show();
+            } else {
+                fileNameDisplay.textContent = '';
+            }
+        }
+
+        function updateManualWithFile() {
+            var fileInput = document.getElementById('fileInput');
+            if (fileInput.files.length === 0) {
+                console.log("No file selected.");
+                return;
+            }
+            var file = fileInput.files[0];
+            var formData = new FormData();
+            formData.append("fileInput", file);
+
+            var xmlHttp = new XMLHttpRequest();
+            xmlHttp.open("POST", "/doupdate", true); // true for asynchronous request
+
+            //xmlHttp.onload = function () {
+            //    if (xmlHttp.status === 200) {
+            //        var strResult = JSON.parse(xmlHttp.responseText);
+            //        console.log("got from server: ", strResult);
+            //        showAlert('manual update', 'update was started', 'alert-success');
+            //    } else {
+            //        console.log("Error", xmlHttp.statusText);
+            //    }
+            //};
+
+            // Send the FormData
+            xmlHttp.send(formData);
+            showAlert('manual update', 'update was started', 'alert-warning');
+            startManualUpdate();
+        }
+
+        function startManualUpdate() {
+            hide('#updateMenu');
+            show('#updateProgress');
+            $('#remainingTime').hide();
+            $('#updateTimeout').hide();
+            $('#newVersionProgress').html("manual update");
+
+            var timeoutStart = 50.0;
+            var timeout = timeoutStart;
+            var progress = 0;
+            var updateRunning = 1;
+
+            $('#updateProgressPercent').html("0 %");
+            $('#updateTimeout').html("0 s");
+
+            $('#btnUpdateStart').animate({ opacity: 0.3 });
+
+            let timerTO = window.setInterval(function () {
+                $.ajax({
+                    url: '/updateState',    
+                    type: 'GET',
+                    contentType: false,
+                    processData: false,
+                    timeout: 2000,
+                    success: function (response) {
+                        console.log("check OTA progress - " + response.updateProgress + " - run: " + response.updateRunning);
+                        progress = response.updateProgress;
+                        updateRunning = response.updateRunning;
+                        $('#progressbar').width(progress + "%");
+                        $('#updateProgressPercent').html(Math.round(progress) + " %");
+                        if (progress > 0 && updateRunning == 0) {
+                            clearInterval(timerTO);
+                            showAlert('manual update', 'DONE', 'alert-success');                    
+                        }
+                    },
+                    error: function () {
+                        showAlert('manual update', 'got no response for progress', 'alert-danger');
+                    }
+                });
+
+                console.log("check OTA progress TO - " + timeout);
+                timeout = timeout - 0.25;
+                if (timeout < 0 || updateRunning == 0) {
+                    clearInterval(timerTO);
+                    showAlert('manual update', 'DONE', 'alert-success');
+                    location.reload();
+                }
+            }, 250);
+
+            $('#btnUpdateStart').animate({ opacity: 1 });
+
+            return;
+        }
+
         function initValueChanges() {
             $(".valueText").map(function () {
                 observer = new MutationObserver(function (mutationsList, observer) {
@@ -1240,6 +1389,23 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             if (iconElement) iconElement.innerHTML = '<span style="font-size: 4vmin;">Set</span>';
             var iconElement = document.getElementById('updateBtn');
             if (iconElement) iconElement.innerHTML = '<span style="font-size: 4vmin;">Upd</span>';
+        }
+
+        function requestWifiScan() {
+            $.ajax({
+                url: '/getWifiNetworks',
+
+                type: 'GET',
+                contentType: false,
+                processData: false,
+                timeout: 2000,
+                success: function (data) {
+                    console.log("requestWifiScan - success: " + data.wifiNetworks);
+                },
+                error: function () {
+                    console.log("timeout getting data in local network");
+                }
+            });
         }
 
         function getDataValues() {

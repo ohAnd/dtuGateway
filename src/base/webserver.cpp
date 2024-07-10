@@ -2,6 +2,9 @@
 
 uint8_t rebootRequestedInSec = 0;
 boolean rebootRequested = false;
+boolean wifiScanIsRunning = false;
+// Variable to track total bytes written
+size_t totalBytesWritten = 0;
 
 DTUwebserver::DTUwebserver()
 {
@@ -26,6 +29,7 @@ void DTUwebserver::backgroundTask(DTUwebserver *instance)
             ESP.restart();
         }
     }
+    // handleUpdateStart();
 }
 
 void DTUwebserver::start()
@@ -47,6 +51,7 @@ void DTUwebserver::start()
 
     // direct settings
     asyncDtuWebServer.on("/updatePowerLimit", handleUpdatePowerLimit);
+    asyncDtuWebServer.on("/getWifiNetworks", handleGetWifiNetworks);
 
     // api GETs
     asyncDtuWebServer.on("/api/data", handleDataJson);
@@ -59,39 +64,26 @@ void DTUwebserver::start()
 
     asyncDtuWebServer.on("/update", HTTP_GET, [](AsyncWebServerRequest *request)
                          { request->send(200, "text/html", "<form method='POST' action='/doupdate' enctype='multipart/form-data'><input type='file' name='update'><input type='submit' value='Update Firmware'></form>"); });
+    asyncDtuWebServer.on("/updateState", HTTP_GET, handleUpdateProgress);
+    // Registering the handlers
     asyncDtuWebServer.on("/doupdate", HTTP_POST, [](AsyncWebServerRequest *request)
                          {
-                                // Redirect to the main page once the upload is finished
-                                request->send(200, "text/plain", "Update Complete. Rebooting...");
-                                delay(2000);
-                                ESP.restart(); }, [](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final)
+                            delay(2000);
+                            ESP.restart(); 
+                         }, [](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final)
                          {
-                                // Handle the uploaded file
-                                if (!index) {
-                                    Serial.printf("Update Start: %s\n", filename.c_str());
-                                    if (!Update.begin(MAX_UPDATE_SIZE)) { // Start with max available size
-                                        Serial.printf("UPDATE: got error during update: %s\n", filename.c_str());
-                                        Update.printError(Serial);
-                                    }
-                                }
-                                if (!Update.hasError()) {
-                                    if (Update.write(data, len) != len) {
-                                        Serial.printf("ERROR: got error during update: %s\n", filename.c_str());
-                                        Update.printError(Serial);
-                                    }
-                                }
-                                if (final) {
-                                    if (Update.end(true)) { // true to set the size to the current progress
-                                        Serial.printf("Update Success: %uB\n", index + len);
-                                    } else {
-                                        Update.printError(Serial);
-                                    }
-                                 } });
+                            if (!index) {
+                                startUpdateHandler(request, filename);
+                            }
+                            progressUpdateHandler(request, filename, index, data, len);
+                            if (final) {
+                                finalizeUpdateHandler(request, filename, index, len, final);
+                            } });
 
     asyncDtuWebServer.onNotFound(notFound);
 
     asyncDtuWebServer.begin(); // Start the web server
-    setupOTA();
+    // setupOTA();
     webServerTimer.attach(1, DTUwebserver::backgroundTask, this);
 }
 
@@ -113,6 +105,92 @@ void DTUwebserver::handleCSS(AsyncWebServerRequest *request)
 void DTUwebserver::handleJqueryMinJs(AsyncWebServerRequest *request)
 {
     request->send_P(200, "text/html", JQUERY_MIN_JS);
+}
+
+// update
+void DTUwebserver::handleUpdateStart()
+{
+    if (updateInfo.updateState == UPDATE_STATE_START)
+    {
+        updateInfo.updateState = UPDATE_STATE_INSTALLING; // Reset flag
+
+        // Start the update process
+        if (!Update.begin(MAX_UPDATE_SIZE))
+        {
+            updateInfo.updateRunning = false;
+            Serial.printf("OTA UPDATE:\t got error during update\n");
+            Update.printError(Serial);
+        }
+        else
+        {
+            Serial.println("OTA UPDATE:\t successfully started");
+            // Proceed with the update...
+        }
+    }
+}
+
+void DTUwebserver::handleUpdateProgress(AsyncWebServerRequest *request)
+{
+    String JSON = "{";
+    JSON += "\"updateRunning\": " + String(updateInfo.updateRunning) + ",";
+    JSON += "\"updateState\": " + String(updateInfo.updateState) + ",";
+    JSON += "\"updateProgress\": " + String(updateInfo.updateProgress);
+    JSON += "}";
+    request->send(200, "application/json", JSON);
+}
+
+// Definition of methods
+void DTUwebserver::startUpdateHandler(AsyncWebServerRequest *request, String filename)
+{
+    updateInfo.updateRunning = true;
+    updateInfo.updateState = UPDATE_STATE_START;
+    Serial.printf("OTA UPDATE:\t got file: %s\n", filename.c_str());
+
+    // Send immediate response to client
+    // String JSON = "{";
+    // JSON += "\"updateRunning\": " + String(updateInfo.updateRunning) + ",";
+    // JSON += "\"updateState\": " + String(updateInfo.updateState) + ",";
+    // JSON += "\"updateProgress\": " + String(updateInfo.updateProgress);
+    // JSON += "}";
+    // request->send(200, "application/json", JSON);
+
+    handleUpdateStart();
+}
+
+void DTUwebserver::progressUpdateHandler(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len)
+{
+    if (!Update.hasError())
+    {
+        if (Update.write(data, len) == len)
+        {
+            totalBytesWritten += len;
+            float progress = (totalBytesWritten / (float)Update.size()) * 100;
+            updateInfo.updateProgress = progress;
+            #ifdef defined(ESP32)
+            Serial.printf("OTA UPDATE:\t Progress: %.2f%%\n", progress);
+            #endif
+        }
+        else
+        {
+            updateInfo.updateRunning = false;
+            Serial.printf("OTA UPDATE:\t ERROR: Write error during update: %s\n", filename.c_str());
+            Update.printError(Serial);
+        }
+    }
+}
+
+void DTUwebserver::finalizeUpdateHandler(AsyncWebServerRequest *request, String filename, size_t index, size_t len, bool final)
+{
+    if (Update.end(true))
+    {
+        updateInfo.updateRunning = false;
+        updateInfo.updateState = UPDATE_STATE_RESTART;
+        Serial.printf("OTA UPDATE:\t Success: %u Byte\n", index + len);
+    }
+    else
+    {
+        Update.printError(Serial);
+    }
 }
 
 // admin config
@@ -253,6 +331,7 @@ void DTUwebserver::handleInfojson(AsyncWebServerRequest *request)
     JSON = JSON + "\"wifiSsid\": \"" + String(userConfig.wifiSsid) + "\",";
     JSON = JSON + "\"wifiPassword\": \"" + String(userConfig.wifiPassword) + "\",";
     JSON = JSON + "\"rssiGW\": " + dtuGlobalData.wifi_rssi_gateway + ",";
+    JSON = JSON + "\"wifiScanIsRunning\": " + wifiScanIsRunning + ",";
     JSON = JSON + "\"networkCount\": " + platformData.wifiNetworkCount + ",";
     JSON = JSON + "\"foundNetworks\":" + platformData.wifiFoundNetworks;
     JSON = JSON + "}";
@@ -286,7 +365,7 @@ void DTUwebserver::handleUpdateWifiSettings(AsyncWebServerRequest *request)
             }
             else if (userConfig.displayConnected == 1)
                 userConfig.displayConnected = 0;
-            
+
             // and schedule a reboot to start fresh with new settings
             rebootRequestedInSec = 2;
             rebootRequested = true;
@@ -513,6 +592,29 @@ void DTUwebserver::handleUpdatePowerLimit(AsyncWebServerRequest *request)
     }
 }
 
+// direct wifi scan
+void DTUwebserver::setWifiScanIsRunning(bool state)
+{
+    wifiScanIsRunning = state;
+}
+
+void DTUwebserver::handleGetWifiNetworks(AsyncWebServerRequest *request)
+{
+    if (!wifiScanIsRunning)
+    {
+        WiFi.scanNetworks(true);
+
+        request->send(200, "application/json", "{\"wifiNetworks\": \"scan started\"}");
+        Serial.println(F("DTUwebserver:\t -> WIFI_SCAN: start async scan"));
+        wifiScanIsRunning = true;
+    }
+    else
+    {
+        request->send(200, "application/json", "{\"wifiNetworks\": \"scan already running\"}");
+        Serial.println(F("DTUwebserver:\t -> WIFI_SCAN: scan already running"));
+    }
+}
+
 // OTA settings
 void DTUwebserver::handleUpdateOTASettings(AsyncWebServerRequest *request)
 {
@@ -554,31 +656,4 @@ void DTUwebserver::handleUpdateInfoRequest(AsyncWebServerRequest *request)
 void DTUwebserver::notFound(AsyncWebServerRequest *request)
 {
     request->send(404, "text/plain", "Not found");
-}
-
-void DTUwebserver::setupOTA()
-{
-    ArduinoOTA.onStart([]()
-                       {
-                        String type;
-                        if (ArduinoOTA.getCommand() == U_FLASH) {
-                        type = "sketch";
-                        } else { // U_SPIFFS
-                        type = "filesystem";
-                        }
-                        // NOTE: if updating SPIFFS this would be the place to unmount SPIFFS using SPIFFS.end()
-                        Serial.println("setupOTA - Start updating " + type); });
-    ArduinoOTA.onEnd([]()
-                     { Serial.println("\nsetupOTA - End"); });
-    ArduinoOTA.onProgress([](unsigned int progress, unsigned int total)
-                          { Serial.printf("setupOTA - Progress: %u%%\r", (progress / (total / 100))); });
-    ArduinoOTA.onError([](ota_error_t error)
-                       {
-                        Serial.printf("Error[%u]: ", error);
-                        if (error == OTA_AUTH_ERROR) Serial.println("setupOTA - Auth Failed");
-                        else if (error == OTA_BEGIN_ERROR) Serial.println("setupOTA - Begin Failed");
-                        else if (error == OTA_CONNECT_ERROR) Serial.println("setupOTA - Connect Failed");
-                        else if (error == OTA_RECEIVE_ERROR) Serial.println("setupOTA - Receive Failed");
-                        else if (error == OTA_END_ERROR) Serial.println("setupOTA - End Failed"); });
-    ArduinoOTA.begin();
 }

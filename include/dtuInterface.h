@@ -36,6 +36,7 @@
 #define DTU_STATE_TRY_RECONNECT 3
 #define DTU_STATE_DTU_REBOOT 4
 #define DTU_STATE_CONNECT_ERROR 5
+#define DTU_STATE_STOPPED 6
 
 #define DTU_ERROR_NO_ERROR 0
 #define DTU_ERROR_NO_TIME 1
@@ -106,16 +107,17 @@ class DTUInterface {
 public:
     DTUInterface(const char* server, uint16_t port=10081);
     ~DTUInterface();
-
-    void setServer(const char* server);
-
+   
     void setup(const char *server);
+    void setServer(const char* server);
+   
     void connect();
     void disconnect(uint8_t tgtState);
-    void keepAlive(); // Method to send keep-alive messages
+    
 
     void getDataUpdate();
     void setPowerLimit(int limit);
+    void requestRestartDevice();
 
     String getTimeStringByTimestamp(unsigned long timestamp);
     void printDataAsTextToSerial();
@@ -124,9 +126,12 @@ public:
 private:
     Ticker keepAliveTimer; // Timer to send keep-alive messages
     static void keepAliveStatic(DTUInterface* dtuInterface); // Static method for timer callback
+    void keepAlive(); // Method to send keep-alive messages
+
     Ticker loopTimer; // local loop to handle 
     static void dtuLoopStatic(DTUInterface* instance);
     void dtuLoop();
+       
 
     static void onConnect(void* arg, AsyncClient* c);
     static void onDisconnect(void* arg, AsyncClient* c);
@@ -138,18 +143,7 @@ private:
 
     static void txrxStateObserver();
 
-    const char* serverIP;
-    uint16_t serverPort;
-    AsyncClient* client;
 
-    CRC16 crc;
-    
-    float gridVoltHist[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-    uint8_t gridVoltCnt = 0;
-    unsigned long lastSwOff = 0;
-
-    static float calcValue(int32_t value, int32_t divider = 10);
-  
     void checkingDataUpdate();
     boolean cloudPauseActiveControl();
     
@@ -169,6 +163,17 @@ private:
     boolean writeCommandRestartDevice();
     boolean readRespCommandRestartDevice(pb_istream_t istream);
     
+    const char* serverIP;
+    uint16_t serverPort;
+    AsyncClient* client;
+
+    CRC16 crc;
+    
+    float gridVoltHist[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    uint8_t gridVoltCnt = 0;
+    unsigned long lastSwOff = 0;
+
+    static float calcValue(int32_t value, int32_t divider = 10);
 };
 
 extern DTUInterface dtuInterface;
