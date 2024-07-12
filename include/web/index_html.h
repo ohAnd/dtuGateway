@@ -196,11 +196,19 @@ const char INDEX_HTML[] PROGMEM = R"=====(
     </div>
     <div class="popup" id="updateMenu">
         <h2>Update</h2>
-        <div>
-            <div style="padding-bottom: 10px;">
-                direct online update -
-                <i id="updateState">currently no update available</i>
-            </div>
+        <div style="padding-bottom: 10px;">
+
+            <div style="padding-bottom: 10px;"></div>
+
+            <label class="switch">
+                <input type="checkbox" checked onChange="changeUpdateType(this.checked)">
+                <span class="slider"></span>
+            </label>
+            <label id="updateSwitch">manual/ auto</label>
+        </div>
+        <label id="updateType" style="color: gray;">direct online update - </label>
+        <i id="updateState" style="color: gray;">currently no update available</i>
+        <div id="autoUpdate" style="color: gray;">
             <div id="updateInfo">
                 <div>
                     <div class="tableCell" style="text-align:right;">
@@ -228,7 +236,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                 <div onclick="changeReleaseChannel(0)" id="relChanStable" class="updateChannel selected"
                     style="border-radius: 5px 0px 0px 5px;">stable</div>
                 <div onclick="changeReleaseChannel(1)" id="relChanSnapshot" class="updateChannel"
-                    style="border-radius: 0px 5px 5px 0px;position:relative;top:-1.25em;left:50%;">snapshot</div>
+                    style="border-radius: 0px 5px 5px 0px;position:relative;top:-1.25em;left:50%;color: gray;">snapshot</div>
                 <i style="font-size:x-small;">switch update channels (stable/ latest snapshot)</i>
             </div>
             <hr>
@@ -236,28 +244,20 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                 <!-- <input id="btnUpdateStart" class="btn" type="submit" name="doUpdate" value="Update starten"> -->
                 <b onclick="" id="btnUpdateStart" class="form-button btn">start update</b>
             </div>
-            <hr>
-            <div style="padding-bottom: 10px;">
-                <p>manual update</p>
-            </div>
-            <div id="updateManual" style="text-align: center;">
-                <!-- <input type='file' name='update'> -->
-                <input type="file" id="fileInput" style="display: none;" onchange="showFileName()">
-                <label for="fileInput" class="form-button btn">Choose File</label>
-                <span id="fileNameDisplay"></span>
-                <b id="manualUpdateStart" onClick="updateManualWithFile()" class="form-button btn"
-                    style="display: none;">update manual
-                    selected firmware</b>
-            </div>
-            <hr>
-            <div style="text-align: center;">
-                <b onclick="hide('#updateMenu')" class="form-button btn">close</b>
-            </div>
-            <div>
-                <small style="text-align:center;"><a href="/update">manual update direct link</a></small>
-            </div>
-
         </div>
+        <div id="updateManual" style="text-align: center; padding-top: 20px; display:none;">
+            <!-- <input type='file' name='update'> -->
+            <input type="file" id="fileInput" style="display: none;" accept=".bin" onchange="showFileName(this);">
+            <label for="fileInput" class="form-button btn">choose file</label>
+            <div id="fileNameDisplay" style="padding:20px 0 20px 0;"></div>
+            <b id="manualUpdateStart" onClick="updateManualWithFile()" class="form-button btn"
+                style="display: none;">update firmware</b>
+        </div>
+        <hr>
+        <div style="text-align: center;">
+            <b onclick="hide('#updateMenu')" class="form-button btn">close</b>
+        </div>
+    </div>
     </div>
     <div class="popup" id="updateProgress">
         <h2>Update</h2>
@@ -1223,12 +1223,35 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             return true;
         }
 
-        function showFileName() {
+        function changeUpdateType(checked) {
+            if (checked) {
+                $('#updateType').text("direct online update - ");
+                $('#updateType').css('color', 'gray');
+                $('#updateState').text(" currently no update available");
+                $('#updateState').css('color', 'gray');
+                $('#updateState').show();
+                $('#autoUpdate').show();
+                $('#updateManual').hide();
+            } else {
+                $('#updateType').text("manual update with firmware file");
+                $('#updateType').css('color', '');
+                $('#updateState').hide();
+                $('#autoUpdate').hide();
+                $('#updateManual').show();
+            }
+        }
+
+        function showFileName(input) {
             var fileInput = document.getElementById('fileInput');
             var fileNameDisplay = document.getElementById('fileNameDisplay');
             if (fileInput.files.length > 0) {
                 var fileName = fileInput.files[0].name;
-                fileNameDisplay.textContent = "choosen firmware file: " + fileName;
+                var fileSize = input.files[0].size / 1024 / 1024; // size in MB
+                fileSize = fileSize.toFixed(2); // keeping two decimals
+                // Display file size in the HTML
+                fileName += ` (${fileSize} MB)`;
+                
+                $('#fileNameDisplay').html("<small>selected firmware file:</small> " + fileName);
                 $('#manualUpdateStart').show();
             } else {
                 fileNameDisplay.textContent = '';
@@ -1260,7 +1283,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
 
             // Send the FormData
             xmlHttp.send(formData);
-            showAlert('manual update', 'update was started', 'alert-warning');
+            showAlert('manual update', 'update was started', 'alert-success');
             startManualUpdate();
         }
 
@@ -1269,6 +1292,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             show('#updateProgress');
             $('#remainingTime').hide();
             $('#updateTimeout').hide();
+            $('#updateStateNow').html("installing new firmware");
             $('#newVersionProgress').html("manual update");
 
             var timeoutStart = 50.0;
@@ -1283,7 +1307,8 @@ const char INDEX_HTML[] PROGMEM = R"=====(
 
             let timerTO = window.setInterval(function () {
                 $.ajax({
-                    url: '/updateState',    
+                    //url: 'api/data',
+                    url: '/updateState',
                     type: 'GET',
                     contentType: false,
                     processData: false,
@@ -1296,7 +1321,8 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                         $('#updateProgressPercent').html(Math.round(progress) + " %");
                         if (progress > 0 && updateRunning == 0) {
                             clearInterval(timerTO);
-                            showAlert('manual update', 'DONE', 'alert-success');                    
+                            showAlert('manual update', 'DONE', 'alert-success');
+                            location.reload();
                         }
                     },
                     error: function () {

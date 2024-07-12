@@ -2,7 +2,7 @@
 #include <dtuInterface.h>
 
 #ifdef ARDUINO_ARCH_ESP8266
-  ADC_MODE(ADC_VCC); // Read the supply voltage
+ADC_MODE(ADC_VCC); // Read the supply voltage
 #endif
 
 TFT_eSPI tft = TFT_eSPI();
@@ -46,9 +46,6 @@ void DisplayTFT::renderScreen(String time, String version)
         drawScreen(version, time); // draw every 0.5 second
         // Serial.println("Displaying screen");
     }
-
-
-
 
     // if (displayTicks % 5 == 0)
     // {
@@ -184,6 +181,16 @@ void DisplayTFT::drawFactoryMode(String version, String apName, String ip)
     tft.setTextColor(TFT_GREENYELLOW, TFT_BLACK);
     tft.drawCentreString(apName, 120, 94, 2); // font4 26 + 3
     tft.drawCentreString("http://" + ip, 120, 145, 4);
+}
+
+void DisplayTFT::drawUpdateMode(String text, String text2)
+{
+    Serial.println(F("TFT display:\t update mode"));
+
+    tft.fillScreen(TFT_BLACK);
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);
+    tft.drawCentreString(text, 120, 110, 4);
+    tft.drawCentreString(text2, 120, 150, 4);
 }
 
 void DisplayTFT::drawHeader(String version)
@@ -509,12 +516,17 @@ void DisplayTFT::showDebug()
 
 void DisplayTFT::printProcessorName(void)
 {
-  Serial.print("Processor    = ");
-  if ( user.esp == 0x8266) Serial.println("ESP8266");
-  if ( user.esp == 0x32)   Serial.println("ESP32");
-  if ( user.esp == 0x32F)  Serial.println("STM32");
-  if ( user.esp == 0x2040) Serial.println("RP2040");
-  if ( user.esp == 0x0000) Serial.println("Generic");
+    Serial.print("Processor    = ");
+    if (user.esp == 0x8266)
+        Serial.println("ESP8266");
+    if (user.esp == 0x32)
+        Serial.println("ESP32");
+    if (user.esp == 0x32F)
+        Serial.println("STM32");
+    if (user.esp == 0x2040)
+        Serial.println("RP2040");
+    if (user.esp == 0x0000)
+        Serial.println("Generic");
 }
 
 int8_t DisplayTFT::getPinName(int8_t pin)

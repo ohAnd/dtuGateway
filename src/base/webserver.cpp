@@ -3,8 +3,8 @@
 uint8_t rebootRequestedInSec = 0;
 boolean rebootRequested = false;
 boolean wifiScanIsRunning = false;
-// Variable to track total bytes written
-size_t totalBytesWritten = 0;
+
+size_t content_len;
 
 DTUwebserver::DTUwebserver()
 {
@@ -26,10 +26,14 @@ void DTUwebserver::backgroundTask(DTUwebserver *instance)
             rebootRequestedInSec = 0;
             rebootRequested = false;
             Serial.println(F("WEB:\t\t backgroundTask - reboot requested"));
+            Serial.flush();
             ESP.restart();
         }
     }
-    // handleUpdateStart();
+    // if (updateInfo.updateRunning)
+    // {
+    //     Serial.println("OTA UPDATE:\t Progress: " + String(updateInfo.updateProgress, 1) + " %");
+    // }
 }
 
 void DTUwebserver::start()
@@ -57,34 +61,22 @@ void DTUwebserver::start()
     asyncDtuWebServer.on("/api/data", handleDataJson);
     asyncDtuWebServer.on("/api/info", handleInfojson);
 
-    // OTA update
+    // OTA direct update
     asyncDtuWebServer.on("/updateOTASettings", handleUpdateOTASettings);
     asyncDtuWebServer.on("/updateGetInfo", handleUpdateInfoRequest);
-    // asyncDtuWebServer.on("/updateRequest", handleUpdateRequest);
 
-    asyncDtuWebServer.on("/update", HTTP_GET, [](AsyncWebServerRequest *request)
-                         { request->send(200, "text/html", "<form method='POST' action='/doupdate' enctype='multipart/form-data'><input type='file' name='update'><input type='submit' value='Update Firmware'></form>"); });
+    // OTA update
+    asyncDtuWebServer.on("/doupdate", HTTP_POST, [](AsyncWebServerRequest *request) {}, [](AsyncWebServerRequest *request, const String &filename, size_t index, uint8_t *data, size_t len, bool final)
+                         { handleDoUpdate(request, filename, index, data, len, final); });
     asyncDtuWebServer.on("/updateState", HTTP_GET, handleUpdateProgress);
-    // Registering the handlers
-    asyncDtuWebServer.on("/doupdate", HTTP_POST, [](AsyncWebServerRequest *request)
-                         {
-                            delay(2000);
-                            ESP.restart(); 
-                         }, [](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final)
-                         {
-                            if (!index) {
-                                startUpdateHandler(request, filename);
-                            }
-                            progressUpdateHandler(request, filename, index, data, len);
-                            if (final) {
-                                finalizeUpdateHandler(request, filename, index, len, final);
-                            } });
 
     asyncDtuWebServer.onNotFound(notFound);
 
     asyncDtuWebServer.begin(); // Start the web server
-    // setupOTA();
     webServerTimer.attach(1, DTUwebserver::backgroundTask, this);
+#ifdef ESP32
+    Update.onProgress(printProgress);
+#endif
 }
 
 void DTUwebserver::stop()
@@ -107,28 +99,72 @@ void DTUwebserver::handleJqueryMinJs(AsyncWebServerRequest *request)
     request->send_P(200, "text/html", JQUERY_MIN_JS);
 }
 
-// update
-void DTUwebserver::handleUpdateStart()
+// ota update
+void DTUwebserver::handleDoUpdate(AsyncWebServerRequest *request, const String &filename, size_t index, uint8_t *data, size_t len, bool final)
 {
-    if (updateInfo.updateState == UPDATE_STATE_START)
+    if (!index)
     {
-        updateInfo.updateState = UPDATE_STATE_INSTALLING; // Reset flag
-
-        // Start the update process
-        if (!Update.begin(MAX_UPDATE_SIZE))
+        updateInfo.updateRunning = true;
+        updateInfo.updateState = UPDATE_STATE_START;
+        Serial.println("OTA UPDATE:\t Update Start with file: " + filename);
+        content_len = request->contentLength();
+        // if filename includes spiffs, update the spiffs partition
+        int cmd = (filename.indexOf("spiffs") > -1) ? U_PART : U_FLASH;
+#ifdef ESP8266
+        Update.runAsync(true);
+        if (!Update.begin(content_len, cmd))
         {
-            updateInfo.updateRunning = false;
-            Serial.printf("OTA UPDATE:\t got error during update\n");
+#else
+        if (!Update.begin(UPDATE_SIZE_UNKNOWN, cmd))
+        {
+#endif
             Update.printError(Serial);
+            updateInfo.updateState = UPDATE_STATE_FAILED;
+        }
+    }
+
+    if (Update.write(data, len) != len)
+    {
+        Update.printError(Serial);
+        updateInfo.updateState = UPDATE_STATE_FAILED;
+#ifdef ESP8266
+    }
+    else
+    {
+        updateInfo.updateProgress = (Update.progress() * 100) / Update.size();
+        // Serial.println("OTA UPDATE:\t ESP8266 Progress: " + String(updateInfo.updateProgress, 1) + " %");
+#endif
+    }
+
+    if (final)
+    {
+        // AsyncWebServerResponse *response = request->beginResponse(302, "text/plain", "Please wait while the device reboots");
+        // response->addHeader("Refresh", "20");
+        // response->addHeader("Location", "/");
+        // request->send(response);
+        if (!Update.end(true))
+        {
+            Update.printError(Serial);
+            updateInfo.updateState = UPDATE_STATE_FAILED;
         }
         else
         {
-            Serial.println("OTA UPDATE:\t successfully started");
-            // Proceed with the update...
+            Serial.println("OTA UPDATE:\t Update complete");
+            updateInfo.updateState = UPDATE_STATE_DONE;
+            updateInfo.updateRunning = false;
+            Serial.flush();
+            rebootRequestedInSec = 3;
+            rebootRequested = true;
+            // delay(1000);
+            // ESP.restart();
         }
     }
 }
-
+void DTUwebserver::printProgress(size_t prg, size_t sz)
+{
+    updateInfo.updateProgress = (prg * 100) / content_len;
+    // Serial.println("OTA UPDATE:\t ESP32 Progress: " + String(updateInfo.updateProgress, 1) + " %");
+}
 void DTUwebserver::handleUpdateProgress(AsyncWebServerRequest *request)
 {
     String JSON = "{";
@@ -137,60 +173,6 @@ void DTUwebserver::handleUpdateProgress(AsyncWebServerRequest *request)
     JSON += "\"updateProgress\": " + String(updateInfo.updateProgress);
     JSON += "}";
     request->send(200, "application/json", JSON);
-}
-
-// Definition of methods
-void DTUwebserver::startUpdateHandler(AsyncWebServerRequest *request, String filename)
-{
-    updateInfo.updateRunning = true;
-    updateInfo.updateState = UPDATE_STATE_START;
-    Serial.printf("OTA UPDATE:\t got file: %s\n", filename.c_str());
-
-    // Send immediate response to client
-    // String JSON = "{";
-    // JSON += "\"updateRunning\": " + String(updateInfo.updateRunning) + ",";
-    // JSON += "\"updateState\": " + String(updateInfo.updateState) + ",";
-    // JSON += "\"updateProgress\": " + String(updateInfo.updateProgress);
-    // JSON += "}";
-    // request->send(200, "application/json", JSON);
-
-    handleUpdateStart();
-}
-
-void DTUwebserver::progressUpdateHandler(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len)
-{
-    if (!Update.hasError())
-    {
-        if (Update.write(data, len) == len)
-        {
-            totalBytesWritten += len;
-            float progress = (totalBytesWritten / (float)Update.size()) * 100;
-            updateInfo.updateProgress = progress;
-            #ifdef defined(ESP32)
-            Serial.printf("OTA UPDATE:\t Progress: %.2f%%\n", progress);
-            #endif
-        }
-        else
-        {
-            updateInfo.updateRunning = false;
-            Serial.printf("OTA UPDATE:\t ERROR: Write error during update: %s\n", filename.c_str());
-            Update.printError(Serial);
-        }
-    }
-}
-
-void DTUwebserver::finalizeUpdateHandler(AsyncWebServerRequest *request, String filename, size_t index, size_t len, bool final)
-{
-    if (Update.end(true))
-    {
-        updateInfo.updateRunning = false;
-        updateInfo.updateState = UPDATE_STATE_RESTART;
-        Serial.printf("OTA UPDATE:\t Success: %u Byte\n", index + len);
-    }
-    else
-    {
-        Update.printError(Serial);
-    }
 }
 
 // admin config

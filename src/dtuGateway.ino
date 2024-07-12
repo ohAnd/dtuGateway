@@ -886,8 +886,6 @@ void startServices()
     Serial.print(F("WIFIclient:\t IP address of gateway: "));
     Serial.println(WiFi.gatewayIP());
 
-    // httpUpdater.setup(&server);
-
     MDNS.begin(platformData.espUniqueName);
     MDNS.addService("http", "tcp", 80);
     Serial.println("MDNS:\t\t ready! Open http://" + platformData.espUniqueName + ".local in your browser");
@@ -1172,14 +1170,27 @@ void loop()
 {
   unsigned long currentMillis = millis();
   // skip all tasks if update is running
-  if (updateInfo.updateRunning) {
+  if (updateInfo.updateState != UPDATE_STATE_IDLE)
+  {
+    if (updateInfo.updateState == UPDATE_STATE_START)
+    {
+      // if (userConfig.displayConnected == 0)
+      //   displayOLED.renderScreen(timeClient.getFormattedTime(), String(platformData.fwVersion));
+      // else if (userConfig.displayConnected == 1)
+      displayTFT.drawUpdateMode("update running ...");
+      updateInfo.updateState = UPDATE_STATE_INSTALLING;
+    }
+    if (updateInfo.updateState == UPDATE_STATE_DONE)
+    {
+      // if (userConfig.displayConnected == 0)
+      //   displayOLED.renderScreen(timeClient.getFormattedTime(), String(platformData.fwVersion));
+      // else if (userConfig.displayConnected == 1)
+      displayTFT.drawUpdateMode("update done", "rebooting ...");
+      updateInfo.updateState = UPDATE_STATE_RESTART;
+    }
     dtuInterface.disconnect(DTU_STATE_STOPPED);
     return;
   }
-
-  // basic OTA
-  // ArduinoOTA.handle();
-
   // check for wifi networks scan results
   scanNetworksResult();
 
@@ -1293,10 +1304,10 @@ void loop()
       }
     }
 
-    //   if (updateInfo.updateInfoRequested)
-    //   {
-    //     getUpdateInfo();
-    //   }
+    // if (updateInfo.updateInfoRequested)
+    // {
+    //   getUpdateInfo();
+    // }
   }
 
   // 5s task

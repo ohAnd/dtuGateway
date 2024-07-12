@@ -10,15 +10,13 @@
 #endif
 
 #include <ESPAsyncWebServer.h>
-#include <ArduinoOTA.h>
 
 #if defined(ESP8266)
-    // For ESP8266, define the maximum update size based on your device's flash size
-    // Example for 4M flash size: 1024 * 1024 * 3 (leave 1M for SPIFFS)
-    #define MAX_UPDATE_SIZE (1024 * 1024 * 2)
+#include <Updater.h>
+#define U_PART U_FS
 #elif defined(ESP32)
-    // For ESP32, use UPDATE_SIZE_UNKNOWN
-    #define MAX_UPDATE_SIZE UPDATE_SIZE_UNKNOWN
+#include <Update.h>
+#define U_PART U_SPIFFS
 #endif
 
 #include <Ticker.h>
@@ -51,12 +49,9 @@ private:
     static void handleCSS(AsyncWebServerRequest *request);
     static void handleJqueryMinJs(AsyncWebServerRequest *request);
 
-    static void handleUpdateStart();
+    static void handleDoUpdate(AsyncWebServerRequest *request, const String &filename, size_t index, uint8_t *data, size_t len, bool final);
+    static void printProgress(size_t prg, size_t sz);
     static void handleUpdateProgress(AsyncWebServerRequest *request);
-
-    static void startUpdateHandler(AsyncWebServerRequest *request, String filename);
-    static void progressUpdateHandler(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len);
-    static void finalizeUpdateHandler(AsyncWebServerRequest *request, String filename, size_t index, size_t len, bool final);
     
     static void handleDataJson(AsyncWebServerRequest *request);
     static void handleInfojson(AsyncWebServerRequest *request);

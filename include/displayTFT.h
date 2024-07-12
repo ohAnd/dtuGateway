@@ -32,6 +32,7 @@ class DisplayTFT {
         void setup();
         void renderScreen(String time, String version);
         void drawFactoryMode(String version, String apName, String ip);
+        void drawUpdateMode(String text,String text2="");
     private:
         void drawScreen(String version, String time);
         void drawHeader(String version);
