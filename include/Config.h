@@ -2,40 +2,66 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
-#include <EEPROM.h>
 #include <Arduino.h>
+#include <ArduinoJson.h>
+#include <LittleFS.h>
 
-#define EEPROM_INIT_PATTERN 0xAA
+#define CONFIG_FILE_PATH "/userconfig.json"
 
 struct UserConfig
 {
-    char dtuSsid[64];
-    char dtuPassword[64];
-    char wifiSsid[64];
-    char wifiPassword[64];
-    char dtuHostIp[16];
-    char openhabHostIp[16];
-    char openItemPrefix[32];
-    boolean openhabActive;
-    char mqttBrokerIp[16];
-    int mqttBrokerPort;
-    char mqttBrokerUser[64];
-    char mqttBrokerPassword[64];
-    char mqttBrokerMainTopic[32];
-    boolean mqttActive;
-    int dtuCloudPauseTime;
-    boolean dtuCloudPauseActive;
-    int dtuUpdateTime;
-    boolean wifiAPstart;
-    int selectedUpdateChannel; // 0 - release 1 - snapshot
-    byte eepromInitialized;    // specific pattern to determine floating state in EEPROM from Factory
+    char dtuSsid[64]              = "DTUBI-12345678";
+    char dtuPassword[64]          = "dtubiPassword";
+
+    char wifiSsid[64]             = "mySSID";
+    char wifiPassword[64]         = "myPassword";
+    
+    char dtuHostIpDomain[128]     = "192.168.0.254";
+    int dtuCloudPauseTime         = 40;
+    boolean dtuCloudPauseActive   = true;
+    int dtuUpdateTime             = 31;
+
+    char openhabHostIpDomain[128] = "192.168.1.100";
+    char openItemPrefix[32]       = "inverter";
+    boolean openhabActive         = 0;
+    
+    char mqttBrokerIpDomain[128]  = "192.168.1.100";
+    int mqttBrokerPort            = 1883;
+    boolean mqttUseTLS            = false;
+    char mqttBrokerUser[64]       = "dtuuser";
+    char mqttBrokerPassword[64]   = "dtupass";
+    char mqttBrokerMainTopic[32]  = "dtu_12345678";
+    boolean mqttHAautoDiscoveryON = false;
+    boolean mqttActive            = false;
+    
+    uint8_t displayConnected      = 0; // OLED default
+
+    boolean wifiAPstart           = true;
+    int selectedUpdateChannel     = 0; // 0 - release 1 - snapshot
+    int timezoneOffest            = 7200; // default CEST
 };
 
 extern UserConfig userConfig;
 
-void saveConfigToEEPROM();
-void loadConfigFromEEPROM();
-void initializeEEPROM();
-void printEEPROMdata();
+// Define the UserConfigManager class
+class UserConfigManager {
+    public:
+        UserConfigManager(const char *filePath = CONFIG_FILE_PATH, const UserConfig &defaultConfig = UserConfig());
+        bool begin();
+        bool loadConfig(UserConfig &config);
+        void saveConfig(const UserConfig &config);
+        void resetConfig();
+        void printConfigdata();
+        // String getWebHandler(keyAndValue_t* keyValueWebClient, unsigned int size);
+        String getWebHandler(JsonDocument doc);
+        
+
+    private:
+        const char *filePath;
+        UserConfig defaultConfig;
+        JsonDocument mappingStructToJson();
+        void mappingJsonToStruct(JsonDocument doc);
+        String createWebPage(bool updated);
+};
 
 #endif // CONFIG_H

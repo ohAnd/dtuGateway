@@ -17,11 +17,12 @@
 
 #include <ArduinoJson.h>
 
-#include <EEPROM.h>
-
 #include <display.h>
+#include <displayTFT.h>
 
-#include "dtuInterface.h"
+#include <dtuInterface.h>
+
+#include <mqttHandler.h>
 
 #include "index_html.h"
 #include "jquery_min_js.h"
@@ -31,7 +32,10 @@
 #include "Config.h"
 
 // first start AP name
-const char *apNameStart = "hoymilesGW"; // + chipid
+const char *apNameStart = "dtuGateway"; // + chipid
+
+uint32_t chipID = ESP.getChipId();
+String espUniqueName = String(apNameStart) + "_" + chipID;
 
 // OTA
 ESP8266HTTPUpdateServer httpUpdater;
@@ -52,6 +56,9 @@ boolean updateInfoRequested = false;
 float updateProgress = 0;
 char updateState[16] = "waiting";
 
+// user config
+UserConfigManager configManager;
+
 #define WIFI_RETRY_TIME_SECONDS 30
 #define WIFI_RETRY_TIMEOUT_SECONDS 30
 #define RECONNECTS_ARRAY_SIZE 50
@@ -66,20 +73,20 @@ int reconnectsCnt = -1; // first needed run inkrement to 0
 #define BLINK_PAUSE_CLOUD_UPDATE 4   // 0,5 Hz blip - DTO - Cloud update
 int8_t blinkCode = BLINK_WIFI_OFF;
 
-Display oledDisplay;
+Display displayOLED;
+DisplayTFT displayTFT;
 
-String host;
 WiFiUDP ntpUDP;
 WiFiClient dtuClient;
 NTPClient timeClient(ntpUDP); // By default 'pool.ntp.org' is used with 60 seconds update interval
-#define CLIENT_TIME_OFFSET 3600
 
 WiFiClient puSubClient;
-PubSubClient mqttClient(puSubClient);
+// PubSubClient mqttClient(puSubClient);
+MQTTHandler mqttHandler(userConfig.mqttBrokerIpDomain, userConfig.mqttBrokerPort, userConfig.mqttBrokerUser, userConfig.mqttBrokerPassword, userConfig.mqttUseTLS, espUniqueName.c_str());
 
 ESP8266WebServer server(80);
 
-uint32_t chipID = ESP.getChipId();
+IPAddress dtuGatewayIP;
 unsigned long starttime = 0;
 
 // intervall for getting and sending temp
@@ -92,11 +99,13 @@ unsigned long starttime = 0;
 ESP8266Timer ITimer;
 #define TIMER_INTERVAL_MS 1000
 
+const long interval50ms = 50;   // interval (milliseconds)
 const long interval100ms = 100; // interval (milliseconds)
-const long intervalShort = 1;   // interval (milliseconds)
-const long interval5000ms = 5;  // interval (milliseconds)
-unsigned long intervalMid = 32; // interval (milliseconds)
-const long intervalLong = 60;   // interval (milliseconds)
+const long intervalShort = 1;   // interval (seconds)
+const long interval5000ms = 5;  // interval (seconds)
+unsigned long intervalMid = 32; // interval (seconds)
+const long intervalLong = 60;   // interval (seconds)
+unsigned long previousMillis50ms = 0;
 unsigned long previousMillis100ms = 0;
 unsigned long previousMillisShort = 1704063600;
 unsigned long previousMillis5000ms = 1704063600;
@@ -239,13 +248,13 @@ void handleDataJson()
 {
   String JSON = "{";
   JSON = JSON + "\"localtime\": " + String(timeStampInSecondsDtuSynced) + ",";
-  JSON = JSON + "\"ntpStamp\": " + String(timeClient.getEpochTime() - CLIENT_TIME_OFFSET) + ",";
+  JSON = JSON + "\"ntpStamp\": " + String(timeClient.getEpochTime() - userConfig.timezoneOffest) + ",";
 
   JSON = JSON + "\"lastResponse\": " + globalData.lastRespTimestamp + ",";
   JSON = JSON + "\"dtuConnState\": " + dtuConnection.dtuConnectState + ",";
   JSON = JSON + "\"dtuErrorState\": " + dtuConnection.dtuErrorState + ",";
 
-  JSON = JSON + "\"starttime\": " + String(starttime - CLIENT_TIME_OFFSET) + ",";
+  JSON = JSON + "\"starttime\": " + String(starttime - userConfig.timezoneOffest) + ",";
 
   JSON = JSON + "\"inverter\": {";
   JSON = JSON + "\"pLim\": " + String(globalData.powerLimit) + ",";
@@ -286,7 +295,7 @@ void handleInfojson()
 {
   String JSON = "{";
   JSON = JSON + "\"chipid\": " + String(chipID) + ",";
-  JSON = JSON + "\"host\": \"" + String(host) + "\",";
+  JSON = JSON + "\"host\": \"" + espUniqueName + "\",";
   JSON = JSON + "\"initMode\": " + userConfig.wifiAPstart + ",";
 
   JSON = JSON + "\"firmware\": {";
@@ -302,21 +311,23 @@ void handleInfojson()
 
   JSON = JSON + "\"openHabConnection\": {";
   JSON = JSON + "\"ohActive\": " + userConfig.openhabActive + ",";
-  JSON = JSON + "\"ohHostIp\": \"" + String(userConfig.openhabHostIp) + "\",";
+  JSON = JSON + "\"ohHostIp\": \"" + String(userConfig.openhabHostIpDomain) + "\",";
   JSON = JSON + "\"ohItemPrefix\": \"" + String(userConfig.openItemPrefix) + "\"";
   JSON = JSON + "},";
 
   JSON = JSON + "\"mqttConnection\": {";
   JSON = JSON + "\"mqttActive\": " + userConfig.mqttActive + ",";
-  JSON = JSON + "\"mqttIp\": \"" + String(userConfig.mqttBrokerIp) + "\",";
+  JSON = JSON + "\"mqttIp\": \"" + String(userConfig.mqttBrokerIpDomain) + "\",";
   JSON = JSON + "\"mqttPort\": " + String(userConfig.mqttBrokerPort) + ",";
+  JSON = JSON + "\"mqttUseTLS\": " + userConfig.mqttUseTLS + ",";
   JSON = JSON + "\"mqttUser\": \"" + String(userConfig.mqttBrokerUser) + "\",";
   JSON = JSON + "\"mqttPass\": \"" + String(userConfig.mqttBrokerPassword) + "\",";
-  JSON = JSON + "\"mqttMainTopic\": \"" + String(userConfig.mqttBrokerMainTopic) + "\"";
+  JSON = JSON + "\"mqttMainTopic\": \"" + String(userConfig.mqttBrokerMainTopic) + "\",";
+  JSON = JSON + "\"mqttHAautoDiscoveryON\": " + userConfig.mqttHAautoDiscoveryON;
   JSON = JSON + "},";
 
   JSON = JSON + "\"dtuConnection\": {";
-  JSON = JSON + "\"dtuHostIp\": \"" + String(userConfig.dtuHostIp) + "\",";
+  JSON = JSON + "\"dtuHostIpDomain\": \"" + String(userConfig.dtuHostIpDomain) + "\",";
   JSON = JSON + "\"dtuSsid\": \"" + String(userConfig.dtuSsid) + "\",";
   JSON = JSON + "\"dtuPassword\": \"" + String(userConfig.dtuPassword) + "\",";
   JSON = JSON + "\"dtuRssi\": " + globalData.dtuRssi + ",";
@@ -346,12 +357,22 @@ void handleUpdateWifiSettings()
   Serial.println("\nhandleUpdateWifiSettings - got WifiSSID: " + wifiSSIDUser + " - got WifiPass: " + wifiPassUser);
 
   wifiSSIDUser.toCharArray(userConfig.wifiSsid, sizeof(userConfig.wifiSsid));
-  wifiPassUser.toCharArray(userConfig.wifiPassword, sizeof(userConfig.wifiSsid));
+  wifiPassUser.toCharArray(userConfig.wifiPassword, sizeof(userConfig.wifiPassword));
 
   // after saving from user entry - no more in init state
-  userConfig.wifiAPstart = false;
-  saveConfigToEEPROM();
-  delay(500);
+  if (userConfig.wifiAPstart)
+  {
+    userConfig.wifiAPstart = false;
+    // after first startup reset to current display
+    if (userConfig.displayConnected == 0)
+    {
+      userConfig.displayConnected = 1;
+      displayTFT.setup(); // new setup to get blank screen
+    }
+    else if (userConfig.displayConnected == 1)
+      userConfig.displayConnected = 0;
+    configManager.saveConfig(userConfig);
+  }
 
   // handleRoot();
   String JSON = "{";
@@ -371,15 +392,15 @@ void handleUpdateWifiSettings()
 
 void handleUpdateDtuSettings()
 {
-  String dtuHostIpUser = server.arg("dtuHostIpSend");     // retrieve message from webserver
-  String dtuDataCycle = server.arg("dtuDataCycleSend");   // retrieve message from webserver
-  String dtuCloudPause = server.arg("dtuCloudPauseSend"); // retrieve message from webserver
-  String dtuSSIDUser = server.arg("dtuSsidSend");         // retrieve message from webserver
-  String dtuPassUser = server.arg("dtuPasswordSend");     // retrieve message from webserver
-  Serial.println("\nhandleUpdateDtuSettings - got dtu ip: " + dtuHostIpUser + "- got dtuDataCycle: " + dtuDataCycle + "- got dtu dtuCloudPause: " + dtuCloudPause);
+  String dtuHostIpDomainUser = server.arg("dtuHostIpDomainSend"); // retrieve message from webserver
+  String dtuDataCycle = server.arg("dtuDataCycleSend");           // retrieve message from webserver
+  String dtuCloudPause = server.arg("dtuCloudPauseSend");         // retrieve message from webserver
+  String dtuSSIDUser = server.arg("dtuSsidSend");                 // retrieve message from webserver
+  String dtuPassUser = server.arg("dtuPasswordSend");             // retrieve message from webserver
+  Serial.println("\nhandleUpdateDtuSettings - got dtu ip: " + dtuHostIpDomainUser + "- got dtuDataCycle: " + dtuDataCycle + "- got dtu dtuCloudPause: " + dtuCloudPause);
   Serial.println("handleUpdateDtuSettings - got dtu ssid: " + dtuSSIDUser + " - got WifiPass: " + dtuPassUser);
 
-  dtuHostIpUser.toCharArray(userConfig.dtuHostIp, sizeof(userConfig.dtuHostIp));
+  dtuHostIpDomainUser.toCharArray(userConfig.dtuHostIpDomain, sizeof(userConfig.dtuHostIpDomain));
   userConfig.dtuUpdateTime = dtuDataCycle.toInt();
   if (dtuCloudPause)
     userConfig.dtuCloudPauseActive = true;
@@ -388,15 +409,14 @@ void handleUpdateDtuSettings()
   dtuSSIDUser.toCharArray(userConfig.dtuSsid, sizeof(userConfig.dtuSsid));
   dtuPassUser.toCharArray(userConfig.dtuPassword, sizeof(userConfig.dtuPassword));
 
-  saveConfigToEEPROM();
-  delay(500);
+  configManager.saveConfig(userConfig);
 
   intervalMid = userConfig.dtuUpdateTime;
   dtuConnection.preventCloudErrors = userConfig.dtuCloudPauseActive;
   Serial.println("\nhandleUpdateDtuSettings - setting dtu cycle to:" + String(intervalMid));
 
   String JSON = "{";
-  JSON = JSON + "\"dtuHostIp\": \"" + userConfig.dtuHostIp + "\",";
+  JSON = JSON + "\"dtuHostIpDomain\": \"" + userConfig.dtuHostIpDomain + "\",";
   JSON = JSON + "\"dtuSsid\": \"" + userConfig.dtuSsid + "\",";
   JSON = JSON + "\"dtuPassword\": \"" + userConfig.dtuPassword + "\"";
   JSON = JSON + "}";
@@ -409,7 +429,7 @@ void handleUpdateDtuSettings()
 
 void handleUpdateBindingsSettings()
 {
-  String openhabHostIpUser = server.arg("openhabHostIpSend"); // retrieve message from webserver
+  String openhabHostIpDomainUser = server.arg("openhabHostIpDomainSend"); // retrieve message from webserver
   String openhabPrefix = server.arg("openhabPrefixSend");
   String openhabActive = server.arg("openhabActiveSend");
 
@@ -419,8 +439,13 @@ void handleUpdateBindingsSettings()
   String mqttPass = server.arg("mqttPassSend");
   String mqttMainTopic = server.arg("mqttMainTopicSend");
   String mqttActive = server.arg("mqttActiveSend");
+  String mqttUseTLS = server.arg("mqttUseTLSSend");
+  String mqttHAautoDiscoveryON = server.arg("mqttHAautoDiscoveryONSend");
+  bool mqttHAautoDiscoveryONlastState = userConfig.mqttHAautoDiscoveryON;
 
-  openhabHostIpUser.toCharArray(userConfig.openhabHostIp, sizeof(userConfig.openhabHostIp));
+  Serial.println("handleUpdateBindingsSettings - HAautoDiscovery current state: " + String(mqttHAautoDiscoveryONlastState));
+
+  openhabHostIpDomainUser.toCharArray(userConfig.openhabHostIpDomain, sizeof(userConfig.openhabHostIpDomain));
   openhabPrefix.toCharArray(userConfig.openItemPrefix, sizeof(userConfig.openItemPrefix));
 
   if (openhabActive == "1")
@@ -428,7 +453,7 @@ void handleUpdateBindingsSettings()
   else
     userConfig.openhabActive = false;
 
-  mqttIP.toCharArray(userConfig.mqttBrokerIp, sizeof(userConfig.mqttBrokerIp));
+  mqttIP.toCharArray(userConfig.mqttBrokerIpDomain, sizeof(userConfig.mqttBrokerIpDomain));
   userConfig.mqttBrokerPort = mqttPort.toInt();
   mqttUser.toCharArray(userConfig.mqttBrokerUser, sizeof(userConfig.mqttBrokerUser));
   mqttPass.toCharArray(userConfig.mqttBrokerPassword, sizeof(userConfig.mqttBrokerPassword));
@@ -439,26 +464,94 @@ void handleUpdateBindingsSettings()
   else
     userConfig.mqttActive = false;
 
-  saveConfigToEEPROM();
-  delay(500);
+  if (mqttUseTLS == "1")
+    userConfig.mqttUseTLS = true;
+  else
+    userConfig.mqttUseTLS = false;
 
-  // reintialize mqtt with new settings
-  initMqttClient();
+  if (mqttHAautoDiscoveryON == "1")
+    userConfig.mqttHAautoDiscoveryON = true;
+  else
+    userConfig.mqttHAautoDiscoveryON = false;
+
+  configManager.saveConfig(userConfig);
+
+  // changing to given mqtt setting - inlcuding reset the connection
+  mqttHandler.setBroker(userConfig.mqttBrokerIpDomain);
+  mqttHandler.setPort(userConfig.mqttBrokerPort);
+  mqttHandler.setUser(userConfig.mqttBrokerUser);
+  mqttHandler.setPassword(userConfig.mqttBrokerPassword);
+  mqttHandler.setUseTLS(userConfig.mqttUseTLS); // Enable TLS
+
+  Serial.println("handleUpdateBindingsSettings - HAautoDiscovery new state: " + String(userConfig.mqttHAautoDiscoveryON));
+  // mqttHAautoDiscoveryON going from on to off - send one time the delete messages
+  if (!userConfig.mqttHAautoDiscoveryON && mqttHAautoDiscoveryONlastState)
+    mqttHandler.reconnect(userConfig.mqttHAautoDiscoveryON, userConfig.mqttBrokerMainTopic, true, dtuGatewayIP.toString());
+  else
+    mqttHandler.reconnect(userConfig.mqttHAautoDiscoveryON, userConfig.mqttBrokerMainTopic, false, dtuGatewayIP.toString());
 
   String JSON = "{";
   JSON = JSON + "\"openhabActive\": " + userConfig.openhabActive + ",";
-  JSON = JSON + "\"openhabHostIp\": \"" + userConfig.openhabHostIp + "\",";
+  JSON = JSON + "\"openhabHostIpDomain\": \"" + userConfig.openhabHostIpDomain + "\",";
   JSON = JSON + "\"openItemPrefix\": \"" + userConfig.openItemPrefix + "\",";
   JSON = JSON + "\"mqttActive\": " + userConfig.mqttActive + ",";
-  JSON = JSON + "\"mqttBrokerIp\": \"" + userConfig.mqttBrokerIp + "\",";
+  JSON = JSON + "\"mqttBrokerIpDomain\": \"" + userConfig.mqttBrokerIpDomain + "\",";
   JSON = JSON + "\"mqttBrokerPort\": " + String(userConfig.mqttBrokerPort) + ",";
+  JSON = JSON + "\"mqttUseTLS\": " + userConfig.mqttUseTLS + ",";
   JSON = JSON + "\"mqttBrokerUser\": \"" + userConfig.mqttBrokerUser + "\",";
   JSON = JSON + "\"mqttBrokerPassword\": \"" + userConfig.mqttBrokerPassword + "\",";
-  JSON = JSON + "\"mqttBrokerMainTopic\": \"" + userConfig.mqttBrokerMainTopic + "\"";
+  JSON = JSON + "\"mqttBrokerMainTopic\": \"" + userConfig.mqttBrokerMainTopic + "\",";
+  JSON = JSON + "\"mqttHAautoDiscoveryON\": " + userConfig.mqttHAautoDiscoveryON;
+
   JSON = JSON + "}";
 
   server.send(200, "application/json", JSON);
   Serial.println("handleUpdateBindingsSettings - send JSON: " + String(JSON));
+}
+
+void handleUpdatePowerLimit()
+{
+  String powerLimitSetNew = server.arg("powerLimitSend"); // retrieve message from webserver
+  Serial.println("\nhandleUpdatePowerLimit - got powerLimitSend: " + powerLimitSetNew);
+  uint8_t gotLimit;
+  bool conversionSuccess = false;
+
+  if (powerLimitSetNew.length() > 0)
+  {
+    gotLimit = powerLimitSetNew.toInt();
+    // Check if the conversion was successful by comparing the string with its integer representation, to avoid wronmg interpretations of 0 after toInt by a "no number string"
+    conversionSuccess = (String(gotLimit) == powerLimitSetNew);
+  }
+
+  if (conversionSuccess)
+  {
+    if (gotLimit < 2)
+      globalData.powerLimitSet = 2;
+    else if (gotLimit > 100)
+      globalData.powerLimitSet = 2;
+    else
+      globalData.powerLimitSet = gotLimit;
+
+    // Serial.print("got SetLimit: " + String(globalData.powerLimitSet) + " - current limit: " + String(globalData.powerLimit) + " %");
+
+    String JSON = "{";
+    JSON = JSON + "\"PowerLimitSet\": \"" + globalData.powerLimitSet + "\"";
+    JSON = JSON + "}";
+
+    server.send(200, "application/json", JSON);
+    Serial.println("handleUpdatePowerLimit - send JSON: " + String(JSON));
+  }
+  else
+  {
+    Serial.print("got wrong data for SetLimit: " + powerLimitSetNew);
+
+    server.send(400, "text/plain", "powerLimit out of range");
+    return;
+  }
+
+  // trigger new update info with changed release channel
+  // getUpdateInfo(AsyncWebServerRequest *request);
+  // updateInfoRequested = true;
 }
 
 void handleUpdateOTASettings()
@@ -468,8 +561,7 @@ void handleUpdateOTASettings()
 
   userConfig.selectedUpdateChannel = releaseChannel.toInt();
 
-  saveConfigToEEPROM();
-  delay(500);
+  configManager.saveConfig(userConfig);
 
   String JSON = "{";
   JSON = JSON + "\"releaseChannel\": \"" + userConfig.selectedUpdateChannel + "\"";
@@ -483,10 +575,41 @@ void handleUpdateOTASettings()
   updateInfoRequested = true;
 }
 
+void handleConfigPage()
+{
+  JsonDocument doc;
+  bool gotUserChanges = false;
+
+  if (server.args() && server.hasArg("local.wifiAPstart") && server.arg("local.wifiAPstart") == "false")
+  {
+    gotUserChanges = true;
+
+    for (int i = 0; i < server.args(); i++)
+    {
+      String key = server.argName(i);
+      String value = server.arg(key);
+      String key1 = key.substring(0, key.indexOf("."));
+      String key2 = key.substring(key.indexOf(".") + 1);
+
+      if (value == "false" || value == "true")
+      {
+        bool boolValue = (value == "true");
+        doc[key1][key2] = boolValue;
+      }
+      else
+        doc[key1][key2] = value;
+    }
+  }
+
+  String html = configManager.getWebHandler(doc);
+  server.send(200, "text/html", html);
+
+  delay(1000);
+  if (gotUserChanges)
+    ESP.restart();
+}
+
 // webserver port 80
-// void initializeWebServer()
-// {
-//   server.on("/", HTTP_GET, handleRoot);
 
 void initializeWebServer()
 {
@@ -506,6 +629,7 @@ void initializeWebServer()
   server.on("/updateDtuSettings", handleUpdateDtuSettings);
   server.on("/updateOTASettings", handleUpdateOTASettings);
   server.on("/updateBindingsSettings", handleUpdateBindingsSettings);
+  server.on("/updatePowerLimit", handleUpdatePowerLimit);
 
   // api GETs
   server.on("/api/data", handleDataJson);
@@ -514,6 +638,8 @@ void initializeWebServer()
   // OTA update
   server.on("/updateGetInfo", requestUpdateInfo);
   server.on("/updateRequest", handleUpdateRequest);
+
+  server.on("/config", handleConfigPage);
 
   server.begin();
 }
@@ -561,7 +687,6 @@ void handleUpdateRequest()
   // stopping all services to prevent OOM/ stackoverflow
   timeClient.end();
   ntpUDP.stopAll();
-  mqttClient.disconnect();
   puSubClient.stopAll();
   dtuClient.stopAll();
   MDNS.close();
@@ -636,7 +761,7 @@ boolean getUpdateInfo()
         String payload = https.getString();
 
         // Parse JSON using ArduinoJson library
-        DynamicJsonDocument doc(1024);
+        JsonDocument doc;
         DeserializationError error = deserializeJson(doc, payload);
 
         // Test if parsing succeeds.
@@ -782,7 +907,7 @@ boolean postMessageToOpenhab(String key, String value)
 {
   WiFiClient client;
   HTTPClient http;
-  String openhabHost = "http://" + String(userConfig.openhabHostIp) + ":8080/rest/items/";
+  String openhabHost = "http://" + String(userConfig.openhabHostIpDomain) + ":8080/rest/items/";
   http.setTimeout(1000); // prevent blocking of progam
   // Serial.print("postMessageToOpenhab (" + openhabHost + ") - " + key + " -> " + value);
   if (http.begin(client, openhabHost + key))
@@ -815,22 +940,30 @@ String getMessageFromOpenhab(String key)
 {
   WiFiClient client;
   HTTPClient http;
-  String openhabHost = "http://" + String(userConfig.openhabHostIp) + ":8080/rest/items/";
-  http.setTimeout(2000); // prevent blocking of progam
-  if (http.begin(client, openhabHost + key + "/state"))
+  if (WiFi.status() == WL_CONNECTED)
   {
-    String payload = "";
-    int httpCode = http.GET();
-    if (httpCode == HTTP_CODE_OK)
+    String openhabHost = "http://" + String(userConfig.openhabHostIpDomain) + ":8080/rest/items/";
+    http.setTimeout(2000); // prevent blocking of progam
+    if (http.begin(client, openhabHost + key + "/state"))
     {
-      payload = http.getString();
+      String payload = "";
+      int httpCode = http.GET();
+      if (httpCode == HTTP_CODE_OK)
+      {
+        payload = http.getString();
+      }
+      http.end();
+      return payload;
     }
-    http.end();
-    return payload;
+    else
+    {
+      Serial.print("[HTTP] getMessageFromOpenhab Unable to connect " + openhabHost + " \n");
+      return "connectError";
+    }
   }
   else
   {
-    Serial.print("[HTTP] getMessageFromOpenhab Unable to connect " + openhabHost + " \n");
+    Serial.print("getMessageFromOpenhab - can not connect to openhab - wifi not connected \n");
     return "connectError";
   }
 }
@@ -838,37 +971,37 @@ String getMessageFromOpenhab(String key)
 boolean getPowerSetDataFromOpenHab()
 {
   // get data from openhab if connected to DTU
-  if (dtuConnection.dtuConnectState == DTU_STATE_CONNECTED)
+  // if (dtuConnection.dtuConnectState == DTU_STATE_CONNECTED)
+  // {
+  uint8_t gotLimit;
+  bool conversionSuccess = false;
+
+  String openhabMessage = getMessageFromOpenhab(String(userConfig.openItemPrefix) + "_PowerLimit_Set");
+  if (openhabMessage.length() > 0)
   {
-    uint8_t gotLimit;
-    bool conversionSuccess = false;
-
-    String openhabMessage = getMessageFromOpenhab(String(userConfig.openItemPrefix) + "_PowerLimit_Set");
-    if (openhabMessage.length() > 0)
-    {
-      gotLimit = openhabMessage.toInt();
-      // Check if the conversion was successful by comparing the string with its integer representation, to avoid wronmg interpretations of 0 after toInt by a "no number string"
-      conversionSuccess = (String(gotLimit) == openhabMessage);
-    }
-
-    if (conversionSuccess)
-    {
-      if (gotLimit < 2)
-        globalData.powerLimitSet = 2;
-      else if (gotLimit > 100)
-        globalData.powerLimitSet = 2;
-      else
-        globalData.powerLimitSet = gotLimit;
-    }
-    else
-    {
-      Serial.print("got wrong data for SetLimit: " + openhabMessage);
-      return false;
-    }
-    // Serial.print("got SetLimit: " + String(globalData.powerLimitSet) + " - current limit: " + String(globalData.powerLimit) + " %");
-    return true;
+    gotLimit = openhabMessage.toInt();
+    // Check if the conversion was successful by comparing the string with its integer representation, to avoid wronmg interpretations of 0 after toInt by a "no number string"
+    conversionSuccess = (String(gotLimit) == openhabMessage);
   }
-  return false;
+
+  if (conversionSuccess)
+  {
+    if (gotLimit < 2)
+      globalData.powerLimitSet = 2;
+    else if (gotLimit > 100)
+      globalData.powerLimitSet = 2;
+    else
+      globalData.powerLimitSet = gotLimit;
+  }
+  else
+  {
+    Serial.print("got wrong data for SetLimit: " + openhabMessage);
+    return false;
+  }
+  // Serial.print("got SetLimit: " + String(globalData.powerLimitSet) + " - current limit: " + String(globalData.powerLimit) + " %");
+  return true;
+  // }
+  // return false;
 }
 
 boolean updateValueToOpenhab()
@@ -912,92 +1045,45 @@ boolean updateValueToOpenhab()
 
 // mqtt client
 
-void initMqttClient()
+// publishing data in standard or HA mqtt auto discovery format
+void updateValuesToMqtt(boolean haAutoDiscovery = false)
 {
-  mqttClient.setServer(userConfig.mqttBrokerIp, userConfig.mqttBrokerPort);
-  Serial.print("\ninitialized MQTT client ... to broker: " + String(userConfig.mqttBrokerIp) + ":" + String(userConfig.mqttBrokerPort) + "\n");
-}
+  Serial.println("\nMQTT: publish data (HA autoDiscovery = " + String(haAutoDiscovery) + ")");
+  std::map<std::string, std::string> keyValueStore;
 
-void connectCheckMqttClient()
-{
-  if (!mqttClient.connected())
+  keyValueStore["time_stamp"] = String(timeStampInSecondsDtuSynced).c_str();
+
+  keyValueStore["grid_U"] = String(globalData.grid.voltage).c_str();
+  keyValueStore["grid_I"] = String(globalData.grid.current).c_str();
+  keyValueStore["grid_P"] = String(globalData.grid.power).c_str();
+  keyValueStore["grid_dailyEnergy"] = String(globalData.grid.dailyEnergy, 3).c_str();
+  if (globalData.grid.totalEnergy != 0)
+    keyValueStore["grid_totalEnergy"] = String(globalData.grid.totalEnergy, 3).c_str();
+
+  keyValueStore["pv0_U"] = String(globalData.pv0.voltage).c_str();
+  keyValueStore["pv0_I"] = String(globalData.pv0.current).c_str();
+  keyValueStore["pv0_P"] = String(globalData.pv0.power).c_str();
+  keyValueStore["pv0_dailyEnergy"] = String(globalData.pv0.dailyEnergy, 3).c_str();
+  if (globalData.pv0.totalEnergy != 0)
+    keyValueStore["pv0_totalEnergy"] = String(globalData.pv0.totalEnergy, 3).c_str();
+
+  keyValueStore["pv1_U"] = String(globalData.pv1.voltage).c_str();
+  keyValueStore["pv1_I"] = String(globalData.pv1.current).c_str();
+  keyValueStore["pv1_P"] = String(globalData.pv1.power).c_str();
+  keyValueStore["pv1_dailyEnergy"] = String(globalData.pv1.dailyEnergy, 3).c_str();
+  if (globalData.pv0.totalEnergy != 0)
+    keyValueStore["pv1_totalEnergy"] = String(globalData.pv1.totalEnergy, 3).c_str();
+
+  keyValueStore["inverter_Temp"] = String(globalData.inverterTemp).c_str();
+  keyValueStore["inverter_PowerLimit"] = String(globalData.powerLimit).c_str();
+  keyValueStore["inverter_WifiRSSI"] = String(globalData.dtuRssi).c_str();
+
+  for (const auto &pair : keyValueStore)
   {
-    Serial.print("\nMQTT not connected, try to connect ... ");
-    // Attempt to connect
-    if (mqttClient.connect("dtuGateway", userConfig.mqttBrokerUser, userConfig.mqttBrokerPassword))
-    {
-      Serial.println("connected");
-    }
-    else
-    {
-      Serial.print("failed, rc=");
-      Serial.print(mqttClient.state());
-      Serial.println(" try again in 5 seconds");
-    }
+    String subtopic = (pair.first).c_str();
+    subtopic.replace("_", "/");
+    mqttHandler.publishStandardData(String(userConfig.mqttBrokerMainTopic) + "/" + subtopic, (pair.second).c_str());
   }
-}
-
-boolean postMessageToMQTTbroker(String topic, String value)
-{
-  const char *charTopic = topic.c_str();
-  const char *charValue = value.c_str();
-  mqttClient.publish(charTopic, charValue);
-
-  // Serial.println("\npostMessageToMQTTbroker - send '" + value + "' to topic: " + topic);
-  return true;
-}
-
-boolean updateValuesToMqtt()
-{
-  connectCheckMqttClient();
-  if (mqttClient.connected())
-  {
-    boolean sendOk = postMessageToMQTTbroker(String(userConfig.mqttBrokerMainTopic) + "/timestamp", (String)timeStampInSecondsDtuSynced);
-    if (sendOk)
-    {
-      postMessageToMQTTbroker(String(userConfig.mqttBrokerMainTopic) + "/grid/U", (String)globalData.grid.voltage);
-      postMessageToMQTTbroker(String(userConfig.mqttBrokerMainTopic) + "/grid/I", (String)globalData.grid.current);
-      postMessageToMQTTbroker(String(userConfig.mqttBrokerMainTopic) + "/grid/P", (String)globalData.grid.power);
-      postMessageToMQTTbroker(String(userConfig.mqttBrokerMainTopic) + "/grid/dailyEnergy", String(globalData.grid.dailyEnergy, 3));
-      if (globalData.grid.totalEnergy != 0)
-      {
-        postMessageToMQTTbroker(String(userConfig.mqttBrokerMainTopic) + "/grid/totalEnergy", String(globalData.grid.totalEnergy, 3));
-      }
-
-      postMessageToMQTTbroker(String(userConfig.mqttBrokerMainTopic) + "/pv0/U", (String)globalData.pv0.voltage);
-      postMessageToMQTTbroker(String(userConfig.mqttBrokerMainTopic) + "/pv0/I", (String)globalData.pv0.current);
-      postMessageToMQTTbroker(String(userConfig.mqttBrokerMainTopic) + "/pv0/P", (String)globalData.pv0.power);
-      postMessageToMQTTbroker(String(userConfig.mqttBrokerMainTopic) + "/pv0/dailyEnergy", String(globalData.pv0.dailyEnergy, 3));
-      if (globalData.pv0.totalEnergy != 0)
-      {
-        postMessageToMQTTbroker(String(userConfig.mqttBrokerMainTopic) + "/pv0/totalEnergy", String(globalData.pv0.totalEnergy, 3));
-      }
-
-      postMessageToMQTTbroker(String(userConfig.mqttBrokerMainTopic) + "/pv1/U", (String)globalData.pv1.voltage);
-      postMessageToMQTTbroker(String(userConfig.mqttBrokerMainTopic) + "/pv1/I", (String)globalData.pv1.current);
-      postMessageToMQTTbroker(String(userConfig.mqttBrokerMainTopic) + "/pv1/P", (String)globalData.pv1.power);
-      postMessageToMQTTbroker(String(userConfig.mqttBrokerMainTopic) + "/pv1/dailyEnergy", String(globalData.pv1.dailyEnergy, 3));
-      if (globalData.pv1.totalEnergy != 0)
-      {
-        postMessageToMQTTbroker(String(userConfig.mqttBrokerMainTopic) + "/pv1/totalEnergy", String(globalData.pv1.totalEnergy, 3));
-      }
-
-      postMessageToMQTTbroker(String(userConfig.mqttBrokerMainTopic) + "/inverter/Temp", (String)globalData.inverterTemp);
-      postMessageToMQTTbroker(String(userConfig.mqttBrokerMainTopic) + "/inverter/PowerLimit", (String)globalData.powerLimit);
-      postMessageToMQTTbroker(String(userConfig.mqttBrokerMainTopic) + "/inverter/WifiRSSI", (String)globalData.dtuRssi);
-      Serial.println("\nsent values to mqtt broker");
-    }
-    else
-    {
-      Serial.println("\nerror during sent values to mqtt broker");
-    }
-  }
-  else
-  {
-    Serial.println("\ncould not send to mqtt broker - mqtt not connected");
-    return false;
-  }
-  return true;
 }
 
 // ****
@@ -1005,27 +1091,34 @@ boolean updateValuesToMqtt()
 void setup()
 {
   // switch off SCK LED
-  pinMode(14, OUTPUT);
-  digitalWrite(14, LOW);
+  // pinMode(14, OUTPUT);
+  // digitalWrite(14, LOW);
 
   // initialize digital pin LED_BUILTIN as an output.
   pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, LOW); // turn the LED off by making the voltage LOW
 
-  // init display
-  oledDisplay.setup();
-
-
   Serial.begin(115200);
   Serial.print(F("\nBooting - with firmware version "));
   Serial.println(VERSION);
 
-  // Initialize EEPROM
-  initializeEEPROM();
-  // Load configuration from EEPROM
-  loadConfigFromEEPROM();
-  // check for saved data end print to serial
-  printEEPROMdata();
+  if (!configManager.begin())
+  {
+    Serial.println("Failed to initialize UserConfigManager");
+    return;
+  }
+
+  if (configManager.loadConfig(userConfig))
+    configManager.printConfigdata();
+  else
+    Serial.println("Failed to load user config");
+  // ------- user config loaded --------------------------------------------
+
+  // init display according to userConfig
+  if (userConfig.displayConnected == 0)
+    displayOLED.setup();
+  else if (userConfig.displayConnected == 1)
+    displayTFT.setup();
 
   if (userConfig.wifiAPstart)
   {
@@ -1038,18 +1131,32 @@ void setup()
 
     // Connect to Wi-Fi as AP
     WiFi.mode(WIFI_AP);
-    String apSSID = String(apNameStart) + "_" + chipID;
-    WiFi.softAP(apSSID);
-    Serial.println("\n +++ serving access point with SSID: '" + apSSID + "' +++\n");
+    WiFi.softAP(espUniqueName);
+    Serial.println("\n +++ serving access point with SSID: '" + espUniqueName + "' +++\n");
 
     // IP Address of the ESP8266 on the AP network
     IPAddress apIP = WiFi.softAPIP();
     Serial.print(F("AP IP address: "));
     Serial.println(apIP);
 
-    MDNS.begin("hoymilesGW");
+    MDNS.begin("dtuGateway");
     MDNS.addService("http", "tcp", 80);
-    Serial.println(F("Ready! Open http://hoymilesGW.local in your browser"));
+    Serial.println(F("Ready! Open http://dtuGateway.local in your browser"));
+
+    // display - change every reboot in first start mode
+    if (userConfig.displayConnected == 0)
+    {
+      displayOLED.drawFactoryMode(String(VERSION), espUniqueName, apIP.toString());
+      userConfig.displayConnected = 1;
+    }
+    else if (userConfig.displayConnected == 1)
+    {
+      displayTFT.drawFactoryMode(String(VERSION), espUniqueName, apIP.toString());
+      userConfig.displayConnected = 0;
+    }
+    // deafult setting for mqtt main topic
+    ("dtu_" + String(chipID)).toCharArray(userConfig.mqttBrokerMainTopic, sizeof(userConfig.mqttBrokerMainTopic));
+    configManager.saveConfig(userConfig);
 
     initializeWebServer();
   }
@@ -1085,20 +1192,20 @@ void startServices()
   if (WiFi.waitForConnectResult() == WL_CONNECTED)
   {
     Serial.print(F("\nConnected! IP address: "));
-    Serial.println(WiFi.localIP());
+    dtuGatewayIP = WiFi.localIP();
+    Serial.println(dtuGatewayIP.toString());
     Serial.print(F("IP address of gateway: "));
     Serial.println(WiFi.gatewayIP());
-    host = "hoymilesGW_" + String(chipID);
 
     httpUpdater.setup(&server);
 
-    MDNS.begin(host);
+    MDNS.begin(espUniqueName);
     MDNS.addService("http", "tcp", 80);
-    Serial.println("Ready! Open http://" + String(host) + ".local in your browser");
+    Serial.println("Ready! Open http://" + espUniqueName + ".local in your browser");
 
     // ntp time - offset in summertime 7200 else 3600
     timeClient.begin();
-    timeClient.setTimeOffset(CLIENT_TIME_OFFSET);
+    timeClient.setTimeOffset(userConfig.timezoneOffest);
     // get first time
     timeClient.update();
     starttime = timeClient.getEpochTime();
@@ -1109,7 +1216,12 @@ void startServices()
     WiFi.scanNetworks(true);
 
     initializeWebServer();
-    initMqttClient();
+
+    if (userConfig.mqttActive)
+    {
+      Serial.println(F("MQTT: setup ..."));
+      mqttHandler.setup(userConfig.mqttHAautoDiscoveryON);
+    }
   }
   else
   {
@@ -1306,10 +1418,8 @@ void getSerialCommand(String cmd, String value)
     Serial.print(F("'resetToFactory' to "));
     if (val == 1)
     {
-      userConfig.eepromInitialized = 0x00;
-      saveConfigToEEPROM();
-      delay(1500);
-      Serial.print(F(" reinitialize EEPROM data and reboot ... "));
+      configManager.resetConfig();
+      Serial.print(F(" reinitialize UserConfig data and reboot ... "));
       ESP.restart();
     }
   }
@@ -1331,6 +1441,24 @@ void getSerialCommand(String cmd, String value)
       writeCommandRestartDevice(&dtuClient, timeStampInSecondsDtuSynced);
     }
   }
+  else if (cmd == "selectDisplay")
+  {
+    Serial.print(F(" selected Display"));
+    if (val == 0)
+    {
+      userConfig.displayConnected = 0;
+      Serial.print(F(" OLED"));
+    }
+    else if (val == 1)
+    {
+      userConfig.displayConnected = 1;
+      Serial.print(F(" ROUND TFT 1.28"));
+    }
+    configManager.saveConfig(userConfig);
+    configManager.printConfigdata();
+    Serial.println(F("restart the device to make the changes take effect"));
+    ESP.restart();
+  }
   else
   {
     Serial.print(F("Cmd not recognized\n"));
@@ -1349,22 +1477,41 @@ void IRAM_ATTR timer1000MilliSeconds()
 
 void loop()
 {
+  unsigned long currentMillis = millis();
   // skip all tasks if update is running
   if (updateRunning)
     return;
 
+  // if (WiFi.status() == WL_CONNECTED)
+  // {
   // web server runner
   server.handleClient();
   // serving domain name
   MDNS.update();
-
-  // runner for mqttClient to hold a already etablished connection
-  if (userConfig.mqttActive && mqttClient.connected())
+  if (WiFi.status() == WL_CONNECTED)
   {
-    mqttClient.loop();
+    // runner for mqttClient to hold a already etablished connection
+    if (userConfig.mqttActive)
+    {
+      mqttHandler.loop(userConfig.mqttHAautoDiscoveryON, userConfig.mqttBrokerMainTopic, dtuGatewayIP.toString());
+    }
   }
 
-  unsigned long currentMillis = millis();
+  // 50ms task
+  if (currentMillis - previousMillis50ms >= interval50ms)
+  {
+    previousMillis50ms = currentMillis;
+    // -------->
+    if (!userConfig.wifiAPstart)
+    {
+      // display tasks every 50ms = 20Hz
+      if (userConfig.displayConnected == 0)
+        displayOLED.renderScreen(timeClient.getFormattedTime(), String(VERSION));
+      else if (userConfig.displayConnected == 1)
+        displayTFT.renderScreen(timeClient.getFormattedTime(), String(VERSION));
+    }
+  }
+
   // 100ms task
   if (currentMillis - previousMillis100ms >= interval100ms)
   {
@@ -1372,7 +1519,18 @@ void loop()
     // -------->
     blinkCodeTask();
     serialInputTask();
-    oledDisplay.renderScreen(timeClient.getFormattedTime(), String(VERSION));
+
+    if (userConfig.mqttActive)
+    {
+      // getting powerlimitSet over MQTT, only on demand - to avoid oversteering for openhab receiving with constant MQTT values, if both bindings are active
+      // the time difference between publishing and take over have to be less then 100 ms
+      PowerLimitSet lastSetting = mqttHandler.getPowerLimitSet();
+      if (currentMillis - lastSetting.timestamp < 100)
+      {
+        globalData.powerLimitSet = lastSetting.setValue;
+        Serial.println("\nMQTT: changed powerset value to '" + String(globalData.powerLimitSet) + "'");
+      }
+    }
   }
 
   // CHANGE to precise 1 second timer increment
@@ -1397,13 +1555,16 @@ void loop()
 
     // -------->
 
-    if (globalControls.wifiSwitch && !userConfig.wifiAPstart)
-      checkWifiTask();
-    else
+    if (!userConfig.wifiAPstart)
     {
-      // stopping connection to DTU before go wifi offline
-      dtuConnectionStop(&dtuClient, DTU_STATE_OFFLINE);
-      WiFi.disconnect();
+      if (globalControls.wifiSwitch)
+        checkWifiTask();
+      else
+      {
+        // stopping connection to DTU before go wifi offline
+        dtuConnectionStop(&dtuClient, DTU_STATE_OFFLINE);
+        WiFi.disconnect();
+      }
     }
 
     if (dtuConnection.preventCloudErrors)
@@ -1416,6 +1577,9 @@ void loop()
         dtuConnectionStop(&dtuClient, DTU_STATE_CLOUD_PAUSE); // disconnet DTU server, if prevention on
       }
     }
+
+    if (userConfig.openhabActive)
+      getPowerSetDataFromOpenHab();
 
     // direct request of new powerLimit
     if (globalData.powerLimitSet != globalData.powerLimit && globalData.powerLimitSet != 101 && globalData.uptodate)
@@ -1464,6 +1628,17 @@ void loop()
       if (userConfig.openhabActive)
         getPowerSetDataFromOpenHab();
     }
+
+    // for testing
+    // globalData.grid.totalEnergy = 1.34;
+    // globalData.pv0.totalEnergy = 1.0;
+    // globalData.pv1.totalEnergy = 0.34;
+
+    // globalData.grid.power = globalData.grid.power + 1;
+    // if (userConfig.mqttActive)
+    //   updateValuesToMqtt(userConfig.mqttHAautoDiscoveryON);
+    // if (globalData.grid.power > 450)
+    //   globalData.grid.power = 0;
   }
 
   // mid task
@@ -1478,7 +1653,7 @@ void loop()
 
     if (WiFi.status() == WL_CONNECTED)
     {
-      dtuConnectionEstablish(&dtuClient, userConfig.dtuHostIp);
+      dtuConnectionEstablish(&dtuClient, userConfig.dtuHostIpDomain);
       timeStampInSecondsDtuSynced = getDtuRemoteTimeAndDataUpdate(&dtuClient, timeStampInSecondsDtuSynced);
 
       if (!dtuConnection.dtuActiveOffToCloudUpdate)
@@ -1488,7 +1663,7 @@ void loop()
           if (userConfig.openhabActive)
             updateValueToOpenhab();
           if (userConfig.mqttActive)
-            updateValuesToMqtt();
+            updateValuesToMqtt(userConfig.mqttHAautoDiscoveryON);
 
           if (globalControls.dataFormatJSON)
           {
@@ -1520,7 +1695,7 @@ void loop()
           if (userConfig.openhabActive)
             updateValueToOpenhab();
           if (userConfig.mqttActive)
-            updateValuesToMqtt();
+            updateValuesToMqtt(userConfig.mqttHAautoDiscoveryON);
           dtuConnection.dtuErrorState = DTU_ERROR_LAST_SEND;
           Serial.print(F("\n>>>>> TIMEOUT 5 min for DTU -> NIGHT - send zero values\n"));
         }

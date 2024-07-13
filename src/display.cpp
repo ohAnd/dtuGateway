@@ -8,12 +8,13 @@ Display::Display() {}
 void Display::setup()
 {
     u8g2.begin();
+    Serial.println(F("OLED display initialized"));
 }
 
 void Display::renderScreen(String time, String version)
 {
     displayTicks++;
-    if (displayTicks > 600)
+    if (displayTicks > 1200)
         displayTicks = 0; // after 1 minute restart
 
     lastDisplayData.version = version.c_str();
@@ -32,7 +33,7 @@ void Display::renderScreen(String time, String version)
         u8g2.setContrast(brightness);
     }
 
-    if (displayTicks % 10 == 0)
+    if (displayTicks % 20 == 0)
         drawScreen(); // draw every 1 second
 
     if (displayTicks == 0)
@@ -115,6 +116,55 @@ void Display::drawMainDTUOffline()
     // main screen
     u8g2.setFont(u8g2_font_logisoso16_tf);
     u8g2.drawStr(15 + offset_x, 25 + offset_y, "DTU offline");
+}
+
+void Display::drawFactoryMode(String version, String apName, String ip)
+{
+    u8g2.clearBuffer();
+    u8g2.setDrawColor(1);
+    u8g2.setFontPosTop();
+    u8g2.setFontDirection(0);
+    u8g2.setFontRefHeightExtendedText();
+
+    Serial.println(F("OLED display - showing factory mode"));
+    // header
+    u8g2.setFont(u8g2_font_5x7_tf);
+    u8g2.drawStr(0 + offset_x, 0 + offset_y, "dtuGateway");
+    u8g2.drawStr(55 + offset_x, 0 + offset_y, version.c_str());
+
+    u8g2.drawHLine(0,9,128);
+
+    // main screen
+    u8g2.setFont(u8g2_font_siji_t_6x10);
+
+    String centerString = "first start";
+    u8g2_uint_t width = u8g2.getUTF8Width(centerString.c_str());
+    int centerString_xpos = (128 - width) / 2;
+    u8g2.drawStr(centerString_xpos + offset_x, 10 + offset_y, centerString.c_str());
+
+    u8g2.setFont(u8g2_font_5x7_tf);
+    centerString = "connect with wifi:";
+    width = u8g2.getUTF8Width(centerString.c_str());
+    centerString_xpos = (128 - width) / 2;
+    u8g2.drawStr(centerString_xpos + offset_x, 20 + offset_y, centerString.c_str());
+    centerString = "and open in your browser:";
+    width = u8g2.getUTF8Width(centerString.c_str());
+    centerString_xpos = (128 - width) / 2;
+    u8g2.drawStr(centerString_xpos + offset_x, 43 + offset_y, centerString.c_str());
+
+    u8g2.setFont(u8g2_font_siji_t_6x10);
+    centerString = apName.c_str();
+    width = u8g2.getUTF8Width(centerString.c_str());
+    centerString_xpos = (128 - width) / 2;
+    u8g2.drawStr(centerString_xpos + offset_x, 31 + offset_y, centerString.c_str());
+    centerString = ("http://" + ip).c_str();
+    width = u8g2.getUTF8Width(centerString.c_str());
+    centerString_xpos = (128 - width) / 2;
+    u8g2.drawStr(centerString_xpos+ offset_x, 54 + offset_y, centerString.c_str());
+
+    u8g2.setContrast(255);
+
+    u8g2.sendBuffer();
 }
 
 void Display::drawHeader()
