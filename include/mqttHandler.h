@@ -36,7 +36,7 @@ public:
     void requestMQTTconnectionReset(boolean autoDiscoveryRemoveRequested);
 
     PowerLimitSet getPowerLimitSet();
-    void stopConnection();
+    void stopConnection(boolean full=false);
 
     static void subscribedMessageArrived(char *topic, byte *payload, unsigned int length);
 

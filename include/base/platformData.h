@@ -33,11 +33,12 @@ struct baseDataStruct
 extern baseDataStruct platformData;
 
 #define UPDATE_STATE_IDLE 0
-#define UPDATE_STATE_START 1
-#define UPDATE_STATE_INSTALLING 2
-#define UPDATE_STATE_DONE 3
-#define UPDATE_STATE_RESTART 4
-#define UPDATE_STATE_FAILED 5
+#define UPDATE_STATE_PREPARE 1
+#define UPDATE_STATE_START 2
+#define UPDATE_STATE_INSTALLING 3
+#define UPDATE_STATE_DONE 4
+#define UPDATE_STATE_RESTART 5
+#define UPDATE_STATE_FAILED 6
 
 
 #ifndef baseUpdateInfoStruct

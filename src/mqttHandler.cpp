@@ -221,12 +221,18 @@ void MQTTHandler::reconnect()
     }
 }
 
-void MQTTHandler::stopConnection()
+void MQTTHandler::stopConnection(boolean full)
 {
     if (client.connected())
     {
         client.disconnect();
         Serial.println("MQTT:\t\t ... stopped connection");
+        // if(full) {
+        //     delete &client;
+        //     Serial.println("MQTT:\t\t ... with freeing memory");
+        // }
+    } else {
+        Serial.println("MQTT:\t\t ... tried stop connection - no connection established");
     }
 }
 

@@ -69,6 +69,11 @@ void DTUInterface::disconnect(uint8_t tgtState)
         dtuConnection.dtuConnectState = tgtState;
         dtuGlobalData.dtuRssi = 0;
         Serial.println(F("DTUinterface:\t disconnect request - DTU connection closed"));
+        if(tgtState == DTU_STATE_STOPPED)
+        {
+            delete client;
+            Serial.println(F("DTUinterface:\t with freeing memory"));
+        }
     }
     else if (dtuConnection.dtuConnectState != DTU_STATE_CLOUD_PAUSE && tgtState != DTU_STATE_STOPPED)
     {
@@ -665,7 +670,7 @@ void DTUInterface::writeReqAppGetHistPower()
 
     //     dtuClient.write(message, 10 + stream.bytes_written);
 
-    Serial.print(F("\nwriteReqAppGetHistPower --- send request to DTU ..."));
+    Serial.println(F("DTUinterface:\t writeReqAppGetHistPower --- send request to DTU ..."));
     dtuConnection.dtuTxRxState = DTU_TXRX_STATE_WAIT_APPGETHISTPOWER;
     client->write((const char *)message, 10 + stream.bytes_written);
     //     readRespAppGetHistPower();
@@ -970,7 +975,7 @@ boolean DTUInterface::writeCommandRestartDevice()
     // Serial.println("");
 
     //     dtuClient.write(message, 10 + stream.bytes_written);
-    Serial.print(F("\nwriteCommandRestartDevice --- send request to DTU ..."));
+    Serial.println(F("DTUinterface:\t writeCommandRestartDevice --- send request to DTU ..."));
     dtuConnection.dtuTxRxState = DTU_TXRX_STATE_WAIT_RESTARTDEVICE;
     client->write((const char *)message, 10 + stream.bytes_written);
     //     if (!readRespCommandRestartDevice())

@@ -547,7 +547,7 @@ boolean postMessageToOpenhab(String key, String value)
   WiFiClient client;
   HTTPClient http;
   String openhabHost = "http://" + String(userConfig.openhabHostIpDomain) + ":8080/rest/items/";
-  http.setTimeout(1000); // prevent blocking of progam
+  http.setTimeout(2000); // prevent blocking of progam
   // Serial.print("postMessageToOpenhab (" + openhabHost + ") - " + key + " -> " + value);
   if (http.begin(client, openhabHost + key))
   {
@@ -806,10 +806,14 @@ void setup()
   // ------- user config loaded --------------------------------------------
 
   // init display according to userConfig
-  if (userConfig.displayConnected == 0)
+  if (userConfig.displayConnected == 0) {
     displayOLED.setup();
-  else if (userConfig.displayConnected == 1)
+    // delete &displayTFT;
+  }
+  else if (userConfig.displayConnected == 1) {
     displayTFT.setup();
+    // delete &displayOLED;
+  }
 
   if (userConfig.wifiAPstart)
   {
@@ -1172,8 +1176,10 @@ void loop()
   // skip all tasks if update is running
   if (updateInfo.updateState != UPDATE_STATE_IDLE)
   {
-    if (updateInfo.updateState == UPDATE_STATE_START)
+    if (updateInfo.updateState == UPDATE_STATE_PREPARE)
     {
+      dtuInterface.disconnect(DTU_STATE_STOPPED);
+      mqttHandler.stopConnection();
       // if (userConfig.displayConnected == 0)
       //   displayOLED.renderScreen(timeClient.getFormattedTime(), String(platformData.fwVersion));
       // else if (userConfig.displayConnected == 1)
@@ -1188,7 +1194,6 @@ void loop()
       displayTFT.drawUpdateMode("update done", "rebooting ...");
       updateInfo.updateState = UPDATE_STATE_RESTART;
     }
-    dtuInterface.disconnect(DTU_STATE_STOPPED);
     return;
   }
   // check for wifi networks scan results

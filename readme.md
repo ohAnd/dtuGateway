@@ -1,7 +1,7 @@
-# dtu Gateway for Hoymiles HMS-800W-2T (2T series)
+# dtu Gateway for Hoymiles HMS-xxxW-2T (2T series)
 
 ## Contents
-- [dtu Gateway for Hoymiles HMS-800W-2T (2T series)](#dtu-gateway-for-hoymiles-hms-800w-2t-2t-series)
+- [dtu Gateway for Hoymiles HMS-xxxW-2T (2T series)](#dtu-gateway-for-hoymiles-hms-xxxw-2t-2t-series)
   - [Contents](#contents)
   - [problem](#problem)
   - [goal](#goal)
@@ -190,7 +190,7 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
 {
   
   "chipid": 12345678,
-  "host": "hoymilesGW_12345678",
+  "host": "dtuGateway_12345678",
   "initMode": 0,
   "firmware": {
     "version": "1.0.0022",

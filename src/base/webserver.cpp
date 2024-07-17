@@ -29,6 +29,7 @@ void DTUwebserver::backgroundTask(DTUwebserver *instance)
             Serial.flush();
             ESP.restart();
         }
+        Serial.println(F("WEB:\t\t backgroundTask - reboot requested with delay"));
     }
     // if (updateInfo.updateRunning)
     // {
@@ -105,8 +106,11 @@ void DTUwebserver::handleDoUpdate(AsyncWebServerRequest *request, const String &
     if (!index)
     {
         updateInfo.updateRunning = true;
-        updateInfo.updateState = UPDATE_STATE_START;
+        updateInfo.updateState = UPDATE_STATE_PREPARE;
         Serial.println("OTA UPDATE:\t Update Start with file: " + filename);
+        Serial.println("OTA UPDATE:\t waiting to stop services");
+        delay(500);
+        Serial.println("OTA UPDATE:\t services stopped - start update");
         content_len = request->contentLength();
         // if filename includes spiffs, update the spiffs partition
         int cmd = (filename.indexOf("spiffs") > -1) ? U_PART : U_FLASH;

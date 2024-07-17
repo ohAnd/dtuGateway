@@ -277,7 +277,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
     </div>
     <div id="frame">
         <div class="header">
-            <b>Hoymiles HMS-800W-2T - Gateway</b>
+            <b>Hoymiles HMS-xxxW-2T - Gateway</b>
         </div>
         <div class="row">
             <div class="column">

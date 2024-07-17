@@ -66,6 +66,15 @@ void DisplayTFT::drawScreen(String version, String time)
     lastDisplayData.rssiGW = dtuGlobalData.wifi_rssi_gateway;
     lastDisplayData.rssiDTU = dtuGlobalData.dtuRssi;
 
+    // reset screen after certain state transitions
+    if (!(dtuConnection.dtuConnectState == DTU_STATE_CLOUD_PAUSE) && (lastDisplayData.stateWasOffline || lastDisplayData.stateWasCloudPause || lastDisplayData.stateWasNormal))
+    {
+        tft.fillScreen(TFT_BLACK);
+        lastDisplayData.stateWasOffline = false;
+        lastDisplayData.stateWasCloudPause = false;
+        lastDisplayData.stateWasNormal = false;
+    }
+
     drawHeader(version);
 
     // main screen
@@ -81,20 +90,9 @@ void DisplayTFT::drawScreen(String version, String time)
 
 void DisplayTFT::drawMainDTUOnline(bool pause)
 {
-
-    // pause = true;
-
     // save display value
     lastDisplayData.totalPower = round(dtuGlobalData.grid.power);
     lastDisplayData.powerLimit = dtuGlobalData.powerLimit;
-
-    // reset screen after certain state transitions
-    if (!pause && (lastDisplayData.stateWasOffline || lastDisplayData.stateWasCloudPause))
-    {
-        tft.fillScreen(TFT_BLACK);
-        lastDisplayData.stateWasOffline = false;
-        lastDisplayData.stateWasCloudPause = false;
-    }
 
     // state dependend screen change
     if (pause && lastDisplayData.stateWasNormal)
@@ -147,7 +145,7 @@ void DisplayTFT::drawMainDTUOnline(bool pause)
         tft.drawCentreString("Power Limit", 120, 150, 2);
 
         // tft.fillRoundRect(80, 120, 100, 26, 1, TFT_BLACK);
-        lastDisplayData.stateWasNormal = true;
+        // lastDisplayData.stateWasNormal = true;
     }
 }
 
@@ -185,12 +183,19 @@ void DisplayTFT::drawFactoryMode(String version, String apName, String ip)
 
 void DisplayTFT::drawUpdateMode(String text, String text2)
 {
-    Serial.println(F("TFT display:\t update mode"));
+    uint8_t y1 = 110;
+    Serial.println("TFT display:\t update mode");
 
     tft.fillScreen(TFT_BLACK);
     tft.setTextColor(TFT_WHITE, TFT_BLACK);
-    tft.drawCentreString(text, 120, 110, 4);
-    tft.drawCentreString(text2, 120, 150, 4);
+
+    if (text2 != "")
+    {
+        Serial.println("TFT display:\t update mode done");
+        y1 = 90;
+        tft.drawCentreString(text2, 120, 130, 4);
+    }
+    tft.drawCentreString(text, 120, y1, 4);
 }
 
 void DisplayTFT::drawHeader(String version)
