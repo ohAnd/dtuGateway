@@ -108,16 +108,13 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
     - small screensaver to prevent burn-in effect with steady components on the screen (shifting the whole screen every minute with 1 pixel in a 4 step rotation)
     - smooth brightness control for changed main value - increase to max after change and then dimmming smooth back to the default level
   
-  [2024-06-29 currently open issue during the rafactoring]
-
-~~- display GAGC9A01 round TFT 1,28" 240x240~~
+- display GC9A01 round TFT 1,28" 240x240
 
   <img src="doc/images/roundTFT_firstSTart.jpg" alt="roundTFT_firstSTart" width="180"/>
   <img src="doc/images/roundTFT.jpg" alt="roundTFT" width="180"/>
 
-  ~~- setup screen for first start (factory mode)~~
-
-  ~~- status screen with the (current) most important data~~
+  - setup screen for first start (factory mode)
+  - status screen with the (current) most important data
 ### regarding base framework
 
 - serving own access point in factory mode for first setup
@@ -347,7 +344,7 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
     | AZDelivery D1 Mini NodeMcu mit ESP8266-12F       | ESP8266    | 3V3  |  G  | D1/GPIO5/SCL     | D2/GPIO4/SDA     |   OK   |
     | ESP-WROOM-32 NodeMCU-32S                         | ESP32      | 3.3V | GND | D22/GPIO22/SCL   | D21/GPIO21/SDA   |   OK   |
 
-- optional display GAGC9A01 round TFT 1,28" 240x240 (e.g. [link](https://de.aliexpress.com/i/1005006190625792.html)):
+- optional display GC9A01 round TFT 1,28" 240x240 (e.g. [link](https://de.aliexpress.com/i/1005006190625792.html)):
   - connect SSH1106 driven round TFT display (240x240) with your ESP8266/ ESP32 board (VCC, GND, SCL, SDA, DC, CS, RST)
   - pinning for different boards (display connector to ESPxx board pins)
 
