@@ -24,7 +24,7 @@ MQTTHandler::MQTTHandler(const char *broker, int port, const char *user, const c
 
 void MQTTHandler::callback(char *topic, byte *payload, unsigned int length)
 {
-    String incommingMessage = "";
+    String incommingMessage = "#"; //fix initial char to avoid empty string
     for (uint8_t i = 0; i < length; i++)
         incommingMessage += (char)payload[i];
 
@@ -33,6 +33,8 @@ void MQTTHandler::callback(char *topic, byte *payload, unsigned int length)
     {
         if (String(topic) == instance->mqttMainTopicPath + "/inverter/PowerLimit_Set")
         {
+            incommingMessage = incommingMessage.substring(1, length+1); //'#' has to be ignored
+            Serial.println("\nMQTT: cleaned incoming message: '" + incommingMessage + "' (len: " + String(length) + ")");
             int gotLimit = (incommingMessage).toInt();
             uint8_t setLimit = 0;
             if (gotLimit >= 2 && gotLimit <= 100)
