@@ -6,8 +6,8 @@
 #include <WiFiClientSecure.h>
 
 struct PowerLimitSet {
-    uint16_t timestamp = 0;
     int8_t setValue = 0;
+    boolean update = false;
 };
 
 class MQTTHandler {

@@ -532,14 +532,14 @@ void handleUpdatePowerLimit()
     else
       globalData.powerLimitSet = gotLimit;
 
-    // Serial.print("got SetLimit: " + String(globalData.powerLimitSet) + " - current limit: " + String(globalData.powerLimit) + " %");
+    Serial.println("WEB: new SetLimit: " + String(globalData.powerLimitSet) + " - current DTU limit: " + String(globalData.powerLimit) + " %");
 
     String JSON = "{";
     JSON = JSON + "\"PowerLimitSet\": \"" + globalData.powerLimitSet + "\"";
     JSON = JSON + "}";
 
     server.send(200, "application/json", JSON);
-    Serial.println("handleUpdatePowerLimit - send JSON: " + String(JSON));
+    // Serial.println("handleUpdatePowerLimit - send JSON: " + String(JSON));
   }
   else
   {
@@ -548,10 +548,6 @@ void handleUpdatePowerLimit()
     server.send(400, "text/plain", "powerLimit out of range");
     return;
   }
-
-  // trigger new update info with changed release channel
-  // getUpdateInfo(AsyncWebServerRequest *request);
-  // updateInfoRequested = true;
 }
 
 void handleUpdateOTASettings()
@@ -968,12 +964,14 @@ String getMessageFromOpenhab(String key)
   }
 }
 
+uint8_t lastOpenhabLimit = 255;
 boolean getPowerSetDataFromOpenHab()
 {
   // get data from openhab if connected to DTU
   // if (dtuConnection.dtuConnectState == DTU_STATE_CONNECTED)
   // {
-  uint8_t gotLimit;
+  uint8_t gotLimit = 0;
+  uint8_t newLimit = 0;
   bool conversionSuccess = false;
 
   String openhabMessage = getMessageFromOpenhab(String(userConfig.openItemPrefix) + "_PowerLimit_Set");
@@ -987,21 +985,25 @@ boolean getPowerSetDataFromOpenHab()
   if (conversionSuccess)
   {
     if (gotLimit < 2)
-      globalData.powerLimitSet = 2;
+      newLimit = 2;
     else if (gotLimit > 100)
-      globalData.powerLimitSet = 2;
+      newLimit = 2;
     else
-      globalData.powerLimitSet = gotLimit;
+      newLimit = gotLimit;
+    // Serial.println("getMessageFromOpenhab - got new SetLimit: " + String(newLimit) + " %");
   }
   else
   {
     Serial.print("got wrong data for SetLimit: " + openhabMessage);
     return false;
   }
-  // Serial.print("got SetLimit: " + String(globalData.powerLimitSet) + " - current limit: " + String(globalData.powerLimit) + " %");
+  if (lastOpenhabLimit != newLimit && lastOpenhabLimit != 255)
+  {
+    globalData.powerLimitSet = newLimit;
+    Serial.println("OPENHAB: got new OH Limit: " + String(globalData.powerLimitSet) + " - last OH limit: " + String(lastOpenhabLimit) + " %");
+  }
+  lastOpenhabLimit = newLimit;
   return true;
-  // }
-  // return false;
 }
 
 boolean updateValueToOpenhab()
@@ -1525,7 +1527,7 @@ void loop()
       // getting powerlimitSet over MQTT, only on demand - to avoid oversteering for openhab receiving with constant MQTT values, if both bindings are active
       // the time difference between publishing and take over have to be less then 100 ms
       PowerLimitSet lastSetting = mqttHandler.getPowerLimitSet();
-      if (currentMillis - lastSetting.timestamp < 100)
+      if (lastSetting.update == true)
       {
         globalData.powerLimitSet = lastSetting.setValue;
         Serial.println("\nMQTT: changed powerset value to '" + String(globalData.powerLimitSet) + "'");
@@ -1567,50 +1569,53 @@ void loop()
       }
     }
 
-    if (dtuConnection.preventCloudErrors)
+    if (WiFi.status() == WL_CONNECTED)
     {
-      // task to check and change for cloud update pause
-      if (dtuCloudPauseActiveControl(timeStampInSecondsDtuSynced))
+      if (dtuConnection.preventCloudErrors)
       {
-        globalData.uptodate = false;
-        blinkCode = BLINK_PAUSE_CLOUD_UPDATE;
-        dtuConnectionStop(&dtuClient, DTU_STATE_CLOUD_PAUSE); // disconnet DTU server, if prevention on
+        // task to check and change for cloud update pause
+        if (dtuCloudPauseActiveControl(timeStampInSecondsDtuSynced))
+        {
+          globalData.uptodate = false;
+          blinkCode = BLINK_PAUSE_CLOUD_UPDATE;
+          dtuConnectionStop(&dtuClient, DTU_STATE_CLOUD_PAUSE); // disconnet DTU server, if prevention on
+        }
       }
-    }
 
-    if (userConfig.openhabActive)
-      getPowerSetDataFromOpenHab();
+      if (userConfig.openhabActive)
+        getPowerSetDataFromOpenHab();
 
-    // direct request of new powerLimit
-    if (globalData.powerLimitSet != globalData.powerLimit && globalData.powerLimitSet != 101 && globalData.uptodate)
-    {
-      Serial.print("\n----- ----- set new power limit from " + String(globalData.powerLimit) + " to " + String(globalData.powerLimitSet));
-      if (writeReqCommand(&dtuClient, globalData.powerLimitSet, timeStampInSecondsDtuSynced))
+      // direct request of new powerLimit
+      if (globalData.powerLimitSet != globalData.powerLimit && globalData.powerLimitSet != 101 && globalData.uptodate)
       {
-        Serial.println(F(" --- done"));
-        // set next normal request in 5 seconds from now on, only if last data updated within last 2 times of user setted update rate
-        if (currentMillis - globalData.lastRespTimestamp < (intervalMid * 2))
-          previousMillisMid = currentMillis - (intervalMid - 5);
+        Serial.print("\n----- ----- set new power limit from " + String(globalData.powerLimit) + " to " + String(globalData.powerLimitSet));
+        if (writeReqCommand(&dtuClient, globalData.powerLimitSet, timeStampInSecondsDtuSynced))
+        {
+          Serial.println(F(" --- done"));
+          // set next normal request in 5 seconds from now on, only if last data updated within last 2 times of user setted update rate
+          if (currentMillis - globalData.lastRespTimestamp < (intervalMid * 2))
+            previousMillisMid = currentMillis - (intervalMid - 5);
+        }
+        else
+        {
+          Serial.println(F(" --- error"));
+        }
       }
-      else
-      {
-        Serial.println(F(" --- error"));
-      }
-    }
 
-    //
-    if (updateInfoRequested)
-    {
-      getUpdateInfo();
+      //
+      if (updateInfoRequested)
+      {
+        getUpdateInfo();
+      }
     }
   }
 
   // 5s task
   if (currentMillis - previousMillis5000ms >= interval5000ms)
   {
-    Serial.printf("\n>>>>> %02is task - state --> ", int(interval5000ms));
+    Serial.printf(">>>>> %02is task - state --> ", int(interval5000ms));
     Serial.print("local: " + getTimeStringByTimestamp(timeStampInSecondsDtuSynced));
-    Serial.print(" --- NTP: " + timeClient.getFormattedTime());
+    Serial.println(" --- NTP: " + timeClient.getFormattedTime());
 
     // Serial.print(" --- currentMillis " + String(currentMillis) + " --- ");
     previousMillis5000ms = currentMillis;
@@ -1625,8 +1630,8 @@ void loop()
       globalData.wifi_rssi_gateway = wifiPercent;
       // Serial.print(" --- RSSI to AP: '" + String(WiFi.SSID()) + "': " + String(globalData.wifi_rssi_gateway) + " %");
 
-      if (userConfig.openhabActive)
-        getPowerSetDataFromOpenHab();
+      // if (userConfig.openhabActive)
+      //   getPowerSetDataFromOpenHab();
     }
 
     // for testing

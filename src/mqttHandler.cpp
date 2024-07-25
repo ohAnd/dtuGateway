@@ -24,7 +24,7 @@ MQTTHandler::MQTTHandler(const char *broker, int port, const char *user, const c
 
 void MQTTHandler::callback(char *topic, byte *payload, unsigned int length)
 {
-    String incommingMessage = "";
+    String incommingMessage = "#"; //fix initial char to avoid empty string
     for (uint8_t i = 0; i < length; i++)
         incommingMessage += (char)payload[i];
 
@@ -33,6 +33,7 @@ void MQTTHandler::callback(char *topic, byte *payload, unsigned int length)
     {
         if (String(topic) == instance->mqttMainTopicPath + "/inverter/PowerLimit_Set")
         {
+            incommingMessage = incommingMessage.substring(1, length+1); //'#' has to be ignored
             int gotLimit = (incommingMessage).toInt();
             uint8_t setLimit = 0;
             if (gotLimit >= 2 && gotLimit <= 100)
@@ -41,15 +42,23 @@ void MQTTHandler::callback(char *topic, byte *payload, unsigned int length)
                 setLimit = 100;
             else if (gotLimit < 2)
                 setLimit = 2;
+            Serial.println("MQTT: cleaned incoming message: '" + incommingMessage + "' (len: " + String(length) + ") + gotLimit: " + String(gotLimit) + " -> new setLimit: " + String(setLimit));
             instance->lastPowerLimitSet.setValue = setLimit;
-            instance->lastPowerLimitSet.timestamp = millis();
+            instance->lastPowerLimitSet.update = true;
         }
     }
 }
 
+/**
+ * Retrieves the last power limit set by the MQTTHandler.
+ *
+ * @return The last power limit set.
+ */
 PowerLimitSet MQTTHandler::getPowerLimitSet()
 {
-    return lastPowerLimitSet;
+    PowerLimitSet lastSetting = lastPowerLimitSet;
+    lastPowerLimitSet.update = false;
+    return lastSetting;
 }
 
 void MQTTHandler::setup(bool autoDiscovery)
