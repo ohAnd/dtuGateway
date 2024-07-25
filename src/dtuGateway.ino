@@ -607,9 +607,11 @@ String getMessageFromOpenhab(String key)
   }
 }
 // get PowerSet data from openhab
+uint8_t lastOpenhabLimit = 255;
 boolean getPowerSetDataFromOpenHab()
 {
-  uint8_t gotLimit;
+  uint8_t gotLimit = 0;
+  uint8_t newLimit = 0;
   bool conversionSuccess = false;
 
   String openhabMessage = getMessageFromOpenhab(String(userConfig.openItemPrefix) + "_PowerLimit_Set");
@@ -623,20 +625,27 @@ boolean getPowerSetDataFromOpenHab()
   if (conversionSuccess)
   {
     if (gotLimit < 2)
-      dtuGlobalData.powerLimitSet = 2;
+      newLimit = 2;
     else if (gotLimit > 100)
-      dtuGlobalData.powerLimitSet = 2;
+      newLimit = 2;
     else
-      dtuGlobalData.powerLimitSet = gotLimit;
+      newLimit = gotLimit;
+    // Serial.println("getMessageFromOpenhab - got new SetLimit: " + String(newLimit) + " %");
   }
   else
   {
-    Serial.println("OpenHAB:\t\t got wrong data for SetLimit - openhab response: ->" + openhabMessage + "<-");
+    Serial.print("got wrong data for SetLimit: " + openhabMessage);
     return false;
   }
-  // Serial.println("OpenHAB:\t\t got SetLimit: " + String(dtuGlobalData.powerLimitSet) + " - current limit: " + String(dtuGlobalData.powerLimit) + " %");
+  if (lastOpenhabLimit != newLimit && lastOpenhabLimit != 255)
+  {
+    dtuGlobalData.powerLimitSet = newLimit;
+    Serial.println("OPENHAB: got new OH Limit: " + String(dtuGlobalData.powerLimitSet) + " - last OH limit: " + String(lastOpenhabLimit) + " %");
+  }
+  lastOpenhabLimit = newLimit;
   return true;
 }
+
 // update all values to openhab
 boolean updateValueToOpenhab()
 {
@@ -1233,10 +1242,9 @@ void loop()
 
     if (userConfig.mqttActive)
     {
-      // getting powerlimitSet over MQTT, only on demand - to avoid oversteering for openhab receiving with constant MQTT values, if both bindings are active
-      // the time difference between publishing and take over have to be less then 100 ms
+      // getting powerlimitSet over MQTT, only on demand
       PowerLimitSet lastSetting = mqttHandler.getPowerLimitSet();
-      if (currentMillis - lastSetting.timestamp < 100)
+      if (lastSetting.update == true)
       {
         dtuGlobalData.powerLimitSet = lastSetting.setValue;
         Serial.println("\nMQTT: changed powerset value to '" + String(dtuGlobalData.powerLimitSet) + "'");
@@ -1294,7 +1302,7 @@ void loop()
       if (dtuConnection.dtuActiveOffToCloudUpdate)
         blinkCode = BLINK_PAUSE_CLOUD_UPDATE;
 
-      if (userConfig.openhabActive && dtuConnection.dtuConnectState == DTU_STATE_CONNECTED)
+      if (userConfig.openhabActive) // && dtuConnection.dtuConnectState == DTU_STATE_CONNECTED)
         getPowerSetDataFromOpenHab();
 
       // direct request of new powerLimit
