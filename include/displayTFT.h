@@ -32,6 +32,7 @@ class DisplayTFT {
         void setup();
         void renderScreen(String time, String version);
         void drawFactoryMode(String version, String apName, String ip);
+        void drawUpdateMode(String text,String text2="");
     private:
         void drawScreen(String version, String time);
         void drawHeader(String version);
@@ -40,7 +41,6 @@ class DisplayTFT {
         void drawMainDTUOnline(bool pause=false);
         void drawMainDTUOffline();
 
-        void screenSaver();
         void checkChangedValues();
 
         void drawIcon(const uint16_t *icon, int16_t x, int16_t y, int16_t w, int16_t h);
@@ -52,6 +52,10 @@ class DisplayTFT {
         uint8_t offset_y = 0; // shifting for anti burn in effect
         bool valueChanged = false;
         uint16_t displayTicks = 0; // local timer state machine
+
+        void showDebug();
+        void printProcessorName(void);
+        int8_t getPinName(int8_t pin);
 };
 
 #endif // DISPLAYTFT_H

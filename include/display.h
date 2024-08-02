@@ -37,7 +37,7 @@ class Display {
         void checkChangedValues();
         // private member variables
         DisplayData lastDisplayData;
-        uint8_t brightness=BRIGHTNESS_MIN;
+        uint8_t brightness=BRIGHTNESS_MAX;
         u8g2_uint_t offset_x = 0; // shifting for anti burn in effect
         u8g2_uint_t offset_y = 0; // shifting for anti burn in effect
         bool valueChanged = false;

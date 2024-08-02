@@ -8,7 +8,7 @@ Display::Display() {}
 void Display::setup()
 {
     u8g2.begin();
-    Serial.println(F("OLED display initialized"));
+    Serial.println(F("OLED display:\t initialized"));
 }
 
 void Display::renderScreen(String time, String version)
@@ -30,7 +30,8 @@ void Display::renderScreen(String time, String version)
     else if (brightness > BRIGHTNESS_MIN)
     {
         brightness = brightness - 5;
-        u8g2.setContrast(brightness);
+        // u8g2.setContrast(brightness);
+        // u8g2.sendBuffer();
     }
 
     if (displayTicks % 20 == 0)
@@ -43,10 +44,10 @@ void Display::renderScreen(String time, String version)
 void Display::drawScreen()
 {
     // store last shown value
-    lastDisplayData.totalYieldDay = globalData.grid.dailyEnergy;
-    lastDisplayData.totalYieldTotal = round(globalData.grid.totalEnergy);
-    lastDisplayData.rssiGW = globalData.wifi_rssi_gateway;
-    lastDisplayData.rssiDTU = globalData.dtuRssi;
+    lastDisplayData.totalYieldDay = dtuGlobalData.grid.dailyEnergy;
+    lastDisplayData.totalYieldTotal = round(dtuGlobalData.grid.totalEnergy);
+    lastDisplayData.rssiGW = dtuGlobalData.wifi_rssi_gateway;
+    lastDisplayData.rssiDTU = dtuGlobalData.dtuRssi;
 
     u8g2.clearBuffer();
     u8g2.setDrawColor(1);
@@ -80,14 +81,15 @@ void Display::drawScreen()
 
 void Display::drawMainDTUOnline(bool pause)
 {
-    lastDisplayData.totalPower = round(globalData.grid.power);
-    lastDisplayData.powerLimit = globalData.powerLimit;
+    lastDisplayData.totalPower = round(dtuGlobalData.grid.power);
+    lastDisplayData.powerLimit = dtuGlobalData.powerLimit;
 
     // main screen
 
+    String wattage = ((dtuGlobalData.grid.power == -1) ? ("--") : String(lastDisplayData.totalPower));
+    String powerLimit = ((dtuGlobalData.powerLimit == 254) ? ("--") : String(lastDisplayData.powerLimit));
+
     u8g2.setFont(u8g2_font_logisoso28_tf);
-    // String wattage = String(lastDisplayData.totalPower) + " W";
-    String wattage = String(lastDisplayData.totalPower);
     u8g2_uint_t width = u8g2.getUTF8Width(wattage.c_str());
     int wattage_xpos = (128 - width) / 2;
     u8g2.drawStr(wattage_xpos + offset_x, 19 + offset_y, wattage.c_str());
@@ -105,10 +107,14 @@ void Display::drawMainDTUOnline(bool pause)
     }
 
     // main screen small left
-    u8g2.drawRFrame(0 + offset_x, 36 + offset_y, 29, 16, 4);
+    u8g2.drawRFrame(0 + offset_x, 36 + offset_y, 30, 16, 4);
     u8g2.setFont(u8g2_font_6x10_tf);
-    u8g2.drawStr(3 + offset_x, 40 + offset_y, (String(lastDisplayData.powerLimit)).c_str());
-    u8g2.drawStr(19 + offset_x, 40 + offset_y, "%");
+
+    width = u8g2.getUTF8Width(powerLimit.c_str());
+    int powerLimit_xpos = (20 - width) / 2;
+
+    u8g2.drawStr(3 + powerLimit_xpos + offset_x, 40 + offset_y, powerLimit.c_str());
+    u8g2.drawStr(22 + offset_x, 40 + offset_y, "%");
 }
 
 void Display::drawMainDTUOffline()
@@ -126,13 +132,13 @@ void Display::drawFactoryMode(String version, String apName, String ip)
     u8g2.setFontDirection(0);
     u8g2.setFontRefHeightExtendedText();
 
-    Serial.println(F("OLED display - showing factory mode"));
+    Serial.println(F("OLED display:\t showing factory mode"));
     // header
     u8g2.setFont(u8g2_font_5x7_tf);
     u8g2.drawStr(0 + offset_x, 0 + offset_y, "dtuGateway");
     u8g2.drawStr(55 + offset_x, 0 + offset_y, version.c_str());
 
-    u8g2.drawHLine(0,9,128);
+    u8g2.drawHLine(0, 9, 128);
 
     // main screen
     u8g2.setFont(u8g2_font_siji_t_6x10);
@@ -160,7 +166,7 @@ void Display::drawFactoryMode(String version, String apName, String ip)
     centerString = ("http://" + ip).c_str();
     width = u8g2.getUTF8Width(centerString.c_str());
     centerString_xpos = (128 - width) / 2;
-    u8g2.drawStr(centerString_xpos+ offset_x, 54 + offset_y, centerString.c_str());
+    u8g2.drawStr(centerString_xpos + offset_x, 54 + offset_y, centerString.c_str());
 
     u8g2.setContrast(255);
 
@@ -258,6 +264,6 @@ void Display::screenSaver()
 void Display::checkChangedValues()
 {
     valueChanged = false;
-    if (lastDisplayData.totalPower != round(globalData.grid.power))
+    if (lastDisplayData.totalPower != round(dtuGlobalData.grid.power))
         valueChanged = true;
 }

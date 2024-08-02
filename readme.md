@@ -1,7 +1,7 @@
-# dtu Gateway for Hoymiles HMS-800W-2T (2T series)
+# dtu Gateway for Hoymiles HMS-xxxW-2T (2T series)
 
 ## Contents
-- [dtu Gateway for Hoymiles HMS-800W-2T (2T series)](#dtu-gateway-for-hoymiles-hms-800w-2t-2t-series)
+- [dtu Gateway for Hoymiles HMS-xxxW-2T (2T series)](#dtu-gateway-for-hoymiles-hms-xxxw-2t-2t-series)
   - [Contents](#contents)
   - [problem](#problem)
   - [goal](#goal)
@@ -20,7 +20,7 @@
   - [releases](#releases)
     - [installation / update](#installation--update)
       - [hardware](#hardware)
-      - [first installation to the ESP device](#first-installation-to-the-esp-device)
+      - [first installation to the ESP device (as an example for ESP8266)](#first-installation-to-the-esp-device-as-an-example-for-esp8266)
       - [first setup with access point](#first-setup-with-access-point)
       - [return to factory mode](#return-to-factory-mode)
     - [main](#main)
@@ -64,7 +64,10 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
   - power (Watts), voltage (V), current (A) for the PV input data (PV0,PV1) and the grid
   - energy counter (kWh) for all 3 sources (day and total)
   - temperature and wifi rssi of the dtu
-- setting the target inverter power limit dynamically
+- setting the target inverter power limit dynamically (currently update rate up to 1 second implemented)
+  - via website (see [#33](https://github.com/ohAnd/dtuGateway/issues/33) - thanks to [@hirbelo](https://github.com/hirbelo))
+  - via openhab item (see below)
+  - via MQTT topic (see below)
 - for testing purposes the time between each request is adjustable (default 31 seconds) 
 - syncing time of gateway with the local time of the dtu to prevent wrong restart counters
 - configurable 'cloud pause' - see [experiences](#experiences-with-the-hoymiles-HMS-800W-2T) - to prevent missing updates by the dtu to the hoymiles cloud
@@ -104,27 +107,28 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
   - additonal features
     - small screensaver to prevent burn-in effect with steady components on the screen (shifting the whole screen every minute with 1 pixel in a 4 step rotation)
     - smooth brightness control for changed main value - increase to max after change and then dimmming smooth back to the default level
-- display GAGC9A01 round TFT 1,28" 240x240
+  
+- display GC9A01 round TFT 1,28" 240x240
 
   <img src="doc/images/roundTFT_firstSTart.jpg" alt="roundTFT_firstSTart" width="180"/>
   <img src="doc/images/roundTFT.jpg" alt="roundTFT" width="180"/>
 
   - setup screen for first start (factory mode)
   - status screen with the (current) most important data
-
 ### regarding base framework
 
 - serving own access point in factory mode for first setup
 - web application will be directly served by the system
 - settings of needed user data over the web app (stored in a json-file in local flash file system - extensions of user setup will not lead to breakable changes)
-  - select found local wifi and enter/ save the needed wifi password
+  - select found local wifi (additional issue [#20](https://github.com/ohAnd/dtuGateway/issues/20)) and enter/ save the needed wifi password
   - change dtu connection data (e.g. host IP in local network, wireless user/ pass for dtu access point)
   - configurable data for openhab item settings
   - configurable data for MQTT settings incl. HomeAssistant AutoDiscovery
   - advanced web config[^2] for all config parameter (http://IP_domain/config) - expert mode
     - display selection (0 - OLED, 1 - round TFT)
     - timeZone Offset -xxxx sec <-> xxxx sec e.g. 3600 for CET(+1h) /7200 for CEST(+2)/-21600 for CST
-- OTA with direct connection to the github build pipeline - available updates will be checked by web app and device. Notification in web app, if update available and user can decide for direct online update 
+- [2024-06-29 currently open issue during the rafactoring transferring to multi arch ESP8266/ESP32] ~~OTA with direct connection to the github build pipeline - available updates will be checked by web app and device. Notification in web app, if update available and user can decide for direct online update~~
+- [2024-06-29 it is an issue during the refactoring - and therefore currently only for ESP32] manual OTA Update through simple upload page
 
 [^2]: 'advanced config' aka. 'dtuGateway Configuration Interface' it is something like an expert mode, that means you have to know which parameter you want to change with which effect.
 
@@ -183,7 +187,7 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
 {
   
   "chipid": 12345678,
-  "host": "hoymilesGW_12345678",
+  "host": "dtuGateway_12345678",
   "initMode": 0,
   "firmware": {
     "version": "1.0.0022",
@@ -236,7 +240,7 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
 ## openhab integration/ configuration
 
 - set the IP to your openhab instance - data will be read with http://<your_openhab_ip>:8080/rest/items/<itemName>/state
-- set the prefix (<openItemPrefix>) of your openhab items
+- set the prefix ( \<openItemPrefix\> ) of your openhab items
 - list of items that should be available in your openhab config
   - read your given power set value from openhab with "<yourOpenItemPrefix>_PowerLimit_Set"
   - set openhab items with data from dtu:
@@ -272,43 +276,55 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
 
 - set the IP to your MQTT broker
 - set the MQTT user and MQTT password
-- set the main topic e.g. 'dtu_12345678' for the pubished data (default: is `dtu_<ESP chip id>` and has to be unique in your environment)
+- set the main topic e.g. 'dtuGateway_12345678' for the pubished data (default: is `dtuGateway_<ESP chip id>` and has to be unique in your environment)
+- [2024-06-29 still in development] ~~choosing unsecure or TLS based connection to your MQTT broker~~
 - to set the Power Limit from your environment
-  - you have to publish to `dtu_<ESP chip id>/inverter/PowerLimit_Set` a value between 2...100 (possible range at DTU)
+  - you have to publish to `<main topic>/inverter/PowerLimit_Set` a value between 2...100 (possible range at DTU)
   - the incoming value will be checked for this interval and locally corrected to 2 or 100 if exceeds
-  - (optional: with retain flag, to get the last set value after restart / reconnect of the dtuGateway)
-- data will be published as following ('dtu_12345678' is configurable in the settings):
+  - with retain flag, to get the last set value after restart / reconnect of the dtuGateway
+- data will be published as following ('dtuGateway_12345678' is configurable in the settings):
+  <details>
+  <summary>expand to see to details</summary>
   
   ```
-  dtu_12345678/timestamp
+  dtuGateway_12345678/timestamp
 
-  dtu_12345678/grid/U
-  dtu_12345678/grid/I
-  dtu_12345678/grid/P
-  dtu_12345678/grid/dailyEnergy
-  dtu_12345678/grid/totalEnergy
+  dtuGateway_12345678/grid/U
+  dtuGateway_12345678/grid/I
+  dtuGateway_12345678/grid/P
+  dtuGateway_12345678/grid/dailyEnergy
+  dtuGateway_12345678/grid/totalEnergy
   
-  dtu_12345678/pv0/U
-  dtu_12345678/pv0/I
-  dtu_12345678/pv0/P
-  dtu_12345678/pv0/dailyEnergy
-  dtu_12345678/pv0/totalEnergy
+  dtuGateway_12345678/pv0/U
+  dtuGateway_12345678/pv0/I
+  dtuGateway_12345678/pv0/P
+  dtuGateway_12345678/pv0/dailyEnergy
+  dtuGateway_12345678/pv0/totalEnergy
   
-  dtu_12345678/pv1/U
-  dtu_12345678/pv1/I
-  dtu_12345678/pv1/P
-  dtu_12345678/pv1/dailyEnergy
-  dtu_12345678/pv1/totalEnergy
+  dtuGateway_12345678/pv1/U
+  dtuGateway_12345678/pv1/I
+  dtuGateway_12345678/pv1/P
+  dtuGateway_12345678/pv1/dailyEnergy
+  dtuGateway_12345678/pv1/totalEnergy
 
-  dtu_12345678/inverter/Temp
-  dtu_12345678/inverter/PowerLimit
-  dtu_12345678/inverter/PowerLimit_Set // <-- this topic will be subscribed to get the power limit to set from your broker
-  dtu_12345678/inverter/WifiRSSI
+  dtuGateway_12345678/inverter/Temp
+  dtuGateway_12345678/inverter/PowerLimit
+  dtuGateway_12345678/inverter/PowerLimit_Set // <-- this topic will be subscribed to get the power limit to set from your broker
+  dtuGateway_12345678/inverter/WifiRSSI
   ```
+  </details>
+
 - Home Assistant Auto Discovery
-  - you can set HomeAssistant Auto Discovery, if you want to auto configure the dtuGateway for your HA installation
-  - switch to ON means - with every restart/ reconnection of the dtuGateway the so called config messages will be published for HA and HA will configure all the given entities of dtuGateway incl. the set value for PowerLimit
+  - you can set HomeAssistant Auto Discovery, if you want to auto configure the dtuGateway for your HA installation 
+  - switch to ON means - with every restart/ reconnection of the dtuGateway the so called config messages will be published for HA and HA will configure (or update) all the given entities of dtuGateway incl. the set value for PowerLimit
   - switch to OFF means - all the config messages will be deleted and therefore the dtuGateway will be removed from HA (base publishing of data will be remain the same, if MQTT is activated)
+  - detail note:
+    - if you use the default main topic e.g. `dtuGateway_<ESP chip id>` then config and state topic will be placed at the same standard HA auto discovery path, e.g. for panel 0 voltage
+      - config: `homeassistant/sensor/dtuGateway_12345678/pv0_U/config`
+      - state: `homeassistant/sensor/dtuGateway_12345678/pv0_U/state`
+    - if you choose another location for the main topic path (let's assume 'myDTU_1') then it will looks like this on your broker, e.g.
+      - config: `homeassistant/sensor/dtuGateway_12345678/pv0_U/config`
+      - state: `myDTU_1/pv0/U` - this path will be integrated in the config message and with this HA will be informed to get the data value from right location
 
 ## known bugs
 - sometimes out-of-memory resets with instant reboots (rare after some hours or more often after some days)
@@ -316,9 +332,9 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
 ## releases
 ### installation / update
 #### hardware
-- ESP8266 based board
+- ESP8266/ EPS32 based board
 - optional display SSH1106 OLED 1,3" 128x64 (e.g. [link](https://de.aliexpress.com/item/32881408326.html)):
-  - connect SSH1106 driven OLED display (128x64) with your ESP8266 board (VCC, GND, SCK, SCL)
+  - connect SSH1106 driven OLED display (128x64) with your ESP8266/ ESP32 board (VCC, GND, SCK, SCL)
   - pinning for different boards (display connector to ESPxx board pins)
 
     | dev board                                        | ESP family | VCC  | GND |        SCK       |       SDA        | tested |
@@ -326,19 +342,21 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
     | AZDelivery D1 Board NodeMCU ESP8266MOD-12F       | ESP8266    | 3.3V | GND | D15/GPIO5/SCL/D3 | D14/GPIO4/SDA/D4 |   OK   |
     | AZDelivery NodeMCU V2 WiFi Amica ESP8266 ESP-12F | ESP8266    | 3.3V | GND | D1/GPIO5/SCL     | D2/GPIO4/SDA     |   OK   |
     | AZDelivery D1 Mini NodeMcu mit ESP8266-12F       | ESP8266    | 3V3  |  G  | D1/GPIO5/SCL     | D2/GPIO4/SDA     |   OK   |
-- optional display GAGC9A01 round TFT 1,28" 240x240 (e.g. [link](https://de.aliexpress.com/i/1005006190625792.html)):
-  - connect SSH1106 driven round TFT display (240x240) with your ESP8266 board (VCC, GND, SCL, SDA, DC, CS, RST)
+    | ESP-WROOM-32 NodeMCU-32S                         | ESP32      | 3.3V | GND | D22/GPIO22/SCL   | D21/GPIO21/SDA   |   OK   |
+
+- optional display GC9A01 round TFT 1,28" 240x240 (e.g. [link](https://de.aliexpress.com/i/1005006190625792.html)):
+  - connect SSH1106 driven round TFT display (240x240) with your ESP8266/ ESP32 board (VCC, GND, SCL, SDA, DC, CS, RST)
   - pinning for different boards (display connector to ESPxx board pins)
 
-    | dev board                                        | ESP family | VCC  | GND |        SCL       |       SDA      |        DC      |       CS       |  RST    | tested |
-    |--------------------------------------------------|------------|:----:|:---:|:----------------:|:--------------:|:--------------:|:--------------:|:-------:|:------:|
-    | AZDelivery D1 Board NodeMCU ESP8266MOD-12F       | ESP8266    | 3.3V | GND |     t.b.d.       |      t.b.d.    |      t.b.d.    |      t.b.d.    | t.b.d.  | t.b.c. |
-    | AZDelivery NodeMCU V2 WiFi Amica ESP8266 ESP-12F | ESP8266    | 3.3V | GND | D5/GPI14/SCLK    | D7/GPIO13/MOSI | D3/GPIO0/Flash |  D8/GPIO15/CS  | 3V3[^1] |   OK   |
-    | AZDelivery D1 Mini NodeMcu mit ESP8266-12F       | ESP8266    | 3V3  |  G  | D5/GPI14/SCLK    | D7/GPIO13/MOSI | D3/GPIO0/Flash |  D8/GPIO15/CS  | 3V3[^1] |   OK   |
-    
+    | dev board                                        | ESP family | VCC  | GND |        SCL       |       SDA       |        DC         |       CS            |     RST      | tested |
+    |--------------------------------------------------|------------|:----:|:---:|:----------------:|:---------------:|:-----------------:|:-------------------:|:------------:|:------:|
+    | AZDelivery D1 Board NodeMCU ESP8266MOD-12F       | ESP8266    | 3.3V | GND |     t.b.d.       |      t.b.d.     |      t.b.d.       |       t.b.d.        |   t.b.d.     | t.b.c. |
+    | AZDelivery NodeMCU V2 WiFi Amica ESP8266 ESP-12F | ESP8266    | 3.3V | GND | D5/GPI14/SCLK    | D7/GPIO13/MOSI  | D3/GPIO0/Flash    |    D8/GPIO15/CS     |   3V3[^1]    |   OK   |    
+    | AZDelivery D1 Mini NodeMcu mit ESP8266-12F       | ESP8266    | 3V3  |  G  | D5/GPI14/SCLK    | D7/GPIO13/MOSI  | D3/GPIO0/Flash    |    D8/GPIO15/CS     |   3V3[^1]    |   OK   |
+    | ESP-WROOM-32 NodeMCU-32S                         | ESP32      | 3.3V | GND | D18/GPIO18/SCK   | D23/GPIO23/MOSI | D2/GPIO2/HSPI_WP0 | D15/GPIO15/HSPI_CS0 | 3.3V (D4) [^1]|   OK   |
     [^1]: reset pin of display currently not in use therefore directly pulled up to 3,3 V
   
-#### first installation to the ESP device
+#### first installation to the ESP device (as an example for ESP8266)
 1. download the preferred release as binary (see below)
 2. **HAS TO BE VERIFIED** [only once] flash the esp8266 board with the (esp download tool)[https://www.espressif.com/en/support/download/other-tools]
    1. choose bin file at address 0x0
@@ -354,8 +372,8 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
 > prequesite:
 If you have directly attached a display, then in factory mode the used display is unknown. Default is OLED Display. To get the TFT running in factory mode, a change with each reboot is implemented. Means if you are powering on the first time the OLED will be choosen internally. The next power up the TFT will be chosen. And so on. So the 'first start' screen will be shown until the wifi settings will be changed over the webinterface.
 
-1. connect with the AP hoymilesGW_<chipID> (on smartphone sometimes you have to accept the connection explicitly with the knowledge there is no internet connectivity)
-2. open the website http://192.168.4.1 (or http://hoymilesGW.local) for the first configuration
+1. connect with the AP dtuGateway_<chipID> (on smartphone sometimes you have to accept the connection explicitly with the knowledge there is no internet connectivity)
+2. open the website http://192.168.4.1 (or http://dtuGateway.local) for the first configuration
 3. choose your wifi
 4. type in the wifi password - save
 5. in webfrontend setting your DTU IP adress within your local network (currently the user and password for dtu are not needed, for later integration relevant for a direct connection to the dtu over their access point)
