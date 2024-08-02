@@ -1321,6 +1321,7 @@ void loop()
     // {
     //   getUpdateInfo();
     // }
+
   }
 
   // 5s task
