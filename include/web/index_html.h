@@ -693,6 +693,8 @@ const char INDEX_HTML[] PROGMEM = R"=====(
 
             setTimeout(() => {
                 clearInterval(intervalId);
+                $('#wifiSearchBox').hide();
+                $('#wifiContent').css('opacity', '1.0');
                 //console.log("Interval ended after 15 seconds");
             }, 15000);
 
