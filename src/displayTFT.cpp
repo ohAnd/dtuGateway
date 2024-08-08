@@ -234,30 +234,29 @@ void DisplayTFT::drawFooter(String time)
     tft.drawCentreString(String(lastDisplayData.totalYieldDay, 3) + " kWh", 85, 198, 2);
     tft.drawCentreString(String(lastDisplayData.totalYieldTotal, 0) + " kWh", 160, 198, 2);
 
+    // draw circular arc for current second red on a silver base circle
     static uint8_t x = 119;
     static uint8_t y = 119;
     static uint8_t r = 119;
 
     int sec = (time.substring(time.lastIndexOf(":") + 1)).toInt();
     int secpoint = (sec * 6) + 180;
-    if (secpoint > 359)
-        secpoint = secpoint - 360;
 
     // black circle
     if (sec < 31)
     {
         tft.drawSmoothArc(x, y, r, r - 1, 0, 180, TFT_SILVER, TFT_BLACK);
-        tft.drawSmoothArc(x, y, r, r - 1, 180, secpoint, TFT_RED, TFT_BLACK);
-        tft.drawSmoothArc(x, y, r, r - 1, secpoint, 359, TFT_SILVER, TFT_BLACK);
+        if(sec!=0)
+          tft.drawSmoothArc(x, y, r, r - 1, 180, secpoint, TFT_RED, TFT_BLACK);
+        if(sec!=30)
+          tft.drawSmoothArc(x, y, r, r - 1, secpoint, 360, TFT_SILVER, TFT_BLACK);
     }
-    else if (sec > 30)
+    else
     {
-        tft.drawSmoothArc(x, y, r, r - 1, secpoint, 180, TFT_SILVER, TFT_BLACK);
-        tft.drawSmoothArc(x, y, r, r - 1, 180, 359, TFT_RED, TFT_BLACK);
-        tft.drawSmoothArc(x, y, r, r - 1, 0, secpoint, TFT_RED, TFT_BLACK);
+        tft.drawSmoothArc(x, y, r, r - 1, secpoint-360, 180, TFT_SILVER, TFT_BLACK);
+        tft.drawSmoothArc(x, y, r, r - 1, 180, 360, TFT_RED, TFT_BLACK);
+        tft.drawSmoothArc(x, y, r, r - 1, 0, secpoint-360, TFT_RED, TFT_BLACK);
     }
-    if (sec == 0) // outer circle 1 pixel
-        tft.drawSmoothCircle(x, y, r, TFT_SILVER, DARKER_GREY);
 }
 
 void DisplayTFT::checkChangedValues()
