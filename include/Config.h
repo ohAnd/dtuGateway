@@ -10,12 +10,12 @@
 
 struct UserConfig
 {
-    char dtuSsid[64]              = "DTUBI-12345678";
-    char dtuPassword[64]          = "dtubiPassword";
-
     char wifiSsid[64]             = "mySSID";
     char wifiPassword[64]         = "myPassword";
     
+    char dtuSsid[64]              = "DTUBI-12345678";
+    char dtuPassword[64]          = "dtubiPassword";
+
     char dtuHostIpDomain[128]     = "192.168.0.254";
     int dtuCloudPauseTime         = 40;
     boolean dtuCloudPauseActive   = true;
@@ -33,6 +33,8 @@ struct UserConfig
     char mqttBrokerMainTopic[32]  = "dtu_12345678";
     boolean mqttHAautoDiscoveryON = false;
     boolean mqttActive            = false;
+
+    boolean remoteDisplayActive   = false; // remote display to get data from mqtt
     
     uint8_t displayConnected      = 0; // OLED default
 

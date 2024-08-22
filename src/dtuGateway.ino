@@ -815,13 +815,15 @@ void setup()
   // ------- user config loaded --------------------------------------------
 
   // init display according to userConfig
-  if (userConfig.displayConnected == 0) {
+  if (userConfig.displayConnected == 0)
+  {
     displayOLED.setup();
-    // delete &displayTFT;
+    displayOLED.setRemoteDisplayMode(userConfig.remoteDisplayActive);
   }
-  else if (userConfig.displayConnected == 1) {
+  else if (userConfig.displayConnected == 1)
+  {
     displayTFT.setup();
-    // delete &displayOLED;
+    displayTFT.setRemoteDisplayMode(userConfig.remoteDisplayActive);
   }
 
   if (userConfig.wifiAPstart)
@@ -886,6 +888,7 @@ void setup()
     Serial.println(F("Can't set ITimer correctly. Select another freq. or interval"));
   // delay for startup background tasks in ESP
   delay(2000);
+
 }
 
 // after startup or reconnect with wifi
@@ -914,10 +917,12 @@ void startServices()
 
     dtuWebServer.start();
 
-    dtuInterface.setup(userConfig.dtuHostIpDomain);
+    if(!userConfig.remoteDisplayActive)
+      dtuInterface.setup(userConfig.dtuHostIpDomain);
 
     mqttHandler.setConfiguration(userConfig.mqttBrokerIpDomain, userConfig.mqttBrokerPort, userConfig.mqttBrokerUser, userConfig.mqttBrokerPassword, userConfig.mqttUseTLS, (platformData.espUniqueName).c_str(), userConfig.mqttBrokerMainTopic, userConfig.mqttHAautoDiscoveryON, ((platformData.dtuGatewayIP).toString()).c_str());
     mqttHandler.setup();
+    mqttHandler.setRemoteDisplayData(userConfig.remoteDisplayActive);
   }
   else
   {
@@ -1187,20 +1192,21 @@ void loop()
   {
     if (updateInfo.updateState == UPDATE_STATE_PREPARE)
     {
-      dtuInterface.disconnect(DTU_STATE_STOPPED);
+      // dtuInterface.disconnect(DTU_STATE_STOPPED);
+      dtuInterface.flushConnection();
       mqttHandler.stopConnection();
-      // if (userConfig.displayConnected == 0)
-      //   displayOLED.renderScreen(timeClient.getFormattedTime(), String(platformData.fwVersion));
-      // else if (userConfig.displayConnected == 1)
-      displayTFT.drawUpdateMode("update running ...");
+      if (userConfig.displayConnected == 0)
+        displayOLED.drawUpdateMode("update running ...");
+      else if (userConfig.displayConnected == 1)
+        displayTFT.drawUpdateMode("update running ...");
       updateInfo.updateState = UPDATE_STATE_INSTALLING;
     }
     if (updateInfo.updateState == UPDATE_STATE_DONE)
     {
-      // if (userConfig.displayConnected == 0)
-      //   displayOLED.renderScreen(timeClient.getFormattedTime(), String(platformData.fwVersion));
-      // else if (userConfig.displayConnected == 1)
-      displayTFT.drawUpdateMode("update done", "rebooting ...");
+      if (userConfig.displayConnected == 0)
+        displayOLED.drawUpdateMode("update done", "rebooting ...");
+      else if (userConfig.displayConnected == 1)
+        displayTFT.drawUpdateMode("update done", "rebooting ...");
       updateInfo.updateState = UPDATE_STATE_RESTART;
     }
     return;
@@ -1248,6 +1254,36 @@ void loop()
       {
         dtuGlobalData.powerLimitSet = lastSetting.setValue;
         Serial.println("\nMQTT: changed powerset value to '" + String(dtuGlobalData.powerLimitSet) + "'");
+      }
+
+      RemoteInverterData remoteData = mqttHandler.getRemoteInverterData();
+      if (remoteData.updateReceived == true)
+      {
+        dtuGlobalData.grid.power = remoteData.grid.power;
+        dtuGlobalData.grid.current = remoteData.grid.current;
+        dtuGlobalData.grid.voltage = remoteData.grid.voltage;
+        dtuGlobalData.grid.dailyEnergy = remoteData.grid.dailyEnergy;
+        dtuGlobalData.grid.totalEnergy = remoteData.grid.totalEnergy;
+
+        dtuGlobalData.pv0.power = remoteData.pv0.power;
+        dtuGlobalData.pv0.current = remoteData.pv0.current;
+        dtuGlobalData.pv0.voltage = remoteData.pv0.voltage;
+        dtuGlobalData.pv0.dailyEnergy = remoteData.pv0.dailyEnergy;
+        dtuGlobalData.pv0.totalEnergy = remoteData.pv0.totalEnergy;
+
+        dtuGlobalData.pv1.power = remoteData.pv1.power;
+        dtuGlobalData.pv1.current = remoteData.pv1.current;
+        dtuGlobalData.pv1.voltage = remoteData.pv1.voltage;
+        dtuGlobalData.pv1.dailyEnergy = remoteData.pv1.dailyEnergy;
+        dtuGlobalData.pv1.totalEnergy = remoteData.pv1.totalEnergy;
+
+        dtuGlobalData.inverterTemp = remoteData.inverterTemp;
+        dtuGlobalData.powerLimit = remoteData.powerLimit;
+        dtuGlobalData.dtuRssi = remoteData.dtuRssi;
+
+        dtuGlobalData.lastRespTimestamp = remoteData.respTimestamp;
+
+        Serial.println("\nMQTT: changed remote inverter data");
       }
     }
 
@@ -1306,7 +1342,11 @@ void loop()
         getPowerSetDataFromOpenHab();
 
       // direct request of new powerLimit
-      if (dtuGlobalData.powerLimitSet != dtuGlobalData.powerLimit && dtuGlobalData.powerLimitSet != 101 && dtuGlobalData.uptodate && dtuConnection.dtuConnectState == DTU_STATE_CONNECTED)
+      if (dtuGlobalData.powerLimitSet != dtuGlobalData.powerLimit &&
+        dtuGlobalData.powerLimitSet != 101 &&
+        dtuGlobalData.uptodate &&
+        dtuConnection.dtuConnectState == DTU_STATE_CONNECTED &&
+        !userConfig.remoteDisplayActive)
       {
         Serial.println("----- ----- set new power limit from " + String(dtuGlobalData.powerLimit) + " % to " + String(dtuGlobalData.powerLimitSet) + " % ----- ----- ");
         dtuInterface.setPowerLimit(dtuGlobalData.powerLimitSet);
@@ -1321,7 +1361,6 @@ void loop()
     // {
     //   getUpdateInfo();
     // }
-
   }
 
   // 5s task
@@ -1357,7 +1396,7 @@ void loop()
     // -------->
 
     // requesting data from DTU
-    if (WiFi.status() == WL_CONNECTED)
+    if (WiFi.status() == WL_CONNECTED && !userConfig.remoteDisplayActive)
       dtuInterface.getDataUpdate();
   }
 

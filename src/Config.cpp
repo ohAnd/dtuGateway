@@ -117,14 +117,28 @@ void UserConfigManager::printConfigdata()
     Serial.print(F("wifi pass: \t\t"));
     Serial.println(userConfig.wifiPassword);
 
-    Serial.print(F("openhab host: \t\t"));
+    Serial.print(F("\ndtu update time: \t"));
+    Serial.println(userConfig.dtuUpdateTime);
+    Serial.print(F("dtu host: \t\t"));
+    Serial.println(userConfig.dtuHostIpDomain);
+    Serial.print(F("dtu ssid: \t\t"));
+    Serial.println(userConfig.dtuSsid);
+    Serial.print(F("dtu pass: \t\t"));
+    Serial.println(userConfig.dtuPassword);
+    Serial.print(F("cloud pause active: \t"));
+    Serial.println(userConfig.dtuCloudPauseActive);
+    Serial.print(F("cloud pause time: \t"));
+    Serial.println(userConfig.dtuCloudPauseTime);
+
+
+    Serial.print(F("\nopenhab host: \t\t"));
     Serial.println(userConfig.openhabHostIpDomain);
     Serial.print(F("openhab item prefix: \t"));
     Serial.println(userConfig.openItemPrefix);
     Serial.print(F("openhab binding active:\t"));
     Serial.println(userConfig.openhabActive);
 
-    Serial.print(F("mqtt host: \t\t"));
+    Serial.print(F("\nmqtt host: \t\t"));
     Serial.println(userConfig.mqttBrokerIpDomain);
     Serial.print(F("mqtt port: \t\t"));
     Serial.println(userConfig.mqttBrokerPort);
@@ -140,25 +154,12 @@ void UserConfigManager::printConfigdata()
     Serial.println(userConfig.mqttActive);
     Serial.print(F("mqtt HA autoDiscovery: \t"));
     Serial.println(userConfig.mqttHAautoDiscoveryON);
-
-    Serial.print(F("dtu update time: \t"));
-    Serial.println(userConfig.dtuUpdateTime);
-
-    Serial.print(F("cloud pause active: \t"));
-    Serial.println(userConfig.dtuCloudPauseActive);
-
-    Serial.print(F("cloud pause time: \t"));
-    Serial.println(userConfig.dtuCloudPauseTime);
+    
+    Serial.print(F("\nremoteDisplay: \t\t"));
+    Serial.println(userConfig.remoteDisplayActive);
 
     Serial.print(F("update channel: \t\t"));
     Serial.println(userConfig.selectedUpdateChannel);
-
-    Serial.print(F("dtu host: \t\t"));
-    Serial.println(userConfig.dtuHostIpDomain);
-    Serial.print(F("dtu ssid: \t\t"));
-    Serial.println(userConfig.dtuSsid);
-    Serial.print(F("dtu pass: \t\t"));
-    Serial.println(userConfig.dtuPassword);
 
     Serial.print(F("display connected: \t"));
     Serial.println(userConfig.displayConnected);
@@ -191,6 +192,8 @@ JsonDocument UserConfigManager::mappingStructToJson(const UserConfig &config)
     doc["mqtt"]["pass"] = config.mqttBrokerPassword;
     doc["mqtt"]["mainTopic"] = config.mqttBrokerMainTopic;
     doc["mqtt"]["HAautoDiscoveryON"] = config.mqttHAautoDiscoveryON;
+
+    doc["remoteDisplay"]["Active"] = config.remoteDisplayActive;
 
     doc["display"]["type"] = config.displayConnected;
 
@@ -225,6 +228,8 @@ void UserConfigManager::mappingJsonToStruct(JsonDocument doc)
     String(doc["mqtt"]["pass"].as<String>()).toCharArray(userConfig.mqttBrokerPassword, sizeof(userConfig.mqttBrokerPassword));
     String(doc["mqtt"]["mainTopic"].as<String>()).toCharArray(userConfig.mqttBrokerMainTopic, sizeof(userConfig.mqttBrokerMainTopic));
     userConfig.mqttHAautoDiscoveryON = doc["mqtt"]["HAautoDiscoveryON"].as<bool>();
+
+    userConfig.remoteDisplayActive = doc["remoteDisplay"]["Active"].as<bool>();
 
     userConfig.displayConnected = doc["display"]["type"];
 

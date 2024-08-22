@@ -23,8 +23,8 @@ const char INDEX_HTML[] PROGMEM = R"=====(
     </div>
     <div class="popup" id="changeSettings">
         <div class="popupHeader">
-            <div class="popupHeaderTitle">settings <i style="font-size: x-small;float:right;"><a href="/config"
-                        target=_blank>advanced config</a></i>
+            <div class="popupHeaderTitle" id="popHeadTitle">settings <i style="font-size: x-small;float:right;"><a
+                        href="/config" target=_blank>advanced config</a></i>
                 <!-- <h2>settings</h2> -->
             </div>
             <div class="popupHeaderTabs">
@@ -84,12 +84,13 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             </div>
             <hr>
             <div id="mqttSection">
-                <h3><input type="checkbox" id="mqttActive"> MQTT connection</h3>
+                <h3 id="mqttSelect"><input type="checkbox" id="mqttActive"> MQTT connection</h3>
                 <div>
-                    <p>publish all data to a specific MQTT broker and subscribing to the requested powersetting</p>
+                    <small id="mqttSectionComment">publish all data to a specific MQTT broker and subscribing to the
+                        requested powersetting<br></small>
                 </div>
                 <div>
-                    IP/port to MQTT broker (e.g. 192.168.178.100:1883):
+                    <br>IP/port to MQTT broker (e.g. 192.168.178.100:1883):
                 </div>
                 <div>
                     <input type="text" id="mqttIP" class="ipv4Input" name="ipv4" placeholder="xxx.xxx.xxx.xxx">
@@ -116,7 +117,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                 <div>
                     <input type="text" id="mqttMainTopic" maxlength="32">
                 </div>
-                <div>
+                <div id="mqttHAautoDiscovery">
                     <input type="checkbox" id="mqttHAautoDiscoveryON"> HomeAssistant Auto Discovery <br><small>(On =
                         config is send once after every restart, Off = delete the sensor from HA instantly - using the
                         same main topic as set above)</small><br>
@@ -130,38 +131,31 @@ const char INDEX_HTML[] PROGMEM = R"=====(
         </div>
         <div class="popupContent" id="dtu">
             <div>
-                dtu host IP in your local network:
-            </div>
-            <div>
-                <input type="text" id="dtuHostIpDomain" class="ipv4Input" name="ipv4" placeholder="xxx.xxx.xxx.xxx">
-            </div>
-            <hr>
-            <div>
-                dtu request cycle in seconds (data update):
-            </div>
-            <div>
-                <input type="number" id="dtuDataCycle" min="1" max="60" placeholder="31">
-            </div>
-            <div>
-                dtu cloud update pause (no cycle update every full 15 min):
-                <input type="checkbox" id="dtuCloudPause">
+                <input type="checkbox" id="remoteDisplayActive"> run as a remote display<br>
+                <small>option to use this device as an remote display for a different dtu gateway and get current data
+                    from a given MQTT broker</small>
             </div>
             <hr>
-            <div style="color: gray;">
-                <div><small><i>currently not supported/ needed</i></small><br>
-                    dtu local wireless access point:
+            <div id="dtuSettings">
+                <div>
+                    dtu host IP in your local network:
                 </div>
                 <div>
-                    <input type="text" id="dtuSsid" value="please type in" required maxlength="64" disabled>
+                    <input type="text" id="dtuHostIpDomain" class="ipv4Input" name="ipv4" placeholder="xxx.xxx.xxx.xxx">
+                </div>
+                <hr>
+                <div>
+                    dtu request cycle in seconds (data update):
                 </div>
                 <div>
-                    dtu wifi password (<i class="passcheck" value="invisible">show</i>):
+                    <input type="number" id="dtuDataCycle" min="1" max="60" placeholder="31">
                 </div>
                 <div>
-                    <input type="password" id="dtuPassword" value="admin12345" required maxlength="64" disabled>
+                    dtu cloud update pause (no cycle update every full 15 min):
+                    <input type="checkbox" id="dtuCloudPause">
                 </div>
             </div>
-
+            <hr>
             <div style="text-align: center;">
                 <b onclick="changeDtuData()" id="btnSaveDtuSettings" class="form-button btn">save</b>
                 <b onclick="hide('#changeSettings')" id="btnSettingsClose" class="form-button btn">close</b>
@@ -236,7 +230,8 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                 <div onclick="changeReleaseChannel(0)" id="relChanStable" class="updateChannel selected"
                     style="border-radius: 5px 0px 0px 5px;">stable</div>
                 <div onclick="changeReleaseChannel(1)" id="relChanSnapshot" class="updateChannel"
-                    style="border-radius: 0px 5px 5px 0px;position:relative;top:-1.25em;left:50%;color: gray;">snapshot</div>
+                    style="border-radius: 0px 5px 5px 0px;position:relative;top:-1.25em;left:50%;color: gray;">snapshot
+                </div>
                 <i style="font-size:x-small;">switch update channels (stable/ latest snapshot)</i>
             </div>
             <hr>
@@ -277,7 +272,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
     </div>
     <div id="frame">
         <div class="header">
-            <b>Hoymiles HMS-xxxW-2T - Gateway</b>
+            <b id="titleHeader">Hoymiles HMS-800W-2T - Gateway</b>
         </div>
         <div class="row">
             <div class="column">
@@ -514,6 +509,23 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             }
         });
 
+        // grey'ing the dtu settings if remote display is active
+        $("input[type='checkbox'][id='remoteDisplayActive']").change(function () {
+            if (this.checked) {
+                $("#dtuSettings").hide();
+                $("#openhabSection").hide();
+                $("#mqttSelect").hide();
+                $("#mqttSectionComment").text("remote display active - getting all data from a specific MQTT broker");
+                $("#mqttHAautoDiscovery").hide();
+            } else {
+                $("#dtuSettings").show();
+                $("#openhabSection").show();
+                $("#mqttSelect").show();
+                $("#mqttSectionComment").text("publish all data to a specific MQTT broker and subscribing to the requested powersetting");
+                $("#mqttHAautoDiscovery").show();
+            }
+        });
+
         var show = function (id) {
             console.log("show " + id)
             $(id).show(200);
@@ -536,10 +548,10 @@ const char INDEX_HTML[] PROGMEM = R"=====(
         function checkInitToSettings(data) {
             // if not configured then start directly with settings dialogue
             var startUptext = "settings --- startup config mode";
-            if (data.initMode == 1 && $('.popupHeaderTitle').html() != startUptext) {
+            if (data.initMode == 1 && $('#popHeadTitle').text() != startUptext) {
                 show('#changeSettings');
                 remainingTime = 0.1; // no countdown on top of the site
-                $('.popupHeaderTitle').html(startUptext);
+                $('#popHeadTitle').text(startUptext);
                 // disable close button
                 $('#btnSettingsClose').css('opacity', '0.3');
                 $('#btnSettingsClose').attr('onclick', "")
@@ -665,6 +677,15 @@ const char INDEX_HTML[] PROGMEM = R"=====(
 
             checkValueUpdate('#dtu_reboots_no', data.dtuConnection.dtuResetRequested);
 
+            var gridP = ((isNaN(cacheData.pv0.p)) ? "--.-" : (cacheData.grid.p).toFixed(0));
+            if (data.dtuConnection.dtuRemoteDisplay) {
+                $("#titleHeader").text("Hoymiles HMS-800W-2T - Remote Display");
+                $("#title").text(gridP + "W - dtuGateway - Remote Display");
+            } else {
+                $("#titleHeader").text("Hoymiles HMS-800W-2T - Gateway");
+                $("#title").text(gridP + "W - dtuGateway");
+            }
+
             return true;
         }
 
@@ -672,9 +693,6 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             // 
             $('#btnSaveWifiSettings').css('opacity', '1.0');
             $('#btnSaveWifiSettings').attr('onclick', "changeWifiData();")
-
-
-
 
             requestWifiScan();
             cacheInfoData.wifiConnection.wifiScanIsRunning = 1;
@@ -743,6 +761,12 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                 $('#dtuCloudPause').prop("checked", true);
             } else {
                 $('#dtuCloudPause').prop("checked", false);
+            }
+
+            if (dtuData.dtuRemoteDisplay) {
+                $('#remoteDisplayActive').prop("checked", true).change();
+            } else {
+                $('#remoteDisplayActive').prop("checked", false).change();
             }
 
             $('#dtuSsid').val(dtuData.dtuSsid);
@@ -877,18 +901,20 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             } else {
                 dtuCloudPauseSend = 0;
             }
-
-            var dtuSsidSend = $('#dtuSsid').val();
-            var dtuPasswordSend = $('#dtuPassword').val();
+            if ($("#remoteDisplayActive").is(':checked')) {
+                remoteDisplayActiveSend = 1;
+            } else {
+                remoteDisplayActiveSend = 0;
+            }
 
             var data = {};
             data["dtuHostIpDomainSend"] = dtuHostIpDomainSend;
             data["dtuDataCycleSend"] = dtuDataCycleSend;
             data["dtuCloudPauseSend"] = dtuCloudPauseSend;
-            data["dtuSsidSend"] = dtuSsidSend;
-            data["dtuPasswordSend"] = dtuPasswordSend;
 
-            console.log("send to server: dtuHostIpDomain: " + dtuHostIpDomainSend + " dtuDataCycle: " + dtuDataCycleSend + " dtuCloudPause: " + dtuCloudPauseSend + " - dtuSsid: " + dtuSsidSend + " - pass: " + dtuPasswordSend);
+            data["remoteDisplayActiveSend"] = remoteDisplayActiveSend;
+
+            console.log("send to server: dtuHostIpDomain: " + dtuHostIpDomainSend + " dtuDataCycle: " + dtuDataCycleSend + " dtuCloudPause: " + dtuCloudPauseSend + " - remoteDisplayActive: " + remoteDisplayActiveSend);
 
             const urlEncodedDataPairs = [];
 
@@ -915,10 +941,8 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             strResult = JSON.parse(xmlHttp.responseText);
             console.log("got from server: " + strResult);
             console.log("got from server - strResult.dtuHostIpDomain: " + strResult.dtuHostIpDomain + " - cmp with: " + dtuHostIpDomainSend);
-            console.log("got from server - strResult.dtuSsid: " + strResult.dtuSsid + " - cmp with: " + dtuSsidSend);
-            console.log("got from server - strResult.dtuPassword: " + strResult.dtuHostIpDomain + " - cmp with: " + dtuPasswordSend);
 
-            if (strResult.dtuHostIpDomain == dtuHostIpDomainSend && strResult.dtuSsid == dtuSsidSend && strResult.dtuPassword == dtuPasswordSend) {
+            if (strResult.dtuHostIpDomain == dtuHostIpDomainSend) {
                 console.log("check saved data - OK");
                 showAlert('dtu connection settings changed', 'The new settings will be applied.', 'alert-success');
             } else {
@@ -1252,7 +1276,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                 fileSize = fileSize.toFixed(2); // keeping two decimals
                 // Display file size in the HTML
                 fileName += ` (${fileSize} MB)`;
-                
+
                 $('#fileNameDisplay').html("<small>selected firmware file:</small> " + fileName);
                 $('#manualUpdateStart').show();
             } else {
@@ -1438,8 +1462,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
 
         function getDataValues() {
             $.ajax({
-                url: 'api/data',
-                //url: 'data.json',
+                url: 'api/data.json',
 
                 type: 'GET',
                 contentType: false,
@@ -1457,8 +1480,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
 
         function getInfoValues() {
             $.ajax({
-                url: 'api/info',
-                //url: 'info.json',
+                url: 'api/info.json',
 
                 type: 'GET',
                 contentType: false,

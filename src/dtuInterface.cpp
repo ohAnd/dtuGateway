@@ -69,7 +69,7 @@ void DTUInterface::disconnect(uint8_t tgtState)
         dtuConnection.dtuConnectState = tgtState;
         dtuGlobalData.dtuRssi = 0;
         Serial.println(F("DTUinterface:\t disconnect request - DTU connection closed"));
-        if(tgtState == DTU_STATE_STOPPED)
+        if (tgtState == DTU_STATE_STOPPED)
         {
             delete client;
             Serial.println(F("DTUinterface:\t with freeing memory"));
@@ -110,7 +110,8 @@ void DTUInterface::setPowerLimit(int limit)
     }
 }
 
-void DTUInterface::requestRestartDevice() {
+void DTUInterface::requestRestartDevice()
+{
     if (client->connected())
     {
         Serial.println(F("DTUinterface:\t requestRestartDevice - send command to DTU ..."));
@@ -120,7 +121,6 @@ void DTUInterface::requestRestartDevice() {
     {
         Serial.println(F("DTUinterface:\t requestRestartDevice - client not connected."));
     }
-
 }
 
 // internal control methods
@@ -139,7 +139,7 @@ void DTUInterface::dtuLoop()
         if (client->connected())
             disconnect(DTU_STATE_CLOUD_PAUSE);
     }
-    else if(dtuConnection.dtuConnectState != DTU_STATE_STOPPED)
+    else if (dtuConnection.dtuConnectState != DTU_STATE_STOPPED)
     {
         // Check if we are in a pause period and if 60 seconds have passed
         if (dtuConnection.dtuConnectRetriesLong > 0)
@@ -222,6 +222,34 @@ void DTUInterface::keepAliveStatic(DTUInterface *dtuInterface)
     {
         dtuInterface->keepAlive();
     }
+}
+
+void DTUInterface::flushConnection()
+{
+    Serial.println(F("DTUinterface:\t Flushing connection and instance..."));
+
+    loopTimer.detach();
+    Serial.println(F("DTUinterface:\t All timers stopped."));
+
+    // Disconnect if connected
+    if (client && client->connected())
+    {
+        client->close(true);
+        Serial.println(F("DTUinterface:\t Connection closed."));
+    }
+
+    // Free the client memory
+    if (client)
+    {
+        delete client;
+        client = nullptr;
+        Serial.println(F("DTUinterface:\t Client memory freed."));
+    }
+
+    // Reset connection control and global data
+    memset(&dtuConnection, 0, sizeof(dtuConnection));
+    memset(&dtuGlobalData, 0, sizeof(dtuGlobalData));
+    Serial.println(F("DTUinterface:\t Connection control and global data reset."));
 }
 
 // event driven methods
@@ -974,12 +1002,9 @@ boolean DTUInterface::writeCommandRestartDevice()
     // }
     // Serial.println("");
 
-    //     dtuClient.write(message, 10 + stream.bytes_written);
     Serial.println(F("DTUinterface:\t writeCommandRestartDevice --- send request to DTU ..."));
     dtuConnection.dtuTxRxState = DTU_TXRX_STATE_WAIT_RESTARTDEVICE;
     client->write((const char *)message, 10 + stream.bytes_written);
-    //     if (!readRespCommandRestartDevice())
-    //         return false;
     return true;
 }
 

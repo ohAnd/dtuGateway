@@ -59,8 +59,8 @@ void DTUwebserver::start()
     asyncDtuWebServer.on("/getWifiNetworks", handleGetWifiNetworks);
 
     // api GETs
-    asyncDtuWebServer.on("/api/data", handleDataJson);
-    asyncDtuWebServer.on("/api/info", handleInfojson);
+    asyncDtuWebServer.on("/api/data.json", handleDataJson);
+    asyncDtuWebServer.on("/api/info.json", handleInfojson);
 
     // OTA direct update
     asyncDtuWebServer.on("/updateOTASettings", handleUpdateOTASettings);
@@ -304,13 +304,12 @@ void DTUwebserver::handleInfojson(AsyncWebServerRequest *request)
 
     JSON = JSON + "\"dtuConnection\": {";
     JSON = JSON + "\"dtuHostIpDomain\": \"" + String(userConfig.dtuHostIpDomain) + "\",";
-    JSON = JSON + "\"dtuSsid\": \"" + String(userConfig.dtuSsid) + "\",";
-    JSON = JSON + "\"dtuPassword\": \"" + String(userConfig.dtuPassword) + "\",";
     JSON = JSON + "\"dtuRssi\": " + dtuGlobalData.dtuRssi + ",";
     JSON = JSON + "\"dtuDataCycle\": " + userConfig.dtuUpdateTime + ",";
     JSON = JSON + "\"dtuResetRequested\": " + dtuGlobalData.dtuResetRequested + ",";
     JSON = JSON + "\"dtuCloudPause\": " + userConfig.dtuCloudPauseActive + ",";
-    JSON = JSON + "\"dtuCloudPauseTime\": " + userConfig.dtuCloudPauseTime;
+    JSON = JSON + "\"dtuCloudPauseTime\": " + userConfig.dtuCloudPauseTime + ",";
+    JSON = JSON + "\"dtuRemoteDisplay\": " + userConfig.remoteDisplayActive;
     JSON = JSON + "},";
 
     JSON = JSON + "\"wifiConnection\": {";
@@ -385,16 +384,16 @@ void DTUwebserver::handleUpdateDtuSettings(AsyncWebServerRequest *request)
     if (request->hasParam("dtuHostIpDomainSend", true) &&
         request->hasParam("dtuDataCycleSend", true) &&
         request->hasParam("dtuCloudPauseSend", true) &&
-        request->hasParam("dtuSsidSend", true) &&
-        request->hasParam("dtuPasswordSend", true))
+        request->hasParam("remoteDisplayActiveSend", true))
     {
         String dtuHostIpDomainUser = request->getParam("dtuHostIpDomainSend", true)->value(); // retrieve message from webserver
         String dtuDataCycle = request->getParam("dtuDataCycleSend", true)->value();           // retrieve message from webserver
         String dtuCloudPause = request->getParam("dtuCloudPauseSend", true)->value();         // retrieve message from webserver
-        String dtuSSIDUser = request->getParam("dtuSsidSend", true)->value();                 // retrieve message from webserver
-        String dtuPassUser = request->getParam("dtuPasswordSend", true)->value();             // retrieve message from webserver
+
+        String remoteDisplayActive = request->getParam("remoteDisplayActiveSend", true)->value(); // retrieve message from webserver
+
         Serial.println("WEB:\t\t handleUpdateDtuSettings - got dtu ip: " + dtuHostIpDomainUser + "- got dtuDataCycle: " + dtuDataCycle + "- got dtu dtuCloudPause: " + dtuCloudPause);
-        Serial.println("WEB:\t\t handleUpdateDtuSettings - got dtu ssid: " + dtuSSIDUser + " - got WifiPass: " + dtuPassUser);
+        Serial.println("WEB:\t\t handleUpdateDtuSettings - got remoteDisplayActive: " + remoteDisplayActive);
 
         dtuHostIpDomainUser.toCharArray(userConfig.dtuHostIpDomain, sizeof(userConfig.dtuHostIpDomain));
         userConfig.dtuUpdateTime = dtuDataCycle.toInt();
@@ -404,8 +403,11 @@ void DTUwebserver::handleUpdateDtuSettings(AsyncWebServerRequest *request)
             userConfig.dtuCloudPauseActive = true;
         else
             userConfig.dtuCloudPauseActive = false;
-        dtuSSIDUser.toCharArray(userConfig.dtuSsid, sizeof(userConfig.dtuSsid));
-        dtuPassUser.toCharArray(userConfig.dtuPassword, sizeof(userConfig.dtuPassword));
+
+        if (remoteDisplayActive)
+            userConfig.remoteDisplayActive = true;
+        else
+            userConfig.remoteDisplayActive = false;
 
         configManager.saveConfig(userConfig);
 

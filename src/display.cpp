@@ -4,11 +4,21 @@
 U8G2_SH1106_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/U8X8_PIN_NONE);
 
 Display::Display() {}
-
+Display::~Display()
+{
+    // delete &u8g2;
+    u8g2.clear();
+    u8g2.setPowerSave(1);
+}
 void Display::setup()
 {
     u8g2.begin();
     Serial.println(F("OLED display:\t initialized"));
+}
+
+void Display::setRemoteDisplayMode(bool remoteDisplayActive)
+{
+    lastDisplayData.remoteDisplayActive = remoteDisplayActive;
 }
 
 void Display::renderScreen(String time, String version)
@@ -59,17 +69,13 @@ void Display::drawScreen()
 
     // main screen
     if (dtuConnection.dtuConnectState == DTU_STATE_CONNECTED)
-    {
         drawMainDTUOnline();
-    }
     else if (dtuConnection.dtuConnectState == DTU_STATE_CLOUD_PAUSE)
-    {
         drawMainDTUOnline(true);
-    }
+    else if (lastDisplayData.remoteDisplayActive)
+        drawMainDTUOnline();
     else
-    {
         drawMainDTUOffline();
-    }
 
     drawFooter();
 
@@ -115,6 +121,12 @@ void Display::drawMainDTUOnline(bool pause)
 
     u8g2.drawStr(3 + powerLimit_xpos + offset_x, 40 + offset_y, powerLimit.c_str());
     u8g2.drawStr(22 + offset_x, 40 + offset_y, "%");
+
+    // showing that this is a remote display
+    if (lastDisplayData.remoteDisplayActive) {
+        u8g2.setFont(u8g2_font_open_iconic_all_2x_t);
+        u8g2.drawGlyph(7 + offset_x, 19 + offset_y, 0x007D);
+    }
 }
 
 void Display::drawMainDTUOffline()
@@ -231,6 +243,36 @@ void Display::drawFooter()
     // u8g2.drawStr(3 + 11 * 4 + 4 * 4 + offset_x, 57 + offset_y, lastDisplayData.version);
     u8g2.drawStr(3 + offset_x, 56 + offset_y, ("d: " + String(lastDisplayData.totalYieldDay, 3) + " kWh").c_str());
     u8g2.drawStr(3 + 18 * 4 + offset_x, 56 + offset_y, ("t: " + String(lastDisplayData.totalYieldTotal, 0) + " kWh").c_str());
+}
+
+void Display::drawUpdateMode(String text, String text2)
+{
+    uint8_t y1 = 25;
+    Serial.println("OLED display:\t update mode");
+
+    u8g2.clearBuffer();
+    u8g2.setDrawColor(1);
+    u8g2.setFontPosTop();
+    u8g2.setFontDirection(0);
+    u8g2.setFontRefHeightExtendedText();
+    u8g2.setFont(u8g2_font_7x13_tf);
+
+    if (text2 != "")
+    {
+        Serial.println("OLED display:\t update mode done");
+        y1 = 17;
+        u8g2_uint_t width = u8g2.getUTF8Width(text2.c_str());
+        int text2_xpos = (128 - width) / 2;
+        u8g2.drawStr(text2_xpos + offset_x, 32 + offset_y, text2.c_str());
+    }
+
+    u8g2_uint_t width = u8g2.getUTF8Width(text.c_str());
+    int text_xpos = (128 - width) / 2;
+    u8g2.drawStr(text_xpos + offset_x, y1 + offset_y, text.c_str());
+
+    u8g2.setContrast(255);
+
+    u8g2.sendBuffer();
 }
 
 void Display::screenSaver()

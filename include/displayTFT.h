@@ -24,6 +24,7 @@ struct DisplayDataTFT {
     bool stateWasOffline=false;
     bool stateWasCloudPause=true;
     bool stateWasNormal=false;
+    boolean remoteDisplayActive = false;
 };
 
 class DisplayTFT {
@@ -33,6 +34,7 @@ class DisplayTFT {
         void renderScreen(String time, String version);
         void drawFactoryMode(String version, String apName, String ip);
         void drawUpdateMode(String text,String text2="");
+        void setRemoteDisplayMode(bool remoteDisplayActive);
     private:
         void drawScreen(String version, String time);
         void drawHeader(String version);

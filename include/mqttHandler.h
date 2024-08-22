@@ -14,6 +14,29 @@ struct PowerLimitSet {
     boolean update = false;
 };
 
+struct RemoteBaseData
+{
+  float current = 0;
+  float voltage = 0;
+  float power = -1;
+  float dailyEnergy = 0;
+  float totalEnergy = 0;
+};
+
+struct RemoteInverterData
+{
+  RemoteBaseData grid;
+  RemoteBaseData pv0;
+  RemoteBaseData pv1;
+  float inverterTemp = 0;
+  uint8_t powerLimit = 254;
+  uint32_t dtuRssi = 0;
+  uint32_t wifi_rssi_gateway = 0;
+  uint32_t respTimestamp = 1704063600;     // init with start time stamp > 0
+  boolean updateReceived = false;
+  boolean remoteDisplayActive = false;
+};
+
 class MQTTHandler {
 public:
     MQTTHandler(const char *broker, int port, const char *user, const char *password, bool useTLS);
@@ -22,8 +45,6 @@ public:
     void publishDiscoveryMessage(const char *entity, const char *entityName, const char *unit, bool deleteMessage, const char *icon=NULL, const char *deviceClass=NULL);
     void publishStandardData(String entity, String value);
     
-
-
     // Setters for runtime configuration
     void setBroker(const char* broker);
     void setPort(int port);
@@ -33,9 +54,12 @@ public:
     void setConfiguration(const char *broker, int port, const char *user, const char *password, bool useTLS, const char *sensorUniqueName, const char *mainTopicPath, bool autoDiscovery, const char * ipAddress);
     void setMainTopic(String mainTopicPath);
 
+    void setRemoteDisplayData(boolean remoteDisplayActive);
+
     void requestMQTTconnectionReset(boolean autoDiscoveryRemoveRequested);
 
     PowerLimitSet getPowerLimitSet();
+    RemoteInverterData getRemoteInverterData();
     void stopConnection(boolean full=false);
 
     static void subscribedMessageArrived(char *topic, byte *payload, unsigned int length);
@@ -64,8 +88,8 @@ private:
     boolean requestMQTTconnectionResetFlag;
     unsigned long lastReconnectAttempt = 0;
 
-    int8_t mqtt_IncomingPowerLmitSet;
     PowerLimitSet lastPowerLimitSet;
+    RemoteInverterData lastRemoteInverterData;
     
     void reconnect();
     boolean initiateDiscoveryMessages(bool autoDiscoveryRemove=false);

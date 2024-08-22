@@ -17,14 +17,19 @@ struct DisplayData {
     uint8_t powerLimit=0;
     uint8_t rssiGW=0;
     uint8_t rssiDTU=0;
+    boolean remoteDisplayActive = false;
 };
 
 class Display {
     public:
         Display();
+        ~Display();
         void setup();
         void renderScreen(String time, String version);
         void drawFactoryMode(String version, String apName, String ip);
+        void drawUpdateMode(String text,String text2="");
+
+        void setRemoteDisplayMode(bool remoteDisplayActive);
     private:
         void drawScreen();
         void drawHeader();

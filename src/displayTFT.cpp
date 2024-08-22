@@ -19,6 +19,11 @@ void DisplayTFT::setup()
     Serial.println(F("TFT display initialized"));
 }
 
+void DisplayTFT::setRemoteDisplayMode(bool remoteDisplayActive)
+{
+    lastDisplayData.remoteDisplayActive = remoteDisplayActive;
+}
+
 void DisplayTFT::renderScreen(String time, String version)
 {
     displayTicks++;
@@ -82,6 +87,8 @@ void DisplayTFT::drawScreen(String version, String time)
         drawMainDTUOnline();
     else if (dtuConnection.dtuConnectState == DTU_STATE_CLOUD_PAUSE)
         drawMainDTUOnline(true);
+    else if (lastDisplayData.remoteDisplayActive)
+        drawMainDTUOnline();
     else
         drawMainDTUOffline();
 
@@ -111,8 +118,11 @@ void DisplayTFT::drawMainDTUOnline(bool pause)
     {
         // main screen
         // --- base window for wattage ----------------------------------
-        tft.drawSmoothArc(119, 119, 75, 75 - 1, 47, 313, TFT_CYAN, TFT_BLACK);
-        tft.drawWideLine(64, 169, 64 + 109, 169, 2, TFT_CYAN, TFT_BLACK);
+        uint32_t wattRingColor = TFT_CYAN;
+        if (lastDisplayData.remoteDisplayActive)
+            wattRingColor = TFT_DARKGREEN;
+        tft.drawSmoothArc(119, 119, 75, 75 - 1, 47, 313, wattRingColor, TFT_BLACK);
+        tft.drawWideLine(64, 169, 64 + 109, 169, 2, wattRingColor, TFT_BLACK);
 
         // ----------------------------------------------
         // tft.pushImage(70, 200, 16, 16, wifiIcon);
@@ -202,8 +212,11 @@ void DisplayTFT::drawHeader(String version)
 {
     // header
     // header - content center
+    String headline = "dtuGateway";
+    if (lastDisplayData.remoteDisplayActive)
+        headline = "dtuMonitor";
     tft.setTextColor(TFT_GOLD);
-    tft.drawCentreString("dtuGateway", 120, 15, 1);
+    tft.drawCentreString(headline, 120, 15, 1);
 
     tft.setTextColor(TFT_DARKCYAN);
     tft.drawCentreString(version, 120, 28, 1);
@@ -246,16 +259,16 @@ void DisplayTFT::drawFooter(String time)
     if (sec < 31)
     {
         tft.drawSmoothArc(x, y, r, r - 1, 0, 180, TFT_SILVER, TFT_BLACK);
-        if(sec!=0)
-          tft.drawSmoothArc(x, y, r, r - 1, 180, secpoint, TFT_RED, TFT_BLACK);
-        if(sec!=30)
-          tft.drawSmoothArc(x, y, r, r - 1, secpoint, 360, TFT_SILVER, TFT_BLACK);
+        if (sec != 0)
+            tft.drawSmoothArc(x, y, r, r - 1, 180, secpoint, TFT_RED, TFT_BLACK);
+        if (sec != 30)
+            tft.drawSmoothArc(x, y, r, r - 1, secpoint, 360, TFT_SILVER, TFT_BLACK);
     }
     else
     {
-        tft.drawSmoothArc(x, y, r, r - 1, secpoint-360, 180, TFT_SILVER, TFT_BLACK);
+        tft.drawSmoothArc(x, y, r, r - 1, secpoint - 360, 180, TFT_SILVER, TFT_BLACK);
         tft.drawSmoothArc(x, y, r, r - 1, 180, 360, TFT_RED, TFT_BLACK);
-        tft.drawSmoothArc(x, y, r, r - 1, 0, secpoint-360, TFT_RED, TFT_BLACK);
+        tft.drawSmoothArc(x, y, r, r - 1, 0, secpoint - 360, TFT_RED, TFT_BLACK);
     }
 }
 

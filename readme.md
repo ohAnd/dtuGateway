@@ -12,8 +12,8 @@
       - [display support](#display-support)
     - [regarding base framework](#regarding-base-framework)
   - [api](#api)
-    - [data - http://\<ip\_to\_your\_device\>/api/data](#data---httpip_to_your_deviceapidata)
-    - [info - http://\<ip\_to\_your\_device\>/api/info](#info---httpip_to_your_deviceapiinfo)
+    - [data - http://\<ip\_to\_your\_device\>/api/data.json](#data---httpip_to_your_deviceapidatajson)
+    - [info - http://\<ip\_to\_your\_device\>/api/info.json](#info---httpip_to_your_deviceapiinfojson)
   - [openhab integration/ configuration](#openhab-integration-configuration)
   - [MQTT integration/ configuration](#mqtt-integration-configuration)
   - [known bugs](#known-bugs)
@@ -80,6 +80,12 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
 - binding: updating to a MQTT broker with readed data incl. set PowerLimit over MQTT
   - 2 ways to configure - simple mqtt publishing with base topic or together with HA MQTT AutoDiscovery based
   - for all publishing retain flag is set (keeping last seen data in broker)
+- can act as a remote display for another dtuGateway
+  - data will be received by MQTT
+  - webUI shows the same data as the host
+  - OLED/ TFT will show the host data
+    - OLED - a small cloud symbol will identify as a remote display
+    - TFT - a green inner ring and the name 'dutMonitor' will identify as a remote display
 
 #### display support
 - selectable (and storable) over advanced web config[^2] or per serial com and at directly at start up coming from factory mode ( [see first-setup-with-access-point](#first-setup-with-access-point) )
@@ -128,13 +134,13 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
     - display selection (0 - OLED, 1 - round TFT)
     - timeZone Offset -xxxx sec <-> xxxx sec e.g. 3600 for CET(+1h) /7200 for CEST(+2)/-21600 for CST
 - [2024-06-29 currently open issue during the rafactoring transferring to multi arch ESP8266/ESP32] ~~OTA with direct connection to the github build pipeline - available updates will be checked by web app and device. Notification in web app, if update available and user can decide for direct online update~~
-- [2024-06-29 it is an issue during the refactoring - and therefore currently only for ESP32] manual OTA Update through simple upload page
+- manual OTA/ web Update via web ui (hint: only stable if the wifi connection is above ~ 50%)
 
 [^2]: 'advanced config' aka. 'dtuGateway Configuration Interface' it is something like an expert mode, that means you have to know which parameter you want to change with which effect.
 
 ## api
 
-### data - http://<ip_to_your_device>/api/data
+### data - http://<ip_to_your_device>/api/data.json
 
 <details>
 <summary>expand to see json example</summary>
@@ -178,43 +184,56 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
 ```
 </details>
 
-### info - http://<ip_to_your_device>/api/info
+### info - http://<ip_to_your_device>/api/info.json
 
 <details>
 <summary>expand to see json example</summary>
 
 ```json 
 {
-  
-  "chipid": 12345678,
-  "host": "dtuGateway_12345678",
+  "chipid": 123456,
+  "host": "dtuGateway_123456",
   "initMode": 0,
   "firmware": {
-    "version": "1.0.0022",
-    "versiondate": "10.02.2024 - 19:23:57",
-    "versionServer": "1.0.0051",
-    "versiondateServer": "10.02.2024 - 19:23:57",
+    "version": "1.9.1",
+    "versiondate": "20.08.2024 - 23:42:26",
+    "versionServer": "checking",
+    "versiondateServer": "...",
     "versionServerRelease": "checking",
     "versiondateServerRelease": "...",
     "selectedUpdateChannel": "0",
     "updateAvailable": 0
   },
-  "dtuConnection": {
-    "dtuHostIpDomain": "192.168.0.249",
-    "dtuSsid": "DTUBI-12345678",
-    "dtuPassword": "dtubiPassword",
-    "dtuRssi": 0,
-    "dtuDataCycle": 32,
-    "dtuResetRequested": 0,
-    "dtuCloudPause": 1,
-    "dtuCloudPauseTime": 40
-  },
   "openHabConnection": {
-    "ohHostIp": "192.168.1.100",
+    "ohActive": 1,
+    "ohHostIp": "192.168.0.1",
     "ohItemPrefix": "inverter"
   },
+  "mqttConnection": {
+    "mqttActive": 1,
+    "mqttIp": "homeassistant.fritz.box",
+    "mqttPort": 1883,
+    "mqttUseTLS": 0,
+    "mqttUser": "userMQTT",
+    "mqttPass": "passMQTT",
+    "mqttMainTopic": "dtu_123456",
+    "mqttHAautoDiscoveryON": 1
+  },
+  "dtuConnection": {
+    "dtuHostIpDomain": "192.168.0.2",
+    "dtuRssi": 0,
+    "dtuDataCycle": 31,
+    "dtuResetRequested": 0,
+    "dtuCloudPause": 1,
+    "dtuCloudPauseTime": 30,
+    "dtuRemoteDisplay": 1
+  },
   "wifiConnection": {
-    "networkCount": 2,
+    "wifiSsid": "privateWifi",
+    "wifiPassword": "privateWifiPass",
+    "rssiGW": 80,
+    "wifiScanIsRunning": 0,
+    "networkCount": 0,
     "foundNetworks": [
       {
         "name": "Name1 Wlan",
@@ -228,10 +247,7 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
         "rssi": -76,
         "chan": 3
       }
-    ],
-    "wifiSsid": "myWifiSSID",
-    "wifiPassword": "myPass",
-    "rssiGW": 87
+    ]
   }
 }
 ```

@@ -113,7 +113,7 @@ public:
    
     void connect();
     void disconnect(uint8_t tgtState);
-    
+    void flushConnection();    
 
     void getDataUpdate();
     void setPowerLimit(int limit);
