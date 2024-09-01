@@ -191,12 +191,12 @@ void DisplayTFT::drawFactoryMode(String version, String apName, String ip)
     tft.drawCentreString("http://" + ip, 120, 145, 4);
 }
 
-void DisplayTFT::drawUpdateMode(String text, String text2)
+void DisplayTFT::drawUpdateMode(String text, String text2, boolean blank)
 {
     uint8_t y1 = 110;
     Serial.println("TFT display:\t update mode");
-
-    tft.fillScreen(TFT_BLACK);
+    if (blank)
+        tft.fillScreen(TFT_BLACK);
     tft.setTextColor(TFT_WHITE, TFT_BLACK);
 
     if (text2 != "")

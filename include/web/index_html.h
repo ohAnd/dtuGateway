@@ -1363,7 +1363,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                     showAlert('manual update', 'DONE', 'alert-success');
                     location.reload();
                 }
-            }, 250);
+            }, 500);
 
             $('#btnUpdateStart').animate({ opacity: 1 });
 

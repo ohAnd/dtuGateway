@@ -888,7 +888,6 @@ void setup()
     Serial.println(F("Can't set ITimer correctly. Select another freq. or interval"));
   // delay for startup background tasks in ESP
   delay(2000);
-
 }
 
 // after startup or reconnect with wifi
@@ -917,7 +916,7 @@ void startServices()
 
     dtuWebServer.start();
 
-    if(!userConfig.remoteDisplayActive)
+    if (!userConfig.remoteDisplayActive)
       dtuInterface.setup(userConfig.dtuHostIpDomain);
 
     mqttHandler.setConfiguration(userConfig.mqttBrokerIpDomain, userConfig.mqttBrokerPort, userConfig.mqttBrokerUser, userConfig.mqttBrokerPassword, userConfig.mqttUseTLS, (platformData.espUniqueName).c_str(), userConfig.mqttBrokerMainTopic, userConfig.mqttHAautoDiscoveryON, ((platformData.dtuGatewayIP).toString()).c_str());
@@ -1228,7 +1227,25 @@ void loop()
   {
     previousMillis50ms = currentMillis;
     // -------->
-    if (!userConfig.wifiAPstart)
+
+    // reboot screen
+    if (platformData.rebootRequested)
+    {
+      if (userConfig.displayConnected == 0)
+        displayOLED.drawUpdateMode("rebooting ...", "in " + String(platformData.rebootRequestedInSec) + " s");
+      else if (userConfig.displayConnected == 1)
+        displayTFT.drawUpdateMode("rebooting ...", "in " + String(platformData.rebootRequestedInSec) + " s");
+    }
+    // reboot screen
+    else if (platformData.rebootStarted)
+    {
+      if (userConfig.displayConnected == 0)
+        displayOLED.drawUpdateMode("rebooting ...", "now");
+      else if (userConfig.displayConnected == 1)
+        displayTFT.drawUpdateMode("rebooting ...", "now");
+    }
+    // normal screen
+    else if (!userConfig.wifiAPstart)
     {
       // display tasks every 50ms = 20Hz
       if (userConfig.displayConnected == 0)
@@ -1343,10 +1360,10 @@ void loop()
 
       // direct request of new powerLimit
       if (dtuGlobalData.powerLimitSet != dtuGlobalData.powerLimit &&
-        dtuGlobalData.powerLimitSet != 101 &&
-        dtuGlobalData.uptodate &&
-        dtuConnection.dtuConnectState == DTU_STATE_CONNECTED &&
-        !userConfig.remoteDisplayActive)
+          dtuGlobalData.powerLimitSet != 101 &&
+          dtuGlobalData.uptodate &&
+          dtuConnection.dtuConnectState == DTU_STATE_CONNECTED &&
+          !userConfig.remoteDisplayActive)
       {
         Serial.println("----- ----- set new power limit from " + String(dtuGlobalData.powerLimit) + " % to " + String(dtuGlobalData.powerLimitSet) + " % ----- ----- ");
         dtuInterface.setPowerLimit(dtuGlobalData.powerLimitSet);

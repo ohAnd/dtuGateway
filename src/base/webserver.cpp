@@ -1,7 +1,5 @@
 #include <base/webserver.h>
 
-uint8_t rebootRequestedInSec = 0;
-boolean rebootRequested = false;
 boolean wifiScanIsRunning = false;
 
 size_t content_len;
@@ -19,17 +17,18 @@ DTUwebserver::~DTUwebserver()
 
 void DTUwebserver::backgroundTask(DTUwebserver *instance)
 {
-    if (rebootRequested)
+    if (platformData.rebootRequested)
     {
-        if (rebootRequestedInSec-- == 1)
+        if (platformData.rebootRequestedInSec-- == 1)
         {
-            rebootRequestedInSec = 0;
-            rebootRequested = false;
+            platformData.rebootRequestedInSec = 0;
+            platformData.rebootRequested = false;
+            platformData.rebootStarted = true;
             Serial.println(F("WEB:\t\t backgroundTask - reboot requested"));
             Serial.flush();
             ESP.restart();
         }
-        Serial.println(F("WEB:\t\t backgroundTask - reboot requested with delay"));
+        Serial.println("WEB:\t\t backgroundTask - reboot requested with delay - waiting: " + String(platformData.rebootRequestedInSec) + " seconds");
     }
     // if (updateInfo.updateRunning)
     // {
@@ -157,8 +156,8 @@ void DTUwebserver::handleDoUpdate(AsyncWebServerRequest *request, const String &
             updateInfo.updateState = UPDATE_STATE_DONE;
             updateInfo.updateRunning = false;
             Serial.flush();
-            rebootRequestedInSec = 3;
-            rebootRequested = true;
+            platformData.rebootRequestedInSec = 3;
+            platformData.rebootRequested = true;
             // delay(1000);
             // ESP.restart();
         }
@@ -214,8 +213,8 @@ void DTUwebserver::handleConfigPage(AsyncWebServerRequest *request)
     if (gotUserChanges)
     {
         Serial.println(F("WEB:\t\t handleConfigPage - got User Changes - sent back config page ack - and restart ESP in 2 seconds"));
-        rebootRequestedInSec = 3;
-        rebootRequested = true;
+        platformData.rebootRequestedInSec = 3;
+        platformData.rebootRequested = true;
     }
 }
 
@@ -352,8 +351,8 @@ void DTUwebserver::handleUpdateWifiSettings(AsyncWebServerRequest *request)
                 userConfig.displayConnected = 0;
 
             // and schedule a reboot to start fresh with new settings
-            rebootRequestedInSec = 2;
-            rebootRequested = true;
+            platformData.rebootRequestedInSec = 2;
+            platformData.rebootRequested = true;
         }
 
         configManager.saveConfig(userConfig);
@@ -399,15 +398,21 @@ void DTUwebserver::handleUpdateDtuSettings(AsyncWebServerRequest *request)
         userConfig.dtuUpdateTime = dtuDataCycle.toInt();
         if (userConfig.dtuUpdateTime < 1)
             userConfig.dtuUpdateTime = 1; // fix zero entry
-        if (dtuCloudPause)
+        if (dtuCloudPause == "1")
             userConfig.dtuCloudPauseActive = true;
         else
             userConfig.dtuCloudPauseActive = false;
 
-        if (remoteDisplayActive)
-            userConfig.remoteDisplayActive = true;
+        boolean remoteDisplayActiveBool = false;
+        if (remoteDisplayActive == "1")
+            remoteDisplayActiveBool = true;
         else
-            userConfig.remoteDisplayActive = false;
+            remoteDisplayActiveBool = false;
+        if (remoteDisplayActiveBool != userConfig.remoteDisplayActive) {
+            platformData.rebootRequestedInSec = 3;
+            platformData.rebootRequested = true;
+        }
+        userConfig.remoteDisplayActive = remoteDisplayActiveBool;
 
         configManager.saveConfig(userConfig);
 

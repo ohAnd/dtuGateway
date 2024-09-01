@@ -27,6 +27,10 @@ struct baseDataStruct
   String currentNTPtimeFormatted = "not set";
 
   unsigned long dtuNextUpdateCounterSeconds = 1704063600;
+
+  boolean rebootRequested = false;
+  uint8_t rebootRequestedInSec = 0;
+  boolean rebootStarted = false;
 };
 #endif
 

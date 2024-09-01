@@ -33,7 +33,7 @@ class DisplayTFT {
         void setup();
         void renderScreen(String time, String version);
         void drawFactoryMode(String version, String apName, String ip);
-        void drawUpdateMode(String text,String text2="");
+        void drawUpdateMode(String text,String text2="", boolean blank=true);
         void setRemoteDisplayMode(bool remoteDisplayActive);
     private:
         void drawScreen(String version, String time);
