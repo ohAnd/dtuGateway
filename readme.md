@@ -17,12 +17,15 @@
   - [openhab integration/ configuration](#openhab-integration-configuration)
   - [MQTT integration/ configuration](#mqtt-integration-configuration)
   - [known bugs](#known-bugs)
-  - [releases](#releases)
-    - [installation / update](#installation--update)
-      - [hardware](#hardware)
-      - [first installation to the ESP device (as an example for ESP8266)](#first-installation-to-the-esp-device-as-an-example-for-esp8266)
+  - [installation](#installation)
+    - [hardware](#hardware)
+    - [first installation to the ESP device](#first-installation-to-the-esp-device)
+      - [example for ESP8266](#example-for-esp8266)
+      - [example for ESP32](#example-for-esp32)
       - [first setup with access point](#first-setup-with-access-point)
       - [return to factory mode](#return-to-factory-mode)
+    - [update](#update)
+  - [releases](#releases)
     - [main](#main)
     - [snapshot](#snapshot)
   - [troubleshooting](#troubleshooting)
@@ -345,9 +348,8 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
 ## known bugs
 - sometimes out-of-memory resets with instant reboots (rare after some hours or more often after some days)
 
-## releases
-### installation / update
-#### hardware
+## installation
+### hardware
 - ESP8266/ EPS32 based board
 - optional display SSH1106 OLED 1,3" 128x64 (e.g. [link](https://de.aliexpress.com/item/32881408326.html)):
   - connect SSH1106 driven OLED display (128x64) with your ESP8266/ ESP32 board (VCC, GND, SCK, SCL)
@@ -371,18 +373,40 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
     | AZDelivery D1 Mini NodeMcu mit ESP8266-12F       | ESP8266    | 3V3  |  G  | D5/GPI14/SCLK    | D7/GPIO13/MOSI  | D3/GPIO0/Flash    |    D8/GPIO15/CS     |   3V3[^1]    |   OK   |
     | ESP-WROOM-32 NodeMCU-32S                         | ESP32      | 3.3V | GND | D18/GPIO18/SCK   | D23/GPIO23/MOSI | D2/GPIO2/HSPI_WP0 | D15/GPIO15/HSPI_CS0 | 3.3V (D4) [^1]|   OK   |
     [^1]: reset pin of display currently not in use therefore directly pulled up to 3,3 V
-  
-#### first installation to the ESP device (as an example for ESP8266)
+
+
+### first installation to the ESP device
+#### example for ESP8266
 1. download the preferred release as binary (see below)
-2. **HAS TO BE VERIFIED** [only once] flash the esp8266 board with the (esp download tool)[https://www.espressif.com/en/support/download/other-tools]
+2. [only once] flash the esp8266 board with the [esp download tool](https://www.espressif.com/en/support/download/other-tools)
    1. choose bin file at address 0x0
-   2. crystal frequency to 26 Mhz
+   2. SPI speed 40 MHz
+   3. SPI Mode QIO
+   4. select your COM port and baudrate = 921600
+   5. press start ;-)
+3. all further updates are done by [OTA](###-regarding-base-framework) or [webupdate](###-update)
+
+You can also use the esptool.py as described shortly here https://github.com/ohAnd/dtuGateway/discussions/46#discussion-7106516 by @netzbasteln
+
+#### example for ESP32
+see also https://github.com/ohAnd/dtuGateway/discussions/35#discussioncomment-10519821
+1. download the preferred release as binary (see below)
+2. [only once] flash the esp32 board with the [esp download tool](https://www.espressif.com/en/support/download/other-tools)
+   1. get the needed bin files (see at doc/esp32_factoryFlash)
+      1. [bootloader.bin](doc/esp32_factoryFlash/bootloader.bin)
+      2. [partions.bin](doc/esp32_factoryFlash/partitions.bin)
+      3. [boot_app0.bin](doc/esp32_factoryFlash/boot_app0.bin)
+      4. current [release](https://github.com/ohAnd/dtuGateway/releases/latest) or [snapshot](https://github.com/ohAnd/dtuGateway/releases/latest)
+   2. select inside the flash tool the files 1.1 - 1.4 and set the following start adresses
+      1. bootloader.bin => 0x1000
+      2. partionions.bin => 0x8000
+      3. boot_app0.bin => 0xE000
+      4. firmware => 0x10000
    3. SPI speed 40 MHz
-   4. SPI Mode QIO
-   5. Flash Size 32 MBit-C1
+   5. SPI Mode QIO
    6. select your COM port and baudrate = 921600
-   7. press start ;-)
-3. all further updates are done by OTA (see chapters above) 
+   8. press start ;-)
+3. all further updates are done by [OTA](###-regarding-base-framework) or [webupdate](###-update)
 
 #### first setup with access point
 > prequesite:
@@ -405,6 +429,10 @@ If you have directly attached a display, then in factory mode the used display i
 4. response of the device will be `reinitialize UserConfig data and reboot ...`
 5. after reboot the device starting again in AP mode for first setup
 
+### update
+Via the web ui you can select the firmware file and start the update process. Please use the right firmware file according to your processor ESP8266 or ESP32.
+
+## releases
 ### main
 latest release - changes will documented by commit messages
 https://github.com/ohAnd/dtuGateway/releases/latest
