@@ -9,6 +9,17 @@
 #include <PubSubClient.h>
 #include <WiFiClientSecure.h>
 
+// MQTT_CONNECTION_TIMEOUT (-4): The server didn't respond within the keep-alive time.
+// MQTT_CONNECTION_LOST (-3): The network connection was broken.
+// MQTT_CONNECT_FAILED (-2): The network connection failed.
+// MQTT_DISCONNECTED (-1): The client is disconnected.
+// MQTT_CONNECTED (0): The client is connected.
+// MQTT_CONNECT_BAD_PROTOCOL (1): The server doesn't support the requested version of MQTT.
+// MQTT_CONNECT_BAD_CLIENT_ID (2): The server rejected the client identifier.
+// MQTT_CONNECT_UNAVAILABLE (3): The server was unable to accept the connection.
+// MQTT_CONNECT_BAD_CREDENTIALS (4): The username/password were rejected.
+// MQTT_CONNECT_UNAUTHORIZED (5): The client was not authorized to connect.
+
 struct PowerLimitSet {
     int8_t setValue = 0;
     boolean update = false;

@@ -95,9 +95,9 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                 <div>
                     <input type="text" id="mqttIP" class="ipv4Input" name="ipv4" placeholder="xxx.xxx.xxx.xxx">
                 </div>
-                <!-- <div> -->
-                <!-- <input type="checkbox" id="mqttUseTLS"> TLS connection (e.g. 123456789.s1.eu.hivemq.cloud:8883) -->
-                <!-- </div> -->
+                <div>
+                <input type="checkbox" id="mqttUseTLS"> <small>TLS connection (e.g. 123456789.s1.eu.hivemq.cloud:8883) - works only with ESP32</small>
+                </div>
                 <div>
                     <br>specify user on your mqtt broker instance:
                 </div>

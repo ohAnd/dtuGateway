@@ -381,7 +381,15 @@ void MQTTHandler::setUseTLS(bool useTLS)
 {
     stopConnection();
     this->useTLS = useTLS;
-    client.setClient(useTLS ? wifiClientSecure : wifiClient);
+    if(useTLS) {
+        wifiClientSecure.setInsecure();
+        client.setClient(wifiClientSecure);
+        Serial.println("MQTT:\t\t setUseTLS: initialized with TLS");
+    } else {
+        client.setClient(wifiClient);
+        Serial.println("MQTT:\t\t setUseTLS: initialized without TLS");
+    }
+    // client.setClient(useTLS ? wifiClientSecure : wifiClient);
     client.setServer(mqtt_broker, mqtt_port);
 }
 
@@ -393,7 +401,7 @@ void MQTTHandler::setMainTopic(String mainTopicPath)
 
 void MQTTHandler::setRemoteDisplayData(boolean remoteDisplayActive)
 {
-    Serial.println("MQTT:\t\t ... set remote dsiplay data to: " + String(remoteDisplayActive));
+    Serial.println("MQTT:\t\t ... set remote display data to: " + String(remoteDisplayActive));
     stopConnection();
     instance->lastRemoteInverterData.remoteDisplayActive = remoteDisplayActive;
 }
@@ -406,13 +414,13 @@ void MQTTHandler::setConfiguration(const char *broker, int port, const char *use
     mqtt_user = user;
     mqtt_password = password;
     this->useTLS = useTLS;
-    client.setClient(useTLS ? wifiClientSecure : wifiClient);
+    setUseTLS(useTLS);
     client.setServer(mqtt_broker, mqtt_port);
     deviceGroupName = sensorUniqueName;
     mqttMainTopicPath = mainTopicPath;
     autoDiscoveryActive = autoDiscovery;
     gw_ipAddress = ipAddress;
-    Serial.println("MQTT:\t\t config for broker: '" + String(mqtt_broker) + "' on port: '" + String(mqtt_port) + "'");
+    Serial.println("MQTT:\t\t config for broker: '" + String(mqtt_broker) + "' on port: '" + String(mqtt_port) + "'" + " and user: '" + String(mqtt_user) + "' with TLS: " + String(useTLS));
 }
 
 void MQTTHandler::requestMQTTconnectionReset(boolean autoDiscoveryRemoveRequested)

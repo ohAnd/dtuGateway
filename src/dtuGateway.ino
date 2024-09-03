@@ -4,29 +4,21 @@
 #include <ESP8266_ISR_Timer.h>
 #include <ESP8266WiFi.h>
 #include <ESP8266HTTPClient.h>
-// #include <ESP8266WebServer.h>
-// #include <ESP8266HTTPUpdateServer.h>
-// #include <ESP8266httpUpdate.h>
 #include <ESP8266mDNS.h>
-// #include <WiFiClientSecureBearSSL.h>
 #elif defined(ESP32)
 // #define HARDWARE "ESP32"
 #include <ESP32TimerInterrupt.h>
 #include <ESP32_ISR_Timer.h>
 #include <WiFi.h>
 #include <HTTPClient.h>
-// #include <WebServer.h>
-// #include <HTTPUpdateServer.h>
-// #include <ESP32httpUpdate.h>
 #include <ESPmDNS.h>
-// #include <WiFiClientSecure.h>
 #include <map>
 #endif
 
 #include <WiFiUdp.h>
 #include <NTPClient.h>
 
-#include <ArduinoJson.h>
+// #include <ArduinoJson.h>
 
 #include <base/webserver.h>
 #include <base/platformData.h>
@@ -54,7 +46,6 @@ unsigned long previousMillis50ms = 0;
 unsigned long previousMillis100ms = 0;
 unsigned long previousMillisShort = 1704063600;  // in seconds
 unsigned long previousMillis5000ms = 1704063600; // in seconds
-// dtuNextUpdateCounterSeconds = 1704063600; -> with platformData
 unsigned long previousMillisLong = 1704063600;
 
 #define WIFI_RETRY_TIME_SECONDS 30
@@ -126,12 +117,6 @@ DTUInterface dtuInterface("192.168.0.254"); // initialize with default IP
 
 MQTTHandler mqttHandler(userConfig.mqttBrokerIpDomain, userConfig.mqttBrokerPort, userConfig.mqttBrokerUser, userConfig.mqttBrokerPassword, userConfig.mqttUseTLS);
 
-// #if defined(ESP8266)
-// ESP8266WebServer server(80);
-// #elif defined(ESP32)
-// WebServer server(80);
-// #endif
-
 // Init ESP8266 only and only Timer 1
 #if defined(ESP8266)
 ESP8266Timer ITimer;
@@ -165,7 +150,6 @@ boolean checkWifiTask()
     wifi_connecting = true;
     blinkCode = BLINK_TRY_CONNECT_DTU;
 
-    // startServices();
     return false;
   }
   else if (WiFi.status() != WL_CONNECTED && wifi_connecting && wifiTimeoutShort > 0) // check during connecting wifi and decrease for short timeout
@@ -248,6 +232,7 @@ boolean scanNetworksResult()
 }
 
 // OTA
+
 // // ---> /updateRequest
 // void handleUpdateRequest()
 // {
@@ -256,30 +241,23 @@ boolean scanNetworksResult()
 //     urlToBin = updateInfo.updateURLRelease;
 //   else
 //     urlToBin = updateInfo.updateURL;
-
 // #if defined(ESP8266)
 //   BearSSL::WiFiClientSecure updateclient;
 // #elif defined(ESP32)
 //   WiFiClientSecure updateclient;
 // #endif
 //   updateclient.setInsecure();
-
 //   if (urlToBin == "" || updateInfo.updateAvailable != true)
 //   {
 //     Serial.println(F("[update] no url given or no update available"));
 //     return;
 //   }
-
 //   server.sendHeader("Connection", "close");
 //   server.send(200, "application/json", "{\"update\": \"in_progress\"}");
-
 //   Serial.println(F("[update] Update requested"));
 //   Serial.println("[update] try download from " + urlToBin);
-
 //   // ESPhttpUpdate.rebootOnUpdate(false); // remove automatic update
-
 //   Serial.println(F("[update] starting update"));
-
 // #if defined(ESP8266)
 //   ESPhttpUpdate.onStart(update_started);
 //   ESPhttpUpdate.onEnd(update_finished);
@@ -290,9 +268,7 @@ boolean scanNetworksResult()
 // #elif defined(ESP32)
 // // ...
 // #endif
-
 //   updateInfo.updateRunning = true;
-
 //   // stopping all services to prevent OOM/ stackoverflow
 //   timeClient.end();
 // #if defined(ESP8266)
@@ -305,13 +281,11 @@ boolean scanNetworksResult()
 // #endif
 //   server.stop();
 //   server.close();
-
 // #if defined(ESP8266)
 //   t_httpUpdate_return ret = ESPhttpUpdate.update(updateclient, urlToBin);
 // #elif defined(ESP32)
 //   t_httpUpdate_return ret = ESPhttpUpdate.update(urlToBin);
 // #endif
-
 //   switch (ret)
 //   {
 //   case HTTP_UPDATE_FAILED:
@@ -332,8 +306,6 @@ boolean scanNetworksResult()
 //   Serial.println("[update] Update routine done - ReturnCode: " + String(ret));
 // }
 
-//
-
 // get the info about update from remote
 // boolean getUpdateInfo()
 // {
@@ -346,7 +318,6 @@ boolean scanNetworksResult()
 //   WiFiClientSecure secClient;
 //   secClient.setInsecure();
 // #endif
-
 //   if (userConfig.selectedUpdateChannel == 0)
 //   {
 //     versionUrl = updateInfo.updateInfoWebPathRelease;
@@ -355,12 +326,9 @@ boolean scanNetworksResult()
 //   {
 // versionUrl = updateInfo.updateInfoWebPath;
 //   }
-
 //   Serial.print("\n---> getUpdateInfo - check for: " + versionUrl + "\n");
-
 //   // create an HTTPClient instance
 //   HTTPClient https;
-
 // // Initializing an HTTPS communication using the secure client
 // #if defined(ESP8266)
 //   if (https.begin(*secClient, versionUrl))
@@ -374,7 +342,6 @@ boolean scanNetworksResult()
 //     https.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS); // Enable automatic following of redirects
 //     int httpCode = https.GET();
 //     Serial.println("\n---> getUpdateInfo - got http ret code:" + String(httpCode));
-
 //     // httpCode will be negative on error
 //     if (httpCode > 0)
 //     {
@@ -383,11 +350,9 @@ boolean scanNetworksResult()
 //       if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY)
 //       {
 //         String payload = https.getString();
-
 //         // Parse JSON using ArduinoJson library
 //         JsonDocument doc;
 //         DeserializationError error = deserializeJson(doc, payload);
-
 //         // Test if parsing succeeds.
 //         if (error)
 //         {
@@ -411,7 +376,6 @@ boolean scanNetworksResult()
 //             {
 //               localVersion = localVersion.substring(0, localVersion.indexOf("_"));
 //             }
-
 //             if (userConfig.selectedUpdateChannel == 0)
 //             {
 //               strcpy(updateInfo.versionServerRelease, (const char *)(doc["version"]));
@@ -426,7 +390,6 @@ boolean scanNetworksResult()
 //               {
 //                 versionSnapshot = versionSnapshot.substring(0, versionSnapshot.indexOf("_"));
 //               }
-
 //               strcpy(updateInfo.versiondateServer, (const char *)(doc["versiondate"]));
 //               strcpy(updateInfo.updateURL, (const char *)(doc["linksnapshot"]));
 //               updateInfo.updateAvailable = checkVersion(localVersion, versionSnapshot);
@@ -435,7 +398,6 @@ boolean scanNetworksResult()
 //             strcpy(updateInfo.updateURL, (const char *)(doc["linksnapshot"]));
 //             updateInfo.updateAvailable = checkVersion(localVersion, versionSnapshot);
 //           }
-
 //           server.sendHeader("Connection", "close");
 //           server.send(200, "application/json", "{\"updateRequest\": \"done\"}");
 //         }
@@ -470,7 +432,6 @@ boolean scanNetworksResult()
 //   // if v1 is smaller, 0 if equal
 //   // int result = 0;
 //   int vnum1 = 0, vnum2 = 0;
-
 //   // loop until both string are
 //   // processed
 //   for (unsigned int i = 0, j = 0; (i < v1.length() || j < v2.length());)
@@ -482,7 +443,6 @@ boolean scanNetworksResult()
 //       vnum1 = vnum1 * 10 + (v1[i] - '0');
 //       i++;
 //     }
-
 //     // storing numeric part of
 //     // version 2 in vnum2
 //     while (j < v2.length() && v2[j] != '.')
@@ -490,21 +450,18 @@ boolean scanNetworksResult()
 //       vnum2 = vnum2 * 10 + (v2[j] - '0');
 //       j++;
 //     }
-
 //     if (vnum1 > vnum2)
 //     {
 //       // result = 1; // v2 is smaller
 //       // Serial.println("vgl (i=" + String(i) + ") v2 smaller - vnum1 " + String(vnum1) + " - " + String(vnum2));
 //       return false;
 //     }
-
 //     if (vnum2 > vnum1)
 //     {
 //       // result = -1; // v1 is smaller
 //       // Serial.println("vgl (i=" + String(i) + ") v1 smaller - vnum1 " + String(vnum1) + " - " + String(vnum2));
 //       return true;
 //     }
-
 //     // if equal, reset variables and
 //     // go for next numeric part
 //     // Serial.println("vgl (i=" + String(i) + ") v1 equal 2 - vnum1 " + String(vnum1) + " - " + String(vnum2));
@@ -692,38 +649,36 @@ void updateValuesToMqtt(boolean haAutoDiscovery = false)
 {
   Serial.println("MQTT:\t\t publish data (HA autoDiscovery = " + String(haAutoDiscovery) + ")");
   std::map<std::string, std::string> keyValueStore;
-
   keyValueStore["time_stamp"] = String(dtuGlobalData.currentTimestamp).c_str();
-
+  // grid
   keyValueStore["grid_U"] = String(dtuGlobalData.grid.voltage).c_str();
   keyValueStore["grid_I"] = String(dtuGlobalData.grid.current).c_str();
   keyValueStore["grid_P"] = String(dtuGlobalData.grid.power).c_str();
   keyValueStore["grid_dailyEnergy"] = String(dtuGlobalData.grid.dailyEnergy, 3).c_str();
   if (dtuGlobalData.grid.totalEnergy != 0)
     keyValueStore["grid_totalEnergy"] = String(dtuGlobalData.grid.totalEnergy, 3).c_str();
-
+  // pv0
   keyValueStore["pv0_U"] = String(dtuGlobalData.pv0.voltage).c_str();
   keyValueStore["pv0_I"] = String(dtuGlobalData.pv0.current).c_str();
   keyValueStore["pv0_P"] = String(dtuGlobalData.pv0.power).c_str();
   keyValueStore["pv0_dailyEnergy"] = String(dtuGlobalData.pv0.dailyEnergy, 3).c_str();
   if (dtuGlobalData.pv0.totalEnergy != 0)
     keyValueStore["pv0_totalEnergy"] = String(dtuGlobalData.pv0.totalEnergy, 3).c_str();
-
+  // pv1
   keyValueStore["pv1_U"] = String(dtuGlobalData.pv1.voltage).c_str();
   keyValueStore["pv1_I"] = String(dtuGlobalData.pv1.current).c_str();
   keyValueStore["pv1_P"] = String(dtuGlobalData.pv1.power).c_str();
   keyValueStore["pv1_dailyEnergy"] = String(dtuGlobalData.pv1.dailyEnergy, 3).c_str();
   if (dtuGlobalData.pv0.totalEnergy != 0)
     keyValueStore["pv1_totalEnergy"] = String(dtuGlobalData.pv1.totalEnergy, 3).c_str();
-
+  // inverter
   keyValueStore["inverter_Temp"] = String(dtuGlobalData.inverterTemp).c_str();
   keyValueStore["inverter_PowerLimit"] = String(dtuGlobalData.powerLimit).c_str();
   keyValueStore["inverter_WifiRSSI"] = String(dtuGlobalData.dtuRssi).c_str();
-
+  // copy
   for (const auto &pair : keyValueStore)
   {
     String entity = (pair.first).c_str();
-    // subtopic.replace("_", "/");
     mqttHandler.publishStandardData(entity, (pair.second).c_str());
   }
 }
@@ -858,7 +813,8 @@ void setup()
       displayTFT.drawFactoryMode(String(platformData.fwVersion), platformData.espUniqueName, apIP.toString());
       userConfig.displayConnected = 0;
     }
-    // deafult setting for mqtt main topic
+
+    // default setting for mqtt main topic
     ("dtu_" + String(platformData.chipID)).toCharArray(userConfig.mqttBrokerMainTopic, sizeof(userConfig.mqttBrokerMainTopic));
     configManager.saveConfig(userConfig);
 
@@ -886,6 +842,7 @@ void setup()
   }
   else
     Serial.println(F("Can't set ITimer correctly. Select another freq. or interval"));
+
   // delay for startup background tasks in ESP
   delay(2000);
 }
@@ -1387,7 +1344,6 @@ void loop()
     Serial.print("local: " + dtuInterface.getTimeStringByTimestamp(dtuGlobalData.currentTimestamp));
     Serial.println(" --- NTP: " + timeClient.getFormattedTime());
 
-    // Serial.print(" --- currentMillis " + String(currentMillis) + " --- ");
     previousMillis5000ms = currentMillis;
     // -------->
     // -----------------------------------------
