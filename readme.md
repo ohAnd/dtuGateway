@@ -80,6 +80,7 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
 - binding: updating to a MQTT broker with readed data incl. set PowerLimit over MQTT
   - 2 ways to configure - simple mqtt publishing with base topic or together with HA MQTT AutoDiscovery based
   - for all publishing retain flag is set (keeping last seen data in broker)
+  - TLS connection to mqtt broker  e.g. for hivemq.cloud - ! only possible for ESP32 setup
 - can act as a remote display for another dtuGateway
   - data will be received by MQTT
   - webUI shows the same data as the host
