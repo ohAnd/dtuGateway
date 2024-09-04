@@ -13,6 +13,10 @@ Display::~Display()
 void Display::setup()
 {
     u8g2.begin();
+    if(userConfig.displayOrientation == 180)
+        u8g2.setDisplayRotation(U8G2_R2);
+    else
+        u8g2.setDisplayRotation(U8G2_R0);
     Serial.println(F("OLED display:\t initialized"));
 }
 

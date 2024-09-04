@@ -92,39 +92,43 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
     - TFT - a green inner ring and the name 'dutMonitor' will identify as a remote display
 
 #### display support
-- selectable (and storable) over advanced web config[^2] or per serial com and at directly at start up coming from factory mode ( [see first-setup-with-access-point](#first-setup-with-access-point) )
-  
-  `selectDisplay 0` = OLED (default)
+- common
+  - selectable (and storable) via advanced web config[^2] or per serial com and at directly at start up coming from factory mode ( [see first-setup-with-access-point](#first-setup-with-access-point) )
+    
+    `selectDisplay 0` = OLED (default)
 
-  `selectDisplay 1` = round TFT
+    `selectDisplay 1` = round TFT
+  - setting the orientation of the display via advanced web config[^2]
+    - OLED - 0 and 180 degrees are supported
+    - TFT - 0, 90, 180, 270 degrees are supported
+- display hardware types
+  - display SSH1106 OLED 1,3" 128x64 (other sizes with same driver (SSH1106) and resolution should also directly work)
+    
+    <img src="doc/images/dtuGateay_OLED_firstStart.jpg" alt="drawdtuGateay_OLED_firstStarting" width="180"/>
+    <img src="doc/images/dtuGateay_OLED.jpg" alt="dtuGateay_OLED" width="180"/>
 
-- display SSH1106 OLED 1,3" 128x64 (other sizes with same driver (SSH1106) and resolution should also directly work)
-  
-  <img src="doc/images/dtuGateay_OLED_firstStart.jpg" alt="drawdtuGateay_OLED_firstStarting" width="180"/>
-  <img src="doc/images/dtuGateay_OLED.jpg" alt="dtuGateay_OLED" width="180"/>
+    - segmented in 3 parts
+      - header:
+        - left: wifi quality dtuGateway to local wifi
+        - mid: current time of dtuGateway
+        - right: wifi quality of dtu connection to local wifi
+      - main:
+        - small left: current power limit of inverter
+        - big mid/ right: current power of inverter
+      - footer:
+        - left: current daily yield
+        - right: current total yield
+    - additonal features
+      - small screensaver to prevent burn-in effect with steady components on the screen (shifting the whole screen every minute with 1 pixel in a 4 step rotation)
+      - smooth brightness control for changed main value - increase to max after change and then dimmming smooth back to the default level
+    
+  - display GC9A01 round TFT 1,28" 240x240
 
-  - segmented in 3 parts
-    - header:
-      - left: wifi quality dtuGateway to local wifi
-      - mid: current time of dtuGateway
-      - right: wifi quality of dtu connection to local wifi
-    - main:
-      - small left: current power limit of inverter
-      - big mid/ right: current power of inverter
-    - footer:
-      - left: current daily yield
-      - right: current total yield
-  - additonal features
-    - small screensaver to prevent burn-in effect with steady components on the screen (shifting the whole screen every minute with 1 pixel in a 4 step rotation)
-    - smooth brightness control for changed main value - increase to max after change and then dimmming smooth back to the default level
-  
-- display GC9A01 round TFT 1,28" 240x240
+    <img src="doc/images/roundTFT_firstSTart.jpg" alt="roundTFT_firstSTart" width="180"/>
+    <img src="doc/images/roundTFT.jpg" alt="roundTFT" width="180"/>
 
-  <img src="doc/images/roundTFT_firstSTart.jpg" alt="roundTFT_firstSTart" width="180"/>
-  <img src="doc/images/roundTFT.jpg" alt="roundTFT" width="180"/>
-
-  - setup screen for first start (factory mode)
-  - status screen with the (current) most important data
+    - setup screen for first start (factory mode)
+    - status screen with the (current) most important data
 ### regarding base framework
 
 - serving own access point in factory mode for first setup

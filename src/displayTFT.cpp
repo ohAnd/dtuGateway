@@ -14,7 +14,16 @@ DisplayTFT::DisplayTFT() {}
 void DisplayTFT::setup()
 {
     tft.init();
-    tft.setRotation(0);
+    uint16_t orientation = userConfig.displayOrientation;
+    if (orientation >= 0 && orientation < 90)
+        orientation = 0;
+    else if (orientation >= 90 && orientation < 180)
+        orientation = 1;
+    else if (orientation >= 180 && orientation < 270)
+        orientation = 2;
+    else if (orientation >= 270 && orientation < 360)
+        orientation = 3;
+    tft.setRotation(orientation);
     tft.fillScreen(TFT_BLACK);
     Serial.println(F("TFT display initialized"));
 }

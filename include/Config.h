@@ -37,6 +37,7 @@ struct UserConfig
     boolean remoteDisplayActive   = false; // remote display to get data from mqtt
     
     uint8_t displayConnected      = 0; // OLED default
+    uint16_t displayOrientation    = 0; // OLED 0,180 degrees - TFT 0,90,180,270 degrees
 
     boolean wifiAPstart           = true;
     int selectedUpdateChannel     = 0; // 0 - release 1 - snapshot

@@ -163,6 +163,8 @@ void UserConfigManager::printConfigdata()
 
     Serial.print(F("display connected: \t"));
     Serial.println(userConfig.displayConnected);
+    Serial.print(F("display orientation: \t"));
+    Serial.println(userConfig.displayOrientation);
     Serial.print(F("--------------------------------------\n"));
 }
 
@@ -196,6 +198,7 @@ JsonDocument UserConfigManager::mappingStructToJson(const UserConfig &config)
     doc["remoteDisplay"]["Active"] = config.remoteDisplayActive;
 
     doc["display"]["type"] = config.displayConnected;
+    doc["display"]["orientation"] = config.displayOrientation;
 
     doc["local"]["selectedUpdateChannel"] = config.selectedUpdateChannel;
     doc["local"]["wifiAPstart"] = config.wifiAPstart;
@@ -232,6 +235,7 @@ void UserConfigManager::mappingJsonToStruct(JsonDocument doc)
     userConfig.remoteDisplayActive = doc["remoteDisplay"]["Active"].as<bool>();
 
     userConfig.displayConnected = doc["display"]["type"];
+    userConfig.displayOrientation = doc["display"]["orientation"];
 
     userConfig.selectedUpdateChannel = doc["local"]["selectedUpdateChannel"];
     userConfig.wifiAPstart = doc["local"]["wifiAPstart"];
