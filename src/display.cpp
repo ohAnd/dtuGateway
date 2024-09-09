@@ -10,10 +10,11 @@ Display::~Display()
     u8g2.clear();
     u8g2.setPowerSave(1);
 }
+
 void Display::setup()
 {
     u8g2.begin();
-    if(userConfig.displayOrientation == 180)
+    if (userConfig.displayOrientation == 180)
         u8g2.setDisplayRotation(U8G2_R2);
     else
         u8g2.setDisplayRotation(U8G2_R0);
@@ -34,22 +35,23 @@ void Display::renderScreen(String time, String version)
     lastDisplayData.version = version.c_str();
     lastDisplayData.formattedTime = time.c_str();
 
+    // every 50 milliseconds
     checkChangedValues();
 
-    if (valueChanged)
-    {
-        brightness = BRIGHTNESS_MAX;
-        drawScreen(); // draw once to update values on screen
-    }
-    else if (brightness > BRIGHTNESS_MIN)
-    {
-        brightness = brightness - 5;
-        // u8g2.setContrast(brightness);
-        // u8g2.sendBuffer();
-    }
+    // every 0.1 second
+    if (displayTicks % 2 == 0)
+        setBrightnessAuto();
 
     if (displayTicks % 20 == 0)
         drawScreen(); // draw every 1 second
+
+    // every 5 seconds
+    if (displayTicks % 100 == 0)
+    // if (displayTicks % 40 == 0)
+    {
+        checkNightMode();
+        // Serial.println("current brightness: " + String(brightness));
+    }
 
     if (displayTicks == 0)
         screenSaver(); // every minute shift screen to avoid burn in
@@ -62,26 +64,53 @@ void Display::drawScreen()
     lastDisplayData.totalYieldTotal = round(dtuGlobalData.grid.totalEnergy);
     lastDisplayData.rssiGW = dtuGlobalData.wifi_rssi_gateway;
     lastDisplayData.rssiDTU = dtuGlobalData.dtuRssi;
+    lastDisplayData.totalPower = round(dtuGlobalData.grid.power);
+    lastDisplayData.powerLimit = dtuGlobalData.powerLimit;
 
     u8g2.clearBuffer();
+    if (brightness == 0)
+    {
+        u8g2.sendBuffer();
+        return;
+    }
     u8g2.setDrawColor(1);
     u8g2.setFontPosTop();
     u8g2.setFontDirection(0);
     u8g2.setFontRefHeightExtendedText();
 
-    drawHeader();
+    if (!isNight)
+    {
+        drawHeader();
 
-    // main screen
-    if (dtuConnection.dtuConnectState == DTU_STATE_CONNECTED)
-        drawMainDTUOnline();
-    else if (dtuConnection.dtuConnectState == DTU_STATE_CLOUD_PAUSE)
-        drawMainDTUOnline(true);
-    else if (lastDisplayData.remoteDisplayActive)
-        drawMainDTUOnline();
-    else
-        drawMainDTUOffline();
+        // main screen
 
-    drawFooter();
+        if (dtuConnection.dtuConnectState == DTU_STATE_CONNECTED)
+            drawMainDTUOnline();
+        else if (dtuConnection.dtuConnectState == DTU_STATE_CLOUD_PAUSE)
+            drawMainDTUOnline(true);
+        else if (lastDisplayData.remoteDisplayActive)
+            drawMainDTUOnline();
+        else
+            drawMainDTUOffline();
+
+        drawFooter();
+    }
+    // show night clock if configured
+    else if (isNight && userConfig.displayNightClock)
+    {
+        u8g2.setFont(u8g2_font_logisoso16_tf);
+        u8g2.drawStr(27 + offset_x, 26 + offset_y, lastDisplayData.formattedTime);
+
+        // show current power if greater than 0
+        if (lastDisplayData.totalPower > 0)
+        {
+            u8g2.setFont(u8g2_font_6x10_tf);
+            String wattage = String(lastDisplayData.totalPower) + " W";
+            u8g2_uint_t width = u8g2.getUTF8Width(wattage.c_str());
+            int wattage_xpos = (128 - width) / 2;
+            u8g2.drawStr(wattage_xpos + offset_x, 52 + offset_y, wattage.c_str());
+        }
+    }
 
     // set current choosen contrast
     u8g2.setContrast(brightness);
@@ -91,9 +120,6 @@ void Display::drawScreen()
 
 void Display::drawMainDTUOnline(bool pause)
 {
-    lastDisplayData.totalPower = round(dtuGlobalData.grid.power);
-    lastDisplayData.powerLimit = dtuGlobalData.powerLimit;
-
     // main screen
 
     String wattage = ((dtuGlobalData.grid.power == -1) ? ("--") : String(lastDisplayData.totalPower));
@@ -127,7 +153,8 @@ void Display::drawMainDTUOnline(bool pause)
     u8g2.drawStr(22 + offset_x, 40 + offset_y, "%");
 
     // showing that this is a remote display
-    if (lastDisplayData.remoteDisplayActive) {
+    if (lastDisplayData.remoteDisplayActive)
+    {
         u8g2.setFont(u8g2_font_open_iconic_all_2x_t);
         u8g2.drawGlyph(7 + offset_x, 19 + offset_y, 0x007D);
     }
@@ -249,10 +276,65 @@ void Display::drawFooter()
     u8g2.drawStr(3 + 18 * 4 + offset_x, 56 + offset_y, ("t: " + String(lastDisplayData.totalYieldTotal, 0) + " kWh").c_str());
 }
 
+void Display::checkChangedValues()
+{
+    valueChanged = false;
+    if (lastDisplayData.totalPower != round(dtuGlobalData.grid.power))
+        valueChanged = true;
+}
+
+void Display::setBrightnessAuto()
+{
+    uint8_t brigtnessNorm = isNight ? userConfig.displayBrightnessNight : userConfig.displayBrightnessDay;
+    if (isNight && !userConfig.displayNightClock)
+        brigtnessNorm = 0;
+    if (valueChanged && !isNight) // set brightness to max if value changed
+    {
+        brightness = isNight ? userConfig.displayBrightnessDay : BRIGHTNESS_MAX;
+    }
+    else if (brightness > brigtnessNorm) // decrease brightness slowly
+    {
+        brightness = brightness - 1;
+    }
+    else if (brightness < brigtnessNorm) // increase brightness slowly
+    {
+        brightness = brightness + 1;
+    }
+}
+
+void Display::checkNightMode()
+{
+    // get currentTime in minutes to 00:00 of current day from current time in minutes to 1.1.1970 00:00
+    uint16_t currentTime = (platformData.currentNTPtime / 60) % 1440;
+    // Serial.print("current time in minutes today: " + String(currentTime) + " - start: " + String(userConfig.displayNightmodeStart) + " - end: " + String(userConfig.displayNightmodeEnd) + " - current brightness: " + String(brightness) + " - dtuState: " + String(dtuConnection.dtuConnectState));
+    if (userConfig.displayNightMode)
+    {
+        // check if night mode can be activated - start time is smaller than end time
+        if (
+            (userConfig.displayNightmodeStart < userConfig.displayNightmodeEnd && currentTime >= userConfig.displayNightmodeStart && currentTime < userConfig.displayNightmodeEnd) ||
+            (userConfig.displayNightmodeStart > userConfig.displayNightmodeEnd && (currentTime >= userConfig.displayNightmodeStart || currentTime < userConfig.displayNightmodeEnd)))
+        {
+            // Serial.println(" >> night mode active");
+            if (!isNight)
+            {
+                isNight = true;
+            }
+        }
+        else
+        {
+            // Serial.println(" >> day mode active");
+            if (isNight)
+            {
+                isNight = false;
+            }
+        }
+    }
+}
+
 void Display::drawUpdateMode(String text, String text2)
 {
     uint8_t y1 = 25;
-    Serial.println("OLED display:\t update mode");
+    // Serial.println("OLED display:\t update mode");
 
     u8g2.clearBuffer();
     u8g2.setDrawColor(1);
@@ -263,7 +345,7 @@ void Display::drawUpdateMode(String text, String text2)
 
     if (text2 != "")
     {
-        Serial.println("OLED display:\t update mode done");
+        // Serial.println("OLED display:\t update mode done");
         y1 = 17;
         u8g2_uint_t width = u8g2.getUTF8Width(text2.c_str());
         int text2_xpos = (128 - width) / 2;
@@ -305,11 +387,4 @@ void Display::screenSaver()
     // if(contrast_value > 255) contrast_value = 100;
     // if(brightness == 255) brightness = 4;
     // else if(brightness != 255) brightness = 255;
-}
-
-void Display::checkChangedValues()
-{
-    valueChanged = false;
-    if (lastDisplayData.totalPower != round(dtuGlobalData.grid.power))
-        valueChanged = true;
 }

@@ -85,7 +85,7 @@ void MQTTHandler::subscribedMessageArrived(char *topic, byte *payload, unsigned 
             } else if(String(topic) == instance->mqttMainTopicPath + "/inverter/PowerLimit") {
                 instance->lastRemoteInverterData.powerLimit = incommingMessage.toInt();
             } else if(String(topic) == instance->mqttMainTopicPath + "/inverter/WifiRSSI") {
-                instance->lastRemoteInverterData.wifi_rssi_gateway = incommingMessage.toInt();
+                instance->lastRemoteInverterData.dtuRssi = incommingMessage.toInt();
             } else if(String(topic) == instance->mqttMainTopicPath + "/time/stamp") {
                 instance->lastRemoteInverterData.respTimestamp = incommingMessage.toInt();
                 instance->lastRemoteInverterData.updateReceived = true;

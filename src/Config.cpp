@@ -161,10 +161,23 @@ void UserConfigManager::printConfigdata()
     Serial.print(F("update channel: \t\t"));
     Serial.println(userConfig.selectedUpdateChannel);
 
-    Serial.print(F("display connected: \t"));
+    Serial.print(F("\ndisplay connected: \t"));
     Serial.println(userConfig.displayConnected);
-    Serial.print(F("display orientation: \t"));
+    Serial.print(F("display orientation: \t\t"));
     Serial.println(userConfig.displayOrientation);
+    Serial.print(F("display brightness day: \t\t"));
+    Serial.println(userConfig.displayBrightnessDay);
+    Serial.print(F("display brightness night: \t"));
+    Serial.println(userConfig.displayBrightnessNight);
+    Serial.print(F("display night clock: \t\t"));
+    Serial.println(userConfig.displayNightClock);
+    Serial.print(F("display night mode: \t\t"));
+    Serial.println(userConfig.displayNightMode);
+    Serial.print(F("display nightmode start: \t"));
+    Serial.println(userConfig.displayNightmodeStart);
+    Serial.print(F("display nightmode end: \t\t"));
+    Serial.println(userConfig.displayNightmodeEnd);
+
     Serial.print(F("--------------------------------------\n"));
 }
 
@@ -199,6 +212,12 @@ JsonDocument UserConfigManager::mappingStructToJson(const UserConfig &config)
 
     doc["display"]["type"] = config.displayConnected;
     doc["display"]["orientation"] = config.displayOrientation;
+    doc["display"]["brightnessDay"] = config.displayBrightnessDay;
+    doc["display"]["brightnessNight"] = config.displayBrightnessNight;
+    doc["display"]["nightClock"] = config.displayNightClock;
+    doc["display"]["nightMode"] = config.displayNightMode;
+    doc["display"]["nightmodeStart"] = config.displayNightmodeStart;
+    doc["display"]["nightmodeEnd"] = config.displayNightmodeEnd;
 
     doc["local"]["selectedUpdateChannel"] = config.selectedUpdateChannel;
     doc["local"]["wifiAPstart"] = config.wifiAPstart;
@@ -236,6 +255,12 @@ void UserConfigManager::mappingJsonToStruct(JsonDocument doc)
 
     userConfig.displayConnected = doc["display"]["type"];
     userConfig.displayOrientation = doc["display"]["orientation"];
+    userConfig.displayBrightnessDay = doc["display"]["brightnessDay"];
+    userConfig.displayBrightnessNight = doc["display"]["brightnessNight"];
+    userConfig.displayNightClock = doc["display"]["nightClock"];
+    userConfig.displayNightMode = doc["display"]["nightMode"];
+    userConfig.displayNightmodeStart = doc["display"]["nightmodeStart"];
+    userConfig.displayNightmodeEnd = doc["display"]["nightmodeEnd"];
 
     userConfig.selectedUpdateChannel = doc["local"]["selectedUpdateChannel"];
     userConfig.wifiAPstart = doc["local"]["wifiAPstart"];

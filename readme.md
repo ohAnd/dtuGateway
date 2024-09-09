@@ -101,6 +101,18 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
   - setting the orientation of the display via advanced web config[^2]
     - OLED - 0 and 180 degrees are supported
     - TFT - 0, 90, 180, 270 degrees are supported
+  - brightness and night mode (brightness only for OLED and TFT with connected backlight control)
+    - with night mode enabled and during the active time frame the display will be
+      - off/ blank (without backlight control) or
+      - show the current time and power (if greater than 0) in a reduced scope
+    - adjustable via web config[^2]
+      - brightness day [0...255] - will also be used without night mode enabled for standard brightness (falling back to this after power value changed)
+      - brightness night [0...255]
+      - (to disable PWM control for TFT without backlight control set both brightness values to zero)
+      - night mode enabled on/ off
+      - night mode start in minutes to start of the day - e.g. 1320 for 22:00
+      - night mode stop in minutes to start of the day - e.g. 360 for 6:00
+      - night clock enabled on/ of - on = clock will be displayed instead of dark screen
 - display hardware types
   - display SSH1106 OLED 1,3" 128x64 (other sizes with same driver (SSH1106) and resolution should also directly work)
     
@@ -122,7 +134,7 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
       - small screensaver to prevent burn-in effect with steady components on the screen (shifting the whole screen every minute with 1 pixel in a 4 step rotation)
       - smooth brightness control for changed main value - increase to max after change and then dimmming smooth back to the default level
     
-  - display GC9A01 round TFT 1,28" 240x240
+  - display GC9A01 round TFT 1,28" 240x240 with or without backlight control
 
     <img src="doc/images/roundTFT_firstSTart.jpg" alt="roundTFT_firstSTart" width="180"/>
     <img src="doc/images/roundTFT.jpg" alt="roundTFT" width="180"/>
@@ -370,15 +382,15 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
 - optional display GC9A01 round TFT 1,28" 240x240 (e.g. [link](https://de.aliexpress.com/i/1005006190625792.html)):
   - connect SSH1106 driven round TFT display (240x240) with your ESP8266/ ESP32 board (VCC, GND, SCL, SDA, DC, CS, RST)
   - pinning for different boards (display connector to ESPxx board pins)
+  - BLK = backlight control - will be served with PWM via GPIO 4
 
-    | dev board                                        | ESP family | VCC  | GND |        SCL       |       SDA       |        DC         |       CS            |     RST      | tested |
-    |--------------------------------------------------|------------|:----:|:---:|:----------------:|:---------------:|:-----------------:|:-------------------:|:------------:|:------:|
-    | AZDelivery D1 Board NodeMCU ESP8266MOD-12F       | ESP8266    | 3.3V | GND |     t.b.d.       |      t.b.d.     |      t.b.d.       |       t.b.d.        |   t.b.d.     | t.b.c. |
-    | AZDelivery NodeMCU V2 WiFi Amica ESP8266 ESP-12F | ESP8266    | 3.3V | GND | D5/GPI14/SCLK    | D7/GPIO13/MOSI  | D3/GPIO0/Flash    |    D8/GPIO15/CS     |   3V3[^1]    |   OK   |    
-    | AZDelivery D1 Mini NodeMcu mit ESP8266-12F       | ESP8266    | 3V3  |  G  | D5/GPI14/SCLK    | D7/GPIO13/MOSI  | D3/GPIO0/Flash    |    D8/GPIO15/CS     |   3V3[^1]    |   OK   |
-    | ESP-WROOM-32 NodeMCU-32S                         | ESP32      | 3.3V | GND | D18/GPIO18/SCK   | D23/GPIO23/MOSI | D2/GPIO2/HSPI_WP0 | D15/GPIO15/HSPI_CS0 | 3.3V (D4) [^1]|   OK   |
+    | dev board                                        | ESP family | VCC  | GND |        SCL       |       SDA       |        DC         |       CS            |     RST       |     BKL (opt)  | tested |
+    |--------------------------------------------------|------------|:----:|:---:|:----------------:|:---------------:|:-----------------:|:-------------------:|:-------------:|:--------------:|:------:|
+    | AZDelivery D1 Board NodeMCU ESP8266MOD-12F       | ESP8266    | 3.3V | GND |     t.b.d.       |      t.b.d.     |      t.b.d.       |       t.b.d.        |   t.b.d.      |      t.b.d.    | t.b.c. |
+    | AZDelivery NodeMCU V2 WiFi Amica ESP8266 ESP-12F | ESP8266    | 3.3V | GND | D5/GPI14/SCLK    | D7/GPIO13/MOSI  | D3/GPIO0/Flash    |    D8/GPIO15/CS     |   3V3[^1]     |    D6/GPIO12   |   OK   |
+    | AZDelivery D1 Mini NodeMcu mit ESP8266-12F       | ESP8266    | 3V3  |  G  | D5/GPI14/SCLK    | D7/GPIO13/MOSI  | D3/GPIO0/Flash    |    D8/GPIO15/CS     |   3V3[^1]     |      t.b.d.    |   OK   |
+    | ESP-WROOM-32 NodeMCU-32S                         | ESP32      | 3.3V | GND | D18/GPIO18/SCK   | D23/GPIO23/MOSI | D2/GPIO2/HSPI_WP0 | D15/GPIO15/HSPI_CS0 |   3V3[^1]     |    D4/GPIO04   |   OK   |
     [^1]: reset pin of display currently not in use therefore directly pulled up to 3,3 V
-
 
 ### first installation to the ESP device
 #### example for ESP8266

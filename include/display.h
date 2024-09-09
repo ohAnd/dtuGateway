@@ -30,6 +30,7 @@ class Display {
         void drawUpdateMode(String text,String text2="");
 
         void setRemoteDisplayMode(bool remoteDisplayActive);
+
     private:
         void drawScreen();
         void drawHeader();
@@ -40,12 +41,17 @@ class Display {
 
         void screenSaver();
         void checkChangedValues();
+
+        void checkNightMode();
+        void setBrightnessAuto();
+
         // private member variables
         DisplayData lastDisplayData;
         uint8_t brightness=BRIGHTNESS_MAX;
         u8g2_uint_t offset_x = 0; // shifting for anti burn in effect
         u8g2_uint_t offset_y = 0; // shifting for anti burn in effect
         bool valueChanged = false;
+        boolean isNight = false;
         uint16_t displayTicks = 0; // local timer state machine
 };
 

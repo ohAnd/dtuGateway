@@ -1,14 +1,10 @@
 #if defined(ESP8266)
 // #define HARDWARE "ESP8266"
-#include <ESP8266TimerInterrupt.h>
-#include <ESP8266_ISR_Timer.h>
 #include <ESP8266WiFi.h>
 #include <ESP8266HTTPClient.h>
 #include <ESP8266mDNS.h>
 #elif defined(ESP32)
 // #define HARDWARE "ESP32"
-#include <ESP32TimerInterrupt.h>
-#include <ESP32_ISR_Timer.h>
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <ESPmDNS.h>
@@ -53,12 +49,6 @@ unsigned long previousMillisLong = 1704063600;
 #define RECONNECTS_ARRAY_SIZE 50
 unsigned long reconnects[RECONNECTS_ARRAY_SIZE];
 int reconnectsCnt = -1; // first needed run inkrement to 0
-
-// intervall for getting and sending temp
-// Select a Timer Clock
-#define USING_TIM_DIV1 false   // for shortest and most accurate timer
-#define USING_TIM_DIV16 true   // for medium time and medium accurate timer
-#define USING_TIM_DIV256 false // for longest timer but least accurate. Default
 
 struct controls
 {
@@ -116,14 +106,6 @@ DisplayTFT displayTFT;
 DTUInterface dtuInterface("192.168.0.254"); // initialize with default IP
 
 MQTTHandler mqttHandler(userConfig.mqttBrokerIpDomain, userConfig.mqttBrokerPort, userConfig.mqttBrokerUser, userConfig.mqttBrokerPassword, userConfig.mqttUseTLS);
-
-// Init ESP8266 only and only Timer 1
-#if defined(ESP8266)
-ESP8266Timer ITimer;
-#elif defined(ESP32)
-ESP32Timer ITimer(0);
-#endif
-#define TIMER_INTERVAL_MS 1000
 
 boolean checkWifiTask()
 {
@@ -833,16 +815,6 @@ void setup()
   // setting startup for dtu cloud pause
   dtuConnection.preventCloudErrors = userConfig.dtuCloudPauseActive;
 
-  // Interval in microsecs
-  if (ITimer.setInterval(TIMER_INTERVAL_MS * 1000, timer1000MilliSeconds))
-  {
-    unsigned long lastMillis = millis();
-    Serial.print(F("ISR_TIMER:\t starting  ITimer OK, millis() = "));
-    Serial.println(lastMillis);
-  }
-  else
-    Serial.println(F("Can't set ITimer correctly. Select another freq. or interval"));
-
   // delay for startup background tasks in ESP
   delay(2000);
 }
@@ -1125,21 +1097,6 @@ void getSerialCommand(String cmd, String value)
 
 // main
 
-// get precise localtime - increment
-#if defined(ESP8266)
-void IRAM_ATTR timer1000MilliSeconds()
-{
-#elif defined(ESP32)
-bool IRAM_ATTR timer1000MilliSeconds(void *timerNo)
-{
-#endif
-  // localtime counter - increase every second
-  dtuGlobalData.currentTimestamp++;
-#if defined(ESP32)
-  return true;
-#endif
-}
-
 void loop()
 {
   unsigned long currentMillis = millis();
@@ -1217,7 +1174,9 @@ void loop()
   {
     previousMillis100ms = currentMillis;
     // -------->
-    blinkCodeTask();
+    // led blink code only 5 min after startup
+    if ((platformData.currentNTPtime - platformData.dtuGWstarttime) < 300)
+      blinkCodeTask();
     serialInputTask();
 
     if (userConfig.mqttActive)
@@ -1256,20 +1215,17 @@ void loop()
         dtuGlobalData.dtuRssi = remoteData.dtuRssi;
 
         dtuGlobalData.lastRespTimestamp = remoteData.respTimestamp;
-
+        dtuGlobalData.currentTimestamp = remoteData.respTimestamp; // setting the local counter
         Serial.println("\nMQTT: changed remote inverter data");
       }
     }
 
-    platformData.currentNTPtime = timeClient.getEpochTime();
+    platformData.currentNTPtime = timeClient.getEpochTime() < (12 * 60 * 60) ? (12 * 60 * 60) : timeClient.getEpochTime();
     platformData.currentNTPtimeFormatted = timeClient.getFormattedTime();
   }
 
-  // CHANGE to precise 1 second timer increment
-  currentMillis = dtuGlobalData.currentTimestamp;
-
   // short task
-  if (currentMillis - previousMillisShort >= intervalShort)
+  if (currentMillis - previousMillisShort >= (intervalShort * 1000))
   {
     // Serial.printf("\n>>>>> %02is task - state --> ", int(intervalShort));
     // Serial.print("local: " + getTimeStringByTimestamp(dtuGlobalData.currentTimestamp));
@@ -1284,7 +1240,7 @@ void loop()
     // Serial.print(F(" - free cont stack: "));
     // Serial.print(ESP.getFreeContStack());
     // Serial.print(F(" \n"));
-
+    dtuGlobalData.currentTimestamp++;
     // -------->
 
     if (!userConfig.wifiAPstart)
@@ -1336,6 +1292,9 @@ void loop()
     //   getUpdateInfo();
     // }
   }
+
+  // CHANGE to 1 second timer increment
+  currentMillis = dtuGlobalData.currentTimestamp;
 
   // 5s task
   if (currentMillis - previousMillis5000ms >= interval5000ms)
