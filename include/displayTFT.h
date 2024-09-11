@@ -6,8 +6,15 @@
 
 // TFT display
 
-#define BRIGHTNESS_MIN 50
-#define BRIGHTNESS_MAX 250
+
+#if defined(ESP8266)
+#define BACKLIIGHT_PIN 12
+#elif defined(ESP32)
+#define BACKLIIGHT_PIN 4
+#endif
+
+#define BRIGHTNESS_TFT_MIN 0
+#define BRIGHTNESS_TFT_MAX 255
 
 #define DARKER_GREY 0x18E3
 #define SPECIAL_BLUE 0x24ae
@@ -21,9 +28,7 @@ struct DisplayDataTFT {
     uint8_t powerLimit=0;
     uint8_t rssiGW=0;
     uint8_t rssiDTU=0;
-    bool stateWasOffline=false;
-    bool stateWasCloudPause=true;
-    bool stateWasNormal=false;
+    boolean remoteDisplayActive = false;
 };
 
 class DisplayTFT {
@@ -32,6 +37,8 @@ class DisplayTFT {
         void setup();
         void renderScreen(String time, String version);
         void drawFactoryMode(String version, String apName, String ip);
+        void drawUpdateMode(String text,String text2="", boolean blank=true);
+        void setRemoteDisplayMode(bool remoteDisplayActive);
     private:
         void drawScreen(String version, String time);
         void drawHeader(String version);
@@ -40,18 +47,27 @@ class DisplayTFT {
         void drawMainDTUOnline(bool pause=false);
         void drawMainDTUOffline();
 
-        void screenSaver();
         void checkChangedValues();
 
         void drawIcon(const uint16_t *icon, int16_t x, int16_t y, int16_t w, int16_t h);
 
+        void checkNightMode();
+        void setBrightnessAuto();
+
         // private member variables
         DisplayDataTFT lastDisplayData;
-        uint8_t brightness=BRIGHTNESS_MIN;
+        uint8_t brightness=BRIGHTNESS_TFT_MIN;
         uint8_t offset_x = 0; // shifting for anti burn in effect
         uint8_t offset_y = 0; // shifting for anti burn in effect
         bool valueChanged = false;
+        boolean isNight = false;
+        uint8_t displayState = 0; // local state machine
+        uint8_t displayStateOld = 0; // local state machine
         uint16_t displayTicks = 0; // local timer state machine
+
+        void showDebug();
+        void printProcessorName(void);
+        int8_t getPinName(int8_t pin);
 };
 
 #endif // DISPLAYTFT_H

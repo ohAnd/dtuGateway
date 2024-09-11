@@ -43,7 +43,7 @@ else:
         version_string_new = f"{major}.{minor}.{build_string}"
     else:
         # Increment to the new version string
-        # patch += 1
+        patch += 1
         version_string_new = f"{major}.{minor}.{patch}_{build_string}"
     
     print(f"set new version: {version_string_new}")
@@ -64,7 +64,7 @@ else:
     json_data['version'] = version_string_new
     json_data['versiondate'] = datetime_now
     json_data['linksnapshot'] = "https://github.com/ohAnd/dtuGateway/releases/download/snapshot/dtuGateway_snapshot_" + version_string_new + ".bin"
-    json_data['link'] = "https://github.com/ohAnd/dtuGateway//releases/latest/download/dtuGateway_release_" + version_string_new + ".bin"
+    json_data['link'] = "https://github.com/ohAnd/dtuGateway/releases/latest/download/dtuGateway_release_" + version_string_new + ".bin"
     
     # Save the updated JSON data back to the file
     with open(version_json, 'w', encoding='ascii') as file:

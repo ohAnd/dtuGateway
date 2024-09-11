@@ -1,7 +1,7 @@
-# dtu Gateway for Hoymiles HMS-800W-2T (2T series)
+# dtu Gateway for Hoymiles HMS-xxxW-2T (2T series)
 
 ## Contents
-- [dtu Gateway for Hoymiles HMS-800W-2T (2T series)](#dtu-gateway-for-hoymiles-hms-800w-2t-2t-series)
+- [dtu Gateway for Hoymiles HMS-xxxW-2T (2T series)](#dtu-gateway-for-hoymiles-hms-xxxw-2t-2t-series)
   - [Contents](#contents)
   - [problem](#problem)
   - [goal](#goal)
@@ -12,17 +12,20 @@
       - [display support](#display-support)
     - [regarding base framework](#regarding-base-framework)
   - [api](#api)
-    - [data - http://\<ip\_to\_your\_device\>/api/data](#data---httpip_to_your_deviceapidata)
-    - [info - http://\<ip\_to\_your\_device\>/api/info](#info---httpip_to_your_deviceapiinfo)
+    - [data - http://\<ip\_to\_your\_device\>/api/data.json](#data---httpip_to_your_deviceapidatajson)
+    - [info - http://\<ip\_to\_your\_device\>/api/info.json](#info---httpip_to_your_deviceapiinfojson)
   - [openhab integration/ configuration](#openhab-integration-configuration)
   - [MQTT integration/ configuration](#mqtt-integration-configuration)
   - [known bugs](#known-bugs)
-  - [releases](#releases)
-    - [installation / update](#installation--update)
-      - [hardware](#hardware)
-      - [first installation to the ESP device](#first-installation-to-the-esp-device)
+  - [installation](#installation)
+    - [hardware](#hardware)
+    - [first installation to the ESP device](#first-installation-to-the-esp-device)
+      - [example for ESP8266](#example-for-esp8266)
+      - [example for ESP32](#example-for-esp32)
       - [first setup with access point](#first-setup-with-access-point)
       - [return to factory mode](#return-to-factory-mode)
+    - [update](#update)
+  - [releases](#releases)
     - [main](#main)
     - [snapshot](#snapshot)
   - [troubleshooting](#troubleshooting)
@@ -36,7 +39,7 @@
 
 
 ## problem
-The new series of Hoymiles inverter with internal wireless access point and wireless client have no direct API to include this endpoint in smarthome installations/ IFTT environments.
+The newer series of Hoymiles inverter with internal wireless access point and wireless client have no direct API to include this endpoint in smarthome installations/ IFTT environments.
 
 Usually there should be no need for an extra device to "translate" the connection to common APIs or bindings. Unfortunately the interface on the dtu is unlikely unstable/ or not really stable.
 
@@ -64,73 +67,112 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
   - power (Watts), voltage (V), current (A) for the PV input data (PV0,PV1) and the grid
   - energy counter (kWh) for all 3 sources (day and total)
   - temperature and wifi rssi of the dtu
-- setting the target inverter power limit dynamically
+- setting the target inverter power limit dynamically (currently update rate up to 1 second implemented)
+  - via website (see [#33](https://github.com/ohAnd/dtuGateway/issues/33) - thanks to [@hirbelo](https://github.com/hirbelo))
+  - via openhab item (see below)
+  - via MQTT topic (see below)
 - for testing purposes the time between each request is adjustable (default 31 seconds) 
 - syncing time of gateway with the local time of the dtu to prevent wrong restart counters
 - configurable 'cloud pause' - see [experiences](#experiences-with-the-hoymiles-HMS-800W-2T) - to prevent missing updates by the dtu to the hoymiles cloud
 - automatic reboot of DTU, if there is an error detected (e.g. inplausible not changed values)
  
 #### connections to the environment
-- serving the readed data per /api/data
+- serving the read data per /api/data.json
 - configuration of bindings with seperate activation and login data setting
-- binding: updating openHab instance with readed data and pulling set data from the instance
-- binding: updating to a MQTT broker with readed data incl. set PowerLimit over MQTT
+- binding: updating openHab instance with read data and pulling power set data from the instance
+- binding: updating to a MQTT broker with read data incl. subscribing to the Set PowerLimit over MQTT
   - 2 ways to configure - simple mqtt publishing with base topic or together with HA MQTT AutoDiscovery based
   - for all publishing retain flag is set (keeping last seen data in broker)
+  - TLS connection to mqtt broker  e.g. for hivemq.cloud - ! only possible for ESP32 setup
+- can act as a remote display for another dtuGateway
+  - data will be received by MQTT
+  - webUI shows the same data as the host
+  - OLED/ TFT will show the host data
+    - OLED - a small cloud symbol will identify as a remote display
+    - TFT - a green inner ring and the name 'dutMonitor' will identify as a remote display
 
 #### display support
-- selectable (and storable) over advanced web config[^2] or per serial com and at directly at start up coming from factory mode ( [see first-setup-with-access-point](#first-setup-with-access-point) )
-  
-  `selectDisplay 0` = OLED (default)
+- common
+  - selectable (and storable) via advanced web config[^2] or per serial com and at directly at start up coming from factory mode ( [see first-setup-with-access-point](#first-setup-with-access-point) )
+    
+    `selectDisplay 0` = OLED (default)
 
-  `selectDisplay 1` = round TFT
+    `selectDisplay 1` = round TFT
+  - setting the orientation of the display via advanced web config[^2]
+    - OLED - 0 and 180 degrees are supported
+    - TFT - 0, 90, 180, 270 degrees are supported
+  - brightness and night mode (brightness only for TFT with connected backlight control and OLED)
+    - with night mode enabled and during the active time frame the display will be
+      - off (with backlight control)/ blank (without backlight control) or
+      - show the current time and power (if greater than 0) in a reduced scope
+    - adjustable via web config[^2]
+      - brightness day [0...255] - will also be used without night mode enabled for standard brightness (falling back to this after power value changed)
+      - brightness night [0...255] - note: 0 = backlight off
+      - (to disable PWM control for TFT without backlight control set both brightness values to zero)
+      - night mode enabled on/ off
+      - night mode start in minutes to start of the day - e.g. 1320 for 22:00
+      - night mode stop in minutes to start of the day - e.g. 360 for 6:00
+      - night clock enabled on/ off - on = clock will be displayed instead of dark screen
+      - example settings:
 
-- display SSH1106 OLED 1,3" 128x64 (other sizes with same driver (SSH1106) and resolution should also directly work)
-  
-  <img src="doc/images/dtuGateay_OLED_firstStart.jpg" alt="drawdtuGateay_OLED_firstStarting" width="180"/>
-  <img src="doc/images/dtuGateay_OLED.jpg" alt="dtuGateay_OLED" width="180"/>
+        | setting         | value | comment |
+        |-----------------|-------|---------
+        | brightnessDay   | 150   | note: 255 - ~150 only difficult to perceive
+        | brightnessNight |  30   | 
+        | nightClock      | true  | show the clock instead of black screen during night time
+        | nightMode       | true  | night mode is enabled
+        | nightmodeStart  | 1320  | night time will start at 22 o'clock
+        | nightmodeEnd    | 390   | night time will end at 6:30 
 
-  - segmented in 3 parts
-    - header:
-      - left: wifi quality dtuGateway to local wifi
-      - mid: current time of dtuGateway
-      - right: wifi quality of dtu connection to local wifi
-    - main:
-      - small left: current power limit of inverter
-      - big mid/ right: current power of inverter
-    - footer:
-      - left: current daily yield
-      - right: current total yield
-  - additonal features
-    - small screensaver to prevent burn-in effect with steady components on the screen (shifting the whole screen every minute with 1 pixel in a 4 step rotation)
-    - smooth brightness control for changed main value - increase to max after change and then dimmming smooth back to the default level
-- display GAGC9A01 round TFT 1,28" 240x240
 
-  <img src="doc/images/roundTFT_firstSTart.jpg" alt="roundTFT_firstSTart" width="180"/>
-  <img src="doc/images/roundTFT.jpg" alt="roundTFT" width="180"/>
+- display hardware types
+  - display SSH1106 OLED 1,3" 128x64 (other sizes with same driver (SSH1106) and resolution should also directly work)
+    
+    <img src="doc/images/dtuGateay_OLED_firstStart.jpg" alt="drawdtuGateay_OLED_firstStarting" width="180"/>
+    <img src="doc/images/dtuGateay_OLED.jpg" alt="dtuGateay_OLED" width="180"/>
 
-  - setup screen for first start (factory mode)
-  - status screen with the (current) most important data
+    - segmented in 3 parts
+      - header:
+        - left: wifi quality dtuGateway to local wifi
+        - mid: current time of dtuGateway
+        - right: wifi quality of dtu connection to local wifi
+      - main:
+        - small left: current power limit of inverter
+        - big mid/ right: current power of inverter
+      - footer:
+        - left: current daily yield
+        - right: current total yield
+    - additonal features
+      - small screensaver to prevent burn-in effect with steady components on the screen (shifting the whole screen every minute with 1 pixel in a 4 step rotation)
+      - smooth brightness control for changed main value - increase to max after change and then dimmming smooth back to the default level
+    
+  - display GC9A01 round TFT 1,28" 240x240 with or without backlight control
 
+    <img src="doc/images/roundTFT_firstSTart.jpg" alt="roundTFT_firstSTart" width="180"/>
+    <img src="doc/images/roundTFT.jpg" alt="roundTFT" width="180"/>
+
+    - setup screen for first start (factory mode)
+    - status screen with the (current) most important data
 ### regarding base framework
 
 - serving own access point in factory mode for first setup
 - web application will be directly served by the system
 - settings of needed user data over the web app (stored in a json-file in local flash file system - extensions of user setup will not lead to breakable changes)
-  - select found local wifi and enter/ save the needed wifi password
+  - select found local wifi (additional issue [#20](https://github.com/ohAnd/dtuGateway/issues/20)) and enter/ save the needed wifi password
   - change dtu connection data (e.g. host IP in local network, wireless user/ pass for dtu access point)
   - configurable data for openhab item settings
   - configurable data for MQTT settings incl. HomeAssistant AutoDiscovery
   - advanced web config[^2] for all config parameter (http://IP_domain/config) - expert mode
     - display selection (0 - OLED, 1 - round TFT)
     - timeZone Offset -xxxx sec <-> xxxx sec e.g. 3600 for CET(+1h) /7200 for CEST(+2)/-21600 for CST
-- OTA with direct connection to the github build pipeline - available updates will be checked by web app and device. Notification in web app, if update available and user can decide for direct online update 
+- [2024-06-29 currently open issue during the rafactoring transferring to multi arch ESP8266/ESP32] ~~OTA with direct connection to the github build pipeline - available updates will be checked by web app and device. Notification in web app, if update available and user can decide for direct online update~~
+- manual OTA/ web Update via web ui (hint: only stable if the wifi connection is above ~ 50%)
 
 [^2]: 'advanced config' aka. 'dtuGateway Configuration Interface' it is something like an expert mode, that means you have to know which parameter you want to change with which effect.
 
 ## api
 
-### data - http://<ip_to_your_device>/api/data
+### data - http://<ip_to_your_device>/api/data.json
 
 <details>
 <summary>expand to see json example</summary>
@@ -174,43 +216,56 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
 ```
 </details>
 
-### info - http://<ip_to_your_device>/api/info
+### info - http://<ip_to_your_device>/api/info.json
 
 <details>
 <summary>expand to see json example</summary>
 
 ```json 
 {
-  
-  "chipid": 12345678,
-  "host": "hoymilesGW_12345678",
+  "chipid": 123456,
+  "host": "dtuGateway_123456",
   "initMode": 0,
   "firmware": {
-    "version": "1.0.0022",
-    "versiondate": "10.02.2024 - 19:23:57",
-    "versionServer": "1.0.0051",
-    "versiondateServer": "10.02.2024 - 19:23:57",
+    "version": "1.9.1",
+    "versiondate": "20.08.2024 - 23:42:26",
+    "versionServer": "checking",
+    "versiondateServer": "...",
     "versionServerRelease": "checking",
     "versiondateServerRelease": "...",
     "selectedUpdateChannel": "0",
     "updateAvailable": 0
   },
-  "dtuConnection": {
-    "dtuHostIpDomain": "192.168.0.249",
-    "dtuSsid": "DTUBI-12345678",
-    "dtuPassword": "dtubiPassword",
-    "dtuRssi": 0,
-    "dtuDataCycle": 32,
-    "dtuResetRequested": 0,
-    "dtuCloudPause": 1,
-    "dtuCloudPauseTime": 40
-  },
   "openHabConnection": {
-    "ohHostIp": "192.168.1.100",
+    "ohActive": 1,
+    "ohHostIp": "192.168.0.1",
     "ohItemPrefix": "inverter"
   },
+  "mqttConnection": {
+    "mqttActive": 1,
+    "mqttIp": "homeassistant.fritz.box",
+    "mqttPort": 1883,
+    "mqttUseTLS": 0,
+    "mqttUser": "userMQTT",
+    "mqttPass": "passMQTT",
+    "mqttMainTopic": "dtu_123456",
+    "mqttHAautoDiscoveryON": 1
+  },
+  "dtuConnection": {
+    "dtuHostIpDomain": "192.168.0.2",
+    "dtuRssi": 0,
+    "dtuDataCycle": 31,
+    "dtuResetRequested": 0,
+    "dtuCloudPause": 1,
+    "dtuCloudPauseTime": 30,
+    "dtuRemoteDisplay": 1
+  },
   "wifiConnection": {
-    "networkCount": 2,
+    "wifiSsid": "privateWifi",
+    "wifiPassword": "privateWifiPass",
+    "rssiGW": 80,
+    "wifiScanIsRunning": 0,
+    "networkCount": 0,
     "foundNetworks": [
       {
         "name": "Name1 Wlan",
@@ -224,10 +279,7 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
         "rssi": -76,
         "chan": 3
       }
-    ],
-    "wifiSsid": "myWifiSSID",
-    "wifiPassword": "myPass",
-    "rssiGW": 87
+    ]
   }
 }
 ```
@@ -236,7 +288,7 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
 ## openhab integration/ configuration
 
 - set the IP to your openhab instance - data will be read with http://<your_openhab_ip>:8080/rest/items/<itemName>/state
-- set the prefix (<openItemPrefix>) of your openhab items
+- set the prefix ( \<openItemPrefix\> ) of your openhab items
 - list of items that should be available in your openhab config
   - read your given power set value from openhab with "<yourOpenItemPrefix>_PowerLimit_Set"
   - set openhab items with data from dtu:
@@ -272,53 +324,64 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
 
 - set the IP to your MQTT broker
 - set the MQTT user and MQTT password
-- set the main topic e.g. 'dtu_12345678' for the pubished data (default: is `dtu_<ESP chip id>` and has to be unique in your environment)
+- set the main topic e.g. 'dtuGateway_12345678' for the pubished data (default: is `dtuGateway_<ESP chip id>` and has to be unique in your environment)
+- [2024-06-29 still in development] ~~choosing unsecure or TLS based connection to your MQTT broker~~
 - to set the Power Limit from your environment
-  - you have to publish to `dtu_<ESP chip id>/inverter/PowerLimit_Set` a value between 2...100 (possible range at DTU)
+  - you have to publish to `<main topic>/inverter/PowerLimit_Set` a value between 2...100 (possible range at DTU)
   - the incoming value will be checked for this interval and locally corrected to 2 or 100 if exceeds
-  - (optional: with retain flag, to get the last set value after restart / reconnect of the dtuGateway)
-- data will be published as following ('dtu_12345678' is configurable in the settings):
+  - with retain flag, to get the last set value after restart / reconnect of the dtuGateway
+- data will be published as following ('dtuGateway_12345678' is configurable in the settings):
+  <details>
+  <summary>expand to see to details</summary>
   
   ```
-  dtu_12345678/timestamp
+  dtuGateway_12345678/timestamp
 
-  dtu_12345678/grid/U
-  dtu_12345678/grid/I
-  dtu_12345678/grid/P
-  dtu_12345678/grid/dailyEnergy
-  dtu_12345678/grid/totalEnergy
+  dtuGateway_12345678/grid/U
+  dtuGateway_12345678/grid/I
+  dtuGateway_12345678/grid/P
+  dtuGateway_12345678/grid/dailyEnergy
+  dtuGateway_12345678/grid/totalEnergy
   
-  dtu_12345678/pv0/U
-  dtu_12345678/pv0/I
-  dtu_12345678/pv0/P
-  dtu_12345678/pv0/dailyEnergy
-  dtu_12345678/pv0/totalEnergy
+  dtuGateway_12345678/pv0/U
+  dtuGateway_12345678/pv0/I
+  dtuGateway_12345678/pv0/P
+  dtuGateway_12345678/pv0/dailyEnergy
+  dtuGateway_12345678/pv0/totalEnergy
   
-  dtu_12345678/pv1/U
-  dtu_12345678/pv1/I
-  dtu_12345678/pv1/P
-  dtu_12345678/pv1/dailyEnergy
-  dtu_12345678/pv1/totalEnergy
+  dtuGateway_12345678/pv1/U
+  dtuGateway_12345678/pv1/I
+  dtuGateway_12345678/pv1/P
+  dtuGateway_12345678/pv1/dailyEnergy
+  dtuGateway_12345678/pv1/totalEnergy
 
-  dtu_12345678/inverter/Temp
-  dtu_12345678/inverter/PowerLimit
-  dtu_12345678/inverter/PowerLimit_Set // <-- this topic will be subscribed to get the power limit to set from your broker
-  dtu_12345678/inverter/WifiRSSI
+  dtuGateway_12345678/inverter/Temp
+  dtuGateway_12345678/inverter/PowerLimit
+  dtuGateway_12345678/inverter/PowerLimit_Set // <-- this topic will be subscribed to get the power limit to set from your broker
+  dtuGateway_12345678/inverter/WifiRSSI
   ```
+  </details>
+
 - Home Assistant Auto Discovery
-  - you can set HomeAssistant Auto Discovery, if you want to auto configure the dtuGateway for your HA installation
-  - switch to ON means - with every restart/ reconnection of the dtuGateway the so called config messages will be published for HA and HA will configure all the given entities of dtuGateway incl. the set value for PowerLimit
+  - you can set HomeAssistant Auto Discovery, if you want to auto configure the dtuGateway for your HA installation 
+  - switch to ON means - with every restart/ reconnection of the dtuGateway the so called config messages will be published for HA and HA will configure (or update) all the given entities of dtuGateway incl. the set value for PowerLimit
   - switch to OFF means - all the config messages will be deleted and therefore the dtuGateway will be removed from HA (base publishing of data will be remain the same, if MQTT is activated)
+  - detail note:
+    - if you use the default main topic e.g. `dtuGateway_<ESP chip id>` then config and state topic will be placed at the same standard HA auto discovery path, e.g. for panel 0 voltage
+      - config: `homeassistant/sensor/dtuGateway_12345678/pv0_U/config`
+      - state: `homeassistant/sensor/dtuGateway_12345678/pv0_U/state`
+    - if you choose another location for the main topic path (let's assume 'myDTU_1') then it will looks like this on your broker, e.g.
+      - config: `homeassistant/sensor/dtuGateway_12345678/pv0_U/config`
+      - state: `myDTU_1/pv0/U` - this path will be integrated in the config message and with this HA will be informed to get the data value from right location
 
 ## known bugs
 - sometimes out-of-memory resets with instant reboots (rare after some hours or more often after some days)
 
-## releases
-### installation / update
-#### hardware
-- ESP8266 based board
+## installation
+### hardware
+- ESP8266/ EPS32 based board
 - optional display SSH1106 OLED 1,3" 128x64 (e.g. [link](https://de.aliexpress.com/item/32881408326.html)):
-  - connect SSH1106 driven OLED display (128x64) with your ESP8266 board (VCC, GND, SCK, SCL)
+  - connect SSH1106 driven OLED display (128x64) with your ESP8266/ ESP32 board (VCC, GND, SCK, SCL)
   - pinning for different boards (display connector to ESPxx board pins)
 
     | dev board                                        | ESP family | VCC  | GND |        SCK       |       SDA        | tested |
@@ -326,36 +389,60 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
     | AZDelivery D1 Board NodeMCU ESP8266MOD-12F       | ESP8266    | 3.3V | GND | D15/GPIO5/SCL/D3 | D14/GPIO4/SDA/D4 |   OK   |
     | AZDelivery NodeMCU V2 WiFi Amica ESP8266 ESP-12F | ESP8266    | 3.3V | GND | D1/GPIO5/SCL     | D2/GPIO4/SDA     |   OK   |
     | AZDelivery D1 Mini NodeMcu mit ESP8266-12F       | ESP8266    | 3V3  |  G  | D1/GPIO5/SCL     | D2/GPIO4/SDA     |   OK   |
-- optional display GAGC9A01 round TFT 1,28" 240x240 (e.g. [link](https://de.aliexpress.com/i/1005006190625792.html)):
-  - connect SSH1106 driven round TFT display (240x240) with your ESP8266 board (VCC, GND, SCL, SDA, DC, CS, RST)
-  - pinning for different boards (display connector to ESPxx board pins)
+    | ESP-WROOM-32 NodeMCU-32S                         | ESP32      | 3.3V | GND | D22/GPIO22/SCL   | D21/GPIO21/SDA   |   OK   |
 
-    | dev board                                        | ESP family | VCC  | GND |        SCL       |       SDA      |        DC      |       CS       |  RST    | tested |
-    |--------------------------------------------------|------------|:----:|:---:|:----------------:|:--------------:|:--------------:|:--------------:|:-------:|:------:|
-    | AZDelivery D1 Board NodeMCU ESP8266MOD-12F       | ESP8266    | 3.3V | GND |     t.b.d.       |      t.b.d.    |      t.b.d.    |      t.b.d.    | t.b.d.  | t.b.c. |
-    | AZDelivery NodeMCU V2 WiFi Amica ESP8266 ESP-12F | ESP8266    | 3.3V | GND | D5/GPI14/SCLK    | D7/GPIO13/MOSI | D3/GPIO0/Flash |  D8/GPIO15/CS  | 3V3[^1] |   OK   |
-    | AZDelivery D1 Mini NodeMcu mit ESP8266-12F       | ESP8266    | 3V3  |  G  | D5/GPI14/SCLK    | D7/GPIO13/MOSI | D3/GPIO0/Flash |  D8/GPIO15/CS  | 3V3[^1] |   OK   |
-    
+- optional display GC9A01 round TFT 1,28" 240x240 (e.g. [link](https://de.aliexpress.com/i/1005006190625792.html)):
+  - connect SSH1106 driven round TFT display (240x240) with your ESP8266/ ESP32 board (VCC, GND, SCL, SDA, DC, CS, RST)
+  - pinning for different boards (display connector to ESPxx board pins)
+  - BLK = backlight control - will be served with PWM via GPIO 4
+
+    | dev board                                        | ESP family | VCC  | GND |        SCL       |       SDA       |        DC         |       CS            |     RST       |     BKL (opt)  | tested |
+    |--------------------------------------------------|------------|:----:|:---:|:----------------:|:---------------:|:-----------------:|:-------------------:|:-------------:|:--------------:|:------:|
+    | AZDelivery D1 Board NodeMCU ESP8266MOD-12F       | ESP8266    | 3.3V | GND |     t.b.d.       |      t.b.d.     |      t.b.d.       |       t.b.d.        |   t.b.d.      |      t.b.d.    | t.b.c. |
+    | AZDelivery NodeMCU V2 WiFi Amica ESP8266 ESP-12F | ESP8266    | 3.3V | GND | D5/GPI14/SCLK    | D7/GPIO13/MOSI  | D3/GPIO0/Flash    |    D8/GPIO15/CS     |   3V3[^1]     |    D6/GPIO12   |   OK   |
+    | AZDelivery D1 Mini NodeMcu mit ESP8266-12F       | ESP8266    | 3V3  |  G  | D5/GPI14/SCLK    | D7/GPIO13/MOSI  | D3/GPIO0/Flash    |    D8/GPIO15/CS     |   3V3[^1]     |      t.b.d.    |   OK   |
+    | ESP-WROOM-32 NodeMCU-32S                         | ESP32      | 3.3V | GND | D18/GPIO18/SCK   | D23/GPIO23/MOSI | D2/GPIO2/HSPI_WP0 | D15/GPIO15/HSPI_CS0 |   3V3[^1]     |    D4/GPIO04   |   OK   |
     [^1]: reset pin of display currently not in use therefore directly pulled up to 3,3 V
-  
-#### first installation to the ESP device
+
+### first installation to the ESP device
+#### example for ESP8266
 1. download the preferred release as binary (see below)
-2. **HAS TO BE VERIFIED** [only once] flash the esp8266 board with the (esp download tool)[https://www.espressif.com/en/support/download/other-tools]
+2. [only once] flash the esp8266 board with the [esp download tool](https://www.espressif.com/en/support/download/other-tools)
    1. choose bin file at address 0x0
-   2. crystal frequency to 26 Mhz
+   2. SPI speed 40 MHz
+   3. SPI Mode QIO
+   4. select your COM port and baudrate = 921600
+   5. press start ;-)
+3. all further updates are done by [OTA](###-regarding-base-framework) or [webupdate](###-update)
+
+You can also use the esptool.py as described shortly here https://github.com/ohAnd/dtuGateway/discussions/46#discussion-7106516 by @netzbasteln
+
+#### example for ESP32
+see also https://github.com/ohAnd/dtuGateway/discussions/35#discussioncomment-10519821
+1. download the preferred release as binary (see below)
+2. [only once] flash the esp32 board with the [esp download tool](https://www.espressif.com/en/support/download/other-tools)
+   1. get the needed bin files (see at doc/esp32_factoryFlash)
+      1. [bootloader.bin](doc/esp32_factoryFlash/bootloader.bin)
+      2. [partions.bin](doc/esp32_factoryFlash/partitions.bin)
+      3. [boot_app0.bin](doc/esp32_factoryFlash/boot_app0.bin)
+      4. current [release](https://github.com/ohAnd/dtuGateway/releases/latest) or [snapshot](https://github.com/ohAnd/dtuGateway/releases/latest)
+   2. select inside the flash tool the files 1.1 - 1.4 and set the following start adresses
+      1. bootloader.bin => 0x1000
+      2. partionions.bin => 0x8000
+      3. boot_app0.bin => 0xE000
+      4. firmware => 0x10000
    3. SPI speed 40 MHz
-   4. SPI Mode QIO
-   5. Flash Size 32 MBit-C1
+   5. SPI Mode QIO
    6. select your COM port and baudrate = 921600
-   7. press start ;-)
-3. all further updates are done by OTA (see chapters above) 
+   8. press start ;-)
+3. all further updates are done by [OTA](###-regarding-base-framework) or [webupdate](###-update)
 
 #### first setup with access point
 > prequesite:
 If you have directly attached a display, then in factory mode the used display is unknown. Default is OLED Display. To get the TFT running in factory mode, a change with each reboot is implemented. Means if you are powering on the first time the OLED will be choosen internally. The next power up the TFT will be chosen. And so on. So the 'first start' screen will be shown until the wifi settings will be changed over the webinterface.
 
-1. connect with the AP hoymilesGW_<chipID> (on smartphone sometimes you have to accept the connection explicitly with the knowledge there is no internet connectivity)
-2. open the website http://192.168.4.1 (or http://hoymilesGW.local) for the first configuration
+1. connect with the AP dtuGateway_<chipID> (on smartphone sometimes you have to accept the connection explicitly with the knowledge there is no internet connectivity)
+2. open the website http://192.168.4.1 (or http://dtuGateway.local) for the first configuration
 3. choose your wifi
 4. type in the wifi password - save
 5. in webfrontend setting your DTU IP adress within your local network (currently the user and password for dtu are not needed, for later integration relevant for a direct connection to the dtu over their access point)
@@ -371,6 +458,10 @@ If you have directly attached a display, then in factory mode the used display i
 4. response of the device will be `reinitialize UserConfig data and reboot ...`
 5. after reboot the device starting again in AP mode for first setup
 
+### update
+Via the web ui you can select the firmware file and start the update process. Please use the right firmware file according to your processor ESP8266 or ESP32.
+
+## releases
 ### main
 latest release - changes will documented by commit messages
 https://github.com/ohAnd/dtuGateway/releases/latest
@@ -407,12 +498,13 @@ With the manual login to dtu access point and forcing the storing of local wifi 
 - lot of single updates for power setting within few seconds (< 2-3) without any reading of values (e.g. realdata) -> it seems this creating no problems
 - therefore current setup -> no time limit for power setting, but reading data only every 31 seconds is running fine
 - sometimes hanging or full shutdown/ break of DTU will be prevented by sending an active reboot request to dtu (hanging detection at this time over grid voltage, should be changing at least within 10 consecutive incoming data)
-- with this setup: now the device is running for days without any stops (overall system point of view: target settings will be performed everytime, readed data will be available, no manual steps needed to recover the dtu connection)
+- with this setup: now the device is running for days without any stops (overall system point of view: target settings will be performed everytime, read data will be available, no manual steps needed to recover the dtu connection)
 
 
 ### hoymiles cloud update
 - everey 15 min (0,15,30,45) -> timestamp update
 - after 7 min 40 s update of graph data (if wifi not reachable, also reset of wifi AP)
+- if there is at these points an active connection to the dtu and current data will be requested, the update to the cloud will be interrupted and no current data for this point in time will be stored in the cloud
 
 ### sources
 
