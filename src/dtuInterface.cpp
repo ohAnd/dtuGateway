@@ -101,7 +101,7 @@ void DTUInterface::setPowerLimit(int limit)
     dtuGlobalData.powerLimitSet = limit;
     if (client->connected())
     {
-        Serial.println("DTUinterface:\t setPowerLimit: " + String(limit) + " - send command to DTU ...");
+        Serial.println("DTUinterface:\t try to set setPowerLimit: " + String(limit) + " %");
         writeReqCommand(limit);
     }
     else
@@ -129,11 +129,16 @@ void DTUInterface::dtuLoop()
 {
     txrxStateObserver();
 
+    // check if cloud pause is active to prevent cloud errors
     if (dtuConnection.preventCloudErrors)
         cloudPauseActiveControl();
     else
         dtuConnection.dtuActiveOffToCloudUpdate = false;
 
+    // check for last data received
+    checkingForLastDataReceived();
+
+    // check if we are in a cloud pause period
     if (dtuConnection.dtuActiveOffToCloudUpdate)
     {
         if (client->connected())
@@ -298,7 +303,7 @@ void DTUInterface::handleError(uint8_t errorState)
     {
         dtuConnection.dtuErrorState = errorState;
         dtuConnection.dtuConnectState = DTU_STATE_DTU_REBOOT;
-        Serial.print(F("+++ DTU Connection --- ERROR - try with reboot of DTU - error state: "));
+        Serial.print(F("DTUinterface:\t DTU Connection --- ERROR - try with reboot of DTU - error state: "));
         Serial.println(errorState);
         writeCommandRestartDevice();
         dtuGlobalData.dtuResetRequested = dtuGlobalData.dtuResetRequested + 1;
@@ -618,7 +623,7 @@ void DTUInterface::checkingDataUpdate()
     // Serial.println("DTUinterface:\t GridV check result: " + String(gridVoltValueHanging));
     if (gridVoltValueHanging)
     {
-        Serial.println(F("DTUinterface:\t grid voltage observer found hanging value - try to reboot DTU"));
+        Serial.println(F("DTUinterface:\t checkingDataUpdate -> grid voltage observer found hanging value - try to reboot DTU"));
         handleError(DTU_ERROR_DATA_NO_CHANGE);
         dtuGlobalData.uptodate = false;
     }
@@ -632,16 +637,41 @@ void DTUInterface::checkingDataUpdate()
         if (abs((int(dtuGlobalData.respTimestamp) - int(dtuGlobalData.currentTimestamp))) > 3)
         {
             dtuGlobalData.currentTimestamp = dtuGlobalData.respTimestamp;
-            Serial.print(F("\n>--> synced local time with DTU time <--<\n"));
+            Serial.print(F("DTUinterface:\t checkingDataUpdate ---> synced local time with DTU time\n"));
         }
     }
     else
     {
         dtuGlobalData.uptodate = false;
+        Serial.print(F("DTUinterface:\t checkingDataUpdate -> DTU_ERROR_NO_TIME\n"));
         // stopping connection to DTU when response time error - try with reconnec
         handleError(DTU_ERROR_NO_TIME);
     }
     dtuGlobalData.lastRespTimestamp = dtuGlobalData.respTimestamp;
+}
+
+void DTUInterface::checkingForLastDataReceived()
+{
+    // check if last data received - currentTimestamp + 5 sec (to debounce async current timestamp) - lastRespTimestamp > 3 min
+    if (((dtuGlobalData.currentTimestamp + 5) - dtuGlobalData.lastRespTimestamp) > (3 * 60) && dtuGlobalData.grid.voltage > 0 && dtuConnection.dtuErrorState != DTU_ERROR_LAST_SEND) // dtuGlobalData.grid.voltage > 0 indicates dtu/ inverter was working
+    {
+        dtuGlobalData.grid.power = 0;
+        dtuGlobalData.grid.current = 0;
+        dtuGlobalData.grid.voltage = 0;
+
+        dtuGlobalData.pv0.power = 0;
+        dtuGlobalData.pv0.current = 0;
+        dtuGlobalData.pv0.voltage = 0;
+
+        dtuGlobalData.pv1.power = 0;
+        dtuGlobalData.pv1.current = 0;
+        dtuGlobalData.pv1.voltage = 0;
+
+
+        dtuConnection.dtuErrorState = DTU_ERROR_LAST_SEND;
+        dtuGlobalData.updateReceived = true;
+        Serial.println("DTUinterface:\t checkingForLastDataReceived >>>>> TIMEOUT 5 min for DTU -> NIGHT - send zero values +++ currentTimestamp: " + String(dtuGlobalData.currentTimestamp) + " - lastRespTimestamp: " + String(dtuGlobalData.lastRespTimestamp));
+    }
 }
 
 void DTUInterface::writeReqAppGetHistPower()
@@ -1013,7 +1043,7 @@ boolean DTUInterface::readRespCommandRestartDevice(pb_istream_t istream)
     dtuConnection.dtuTxRxState = DTU_TXRX_STATE_IDLE;
     CommandReqDTO commandreqdto = CommandReqDTO_init_default;
 
-    Serial.print(" --> respCommand Restart - got remote: " + getTimeStringByTimestamp(commandreqdto.time));
+    Serial.print("DTUinterface:\t -readRespCommandRestartDevice - got remote: " + getTimeStringByTimestamp(commandreqdto.time));
 
     pb_decode(&istream, &GetConfigReqDTO_msg, &commandreqdto);
     Serial.printf("\ncommand req action: %i", commandreqdto.action);

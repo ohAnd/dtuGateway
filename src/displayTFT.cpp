@@ -294,6 +294,8 @@ void DisplayTFT::drawFooter(String time)
         {
             tft.setTextColor(SPECIAL_BLUE, TFT_BLACK);
             tft.drawCentreString("  " + String(lastDisplayData.totalPower) + " W  ", 120, 174, 4);
+        } else {
+            tft.fillRect(60, 170, 120, 37, TFT_BLACK); // clear power display
         }
 
         // // debug brightness

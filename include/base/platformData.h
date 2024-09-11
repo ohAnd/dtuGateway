@@ -13,6 +13,7 @@ struct baseDataStruct
   #elif defined(ESP32)
   uint64_t chipID = ESP.getEfuseMac();
   #endif
+  boolean esp32 = false;
   String espUniqueName = String(AP_NAME_START) + "_" + chipID;
 
   const char *fwVersion = VERSION;

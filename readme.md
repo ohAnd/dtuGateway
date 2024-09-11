@@ -39,7 +39,7 @@
 
 
 ## problem
-The new series of Hoymiles inverter with internal wireless access point and wireless client have no direct API to include this endpoint in smarthome installations/ IFTT environments.
+The newer series of Hoymiles inverter with internal wireless access point and wireless client have no direct API to include this endpoint in smarthome installations/ IFTT environments.
 
 Usually there should be no need for an extra device to "translate" the connection to common APIs or bindings. Unfortunately the interface on the dtu is unlikely unstable/ or not really stable.
 
@@ -77,10 +77,10 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
 - automatic reboot of DTU, if there is an error detected (e.g. inplausible not changed values)
  
 #### connections to the environment
-- serving the readed data per /api/data
+- serving the read data per /api/data.json
 - configuration of bindings with seperate activation and login data setting
-- binding: updating openHab instance with readed data and pulling set data from the instance
-- binding: updating to a MQTT broker with readed data incl. set PowerLimit over MQTT
+- binding: updating openHab instance with read data and pulling power set data from the instance
+- binding: updating to a MQTT broker with read data incl. subscribing to the Set PowerLimit over MQTT
   - 2 ways to configure - simple mqtt publishing with base topic or together with HA MQTT AutoDiscovery based
   - for all publishing retain flag is set (keeping last seen data in broker)
   - TLS connection to mqtt broker  e.g. for hivemq.cloud - ! only possible for ESP32 setup
@@ -101,18 +101,30 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
   - setting the orientation of the display via advanced web config[^2]
     - OLED - 0 and 180 degrees are supported
     - TFT - 0, 90, 180, 270 degrees are supported
-  - brightness and night mode (brightness only for OLED and TFT with connected backlight control)
+  - brightness and night mode (brightness only for TFT with connected backlight control and OLED)
     - with night mode enabled and during the active time frame the display will be
-      - off/ blank (without backlight control) or
+      - off (with backlight control)/ blank (without backlight control) or
       - show the current time and power (if greater than 0) in a reduced scope
     - adjustable via web config[^2]
       - brightness day [0...255] - will also be used without night mode enabled for standard brightness (falling back to this after power value changed)
-      - brightness night [0...255]
+      - brightness night [0...255] - note: 0 = backlight off
       - (to disable PWM control for TFT without backlight control set both brightness values to zero)
       - night mode enabled on/ off
       - night mode start in minutes to start of the day - e.g. 1320 for 22:00
       - night mode stop in minutes to start of the day - e.g. 360 for 6:00
-      - night clock enabled on/ of - on = clock will be displayed instead of dark screen
+      - night clock enabled on/ off - on = clock will be displayed instead of dark screen
+      - example settings:
+
+        | setting         | value | comment |
+        |-----------------|-------|---------
+        | brightnessDay   | 150   | note: 255 - ~150 only difficult to perceive
+        | brightnessNight |  30   | 
+        | nightClock      | true  | show the clock instead of black screen during night time
+        | nightMode       | true  | night mode is enabled
+        | nightmodeStart  | 1320  | night time will start at 22 o'clock
+        | nightmodeEnd    | 390   | night time will end at 6:30 
+
+
 - display hardware types
   - display SSH1106 OLED 1,3" 128x64 (other sizes with same driver (SSH1106) and resolution should also directly work)
     
@@ -486,12 +498,13 @@ With the manual login to dtu access point and forcing the storing of local wifi 
 - lot of single updates for power setting within few seconds (< 2-3) without any reading of values (e.g. realdata) -> it seems this creating no problems
 - therefore current setup -> no time limit for power setting, but reading data only every 31 seconds is running fine
 - sometimes hanging or full shutdown/ break of DTU will be prevented by sending an active reboot request to dtu (hanging detection at this time over grid voltage, should be changing at least within 10 consecutive incoming data)
-- with this setup: now the device is running for days without any stops (overall system point of view: target settings will be performed everytime, readed data will be available, no manual steps needed to recover the dtu connection)
+- with this setup: now the device is running for days without any stops (overall system point of view: target settings will be performed everytime, read data will be available, no manual steps needed to recover the dtu connection)
 
 
 ### hoymiles cloud update
 - everey 15 min (0,15,30,45) -> timestamp update
 - after 7 min 40 s update of graph data (if wifi not reachable, also reset of wifi AP)
+- if there is at these points an active connection to the dtu and current data will be requested, the update to the cloud will be interrupted and no current data for this point in time will be stored in the cloud
 
 ### sources
 

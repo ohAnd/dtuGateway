@@ -573,13 +573,13 @@ boolean getPowerSetDataFromOpenHab()
   }
   else
   {
-    Serial.print("got wrong data for SetLimit: " + openhabMessage);
+    Serial.println("OPENHAB:\t\t got wrong data for SetLimit: " + openhabMessage);
     return false;
   }
   if (lastOpenhabLimit != newLimit && lastOpenhabLimit != 255)
   {
     dtuGlobalData.powerLimitSet = newLimit;
-    Serial.println("OPENHAB: got new OH Limit: " + String(dtuGlobalData.powerLimitSet) + " - last OH limit: " + String(lastOpenhabLimit) + " %");
+    Serial.println("OPENHAB:\t\t got new OH Limit: " + String(dtuGlobalData.powerLimitSet) + " - last OH limit: " + String(lastOpenhabLimit) + " %");
   }
   lastOpenhabLimit = newLimit;
   return true;
@@ -668,9 +668,9 @@ void updateValuesToMqtt(boolean haAutoDiscovery = false)
 // update all apis according to current states and settings
 void updateDataToApis()
 {
-  if (!dtuConnection.dtuActiveOffToCloudUpdate)
+  if (!dtuConnection.dtuActiveOffToCloudUpdate) // normal update
   {
-    if ((globalControls.getDataAuto || globalControls.getDataOnce) && dtuGlobalData.uptodate)
+    if (((globalControls.getDataAuto || globalControls.getDataOnce) && dtuGlobalData.uptodate) || dtuConnection.dtuErrorState == DTU_ERROR_LAST_SEND)
     {
       if (userConfig.openhabActive)
         updateValueToOpenhab();
@@ -687,27 +687,6 @@ void updateDataToApis()
       }
       if (globalControls.getDataOnce)
         globalControls.getDataOnce = false;
-    }
-    else if ((dtuGlobalData.currentTimestamp - dtuGlobalData.lastRespTimestamp) > (5 * 60) && dtuGlobalData.grid.voltage > 0) // dtuGlobalData.grid.voltage > 0 indicates dtu/ inverter working
-    {
-      dtuGlobalData.grid.power = 0;
-      dtuGlobalData.grid.current = 0;
-      dtuGlobalData.grid.voltage = 0;
-
-      dtuGlobalData.pv0.power = 0;
-      dtuGlobalData.pv0.current = 0;
-      dtuGlobalData.pv0.voltage = 0;
-
-      dtuGlobalData.pv1.power = 0;
-      dtuGlobalData.pv1.current = 0;
-      dtuGlobalData.pv1.voltage = 0;
-
-      if (userConfig.openhabActive)
-        updateValueToOpenhab();
-      if (userConfig.mqttActive)
-        updateValuesToMqtt(userConfig.mqttHAautoDiscoveryON);
-      dtuConnection.dtuErrorState = DTU_ERROR_LAST_SEND;
-      Serial.print(F("\n>>>>> TIMEOUT 5 min for DTU -> NIGHT - send zero values\n"));
     }
   }
 }
@@ -728,6 +707,7 @@ void setup()
     platformData.chipID |= ((ESP.getEfuseMac() >> (40 - i)) & 0xff) << i;
   }
   platformData.espUniqueName = String(AP_NAME_START) + "_" + platformData.chipID;
+  platformData.esp32 = true;
 #endif
 
   // initialize digital pin LED_BLINK as an output.
@@ -1176,7 +1156,16 @@ void loop()
     // -------->
     // led blink code only 5 min after startup
     if ((platformData.currentNTPtime - platformData.dtuGWstarttime) < 300)
+    {
       blinkCodeTask();
+    }
+    // turn the LED off only if OLED or TFT with ESP8266 is connected
+    // ESP32 has an overlapping LED with the SCK pin of the SPI interface for the TFT
+    else if (userConfig.displayConnected == 0 || (userConfig.displayConnected == 1 && !platformData.esp32))
+    {
+      digitalWrite(LED_BLINK, LED_BLINK_OFF);
+    }
+
     serialInputTask();
 
     if (userConfig.mqttActive)
@@ -1281,9 +1270,8 @@ void loop()
         Serial.println("----- ----- set new power limit from " + String(dtuGlobalData.powerLimit) + " % to " + String(dtuGlobalData.powerLimitSet) + " % ----- ----- ");
         dtuInterface.setPowerLimit(dtuGlobalData.powerLimitSet);
         // set next normal request in 5 seconds from now on, only if last data updated within last 2 times of user setted update rate
-        // if (currentMillis - dtuGlobalData.lastRespTimestamp < (userConfig.dtuUpdateTime * 2))
-        // platformData.dtuNextUpdateCounterSeconds = currentMillis - (userConfig.dtuUpdateTime - 5);
-        platformData.dtuNextUpdateCounterSeconds = dtuGlobalData.currentTimestamp - userConfig.dtuUpdateTime + 5;
+        if (dtuGlobalData.currentTimestamp - dtuGlobalData.lastRespTimestamp < (userConfig.dtuUpdateTime * 2))
+          platformData.dtuNextUpdateCounterSeconds = dtuGlobalData.currentTimestamp - userConfig.dtuUpdateTime + 5;
       }
     }
 

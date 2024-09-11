@@ -145,6 +145,7 @@ private:
 
 
     void checkingDataUpdate();
+    void checkingForLastDataReceived();
     boolean cloudPauseActiveControl();
     
     // Protobuf functions
