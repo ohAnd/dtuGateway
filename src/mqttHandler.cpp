@@ -27,13 +27,13 @@ void MQTTHandler::subscribedMessageArrived(char *topic, byte *payload, unsigned 
     for (uint8_t i = 0; i < length; i++)
         incommingMessage += (char)payload[i];
 
-    Serial.println("MQTT: Message arrived [" + String(topic) + "] -> '" + incommingMessage + "'");
+    // Serial.println("MQTT: Message arrived [" + String(topic) + "] -> '" + incommingMessage + "'");
     if (instance != nullptr)
     {
         incommingMessage = incommingMessage.substring(1, length + 1); //'#' has to be ignored
         if (String(topic) == instance->mqttMainTopicPath + "/inverter/PowerLimit_Set")
         {
-            
+
             int gotLimit = (incommingMessage).toInt();
             uint8_t setLimit = 0;
             if (gotLimit >= 2 && gotLimit <= 100)
@@ -50,46 +50,55 @@ void MQTTHandler::subscribedMessageArrived(char *topic, byte *payload, unsigned 
         {
             // Serial.println("MQTT: received message for topic: " + String(topic) + " - value: " + incommingMessage);
             if (String(topic) == instance->mqttMainTopicPath + "/grid/P")
-            {
                 instance->lastRemoteInverterData.grid.power = incommingMessage.toFloat();
-            } else if(String(topic) == instance->mqttMainTopicPath + "/grid/U") {
+            else if (String(topic) == instance->mqttMainTopicPath + "/grid/U")
                 instance->lastRemoteInverterData.grid.voltage = incommingMessage.toFloat();
-            } else if(String(topic) == instance->mqttMainTopicPath + "/grid/I") {
+            else if (String(topic) == instance->mqttMainTopicPath + "/grid/I")
                 instance->lastRemoteInverterData.grid.current = incommingMessage.toFloat();
-            } else if(String(topic) == instance->mqttMainTopicPath + "/grid/dailyEnergy") {
+            else if (String(topic) == instance->mqttMainTopicPath + "/grid/dailyEnergy")
                 instance->lastRemoteInverterData.grid.dailyEnergy = incommingMessage.toFloat();
-            } else if(String(topic) == instance->mqttMainTopicPath + "/grid/totalEnergy") {
+            else if (String(topic) == instance->mqttMainTopicPath + "/grid/totalEnergy")
                 instance->lastRemoteInverterData.grid.totalEnergy = incommingMessage.toFloat();
-            } else if(String(topic) == instance->mqttMainTopicPath + "/pv0/P") {
+            else if (String(topic) == instance->mqttMainTopicPath + "/pv0/P")
                 instance->lastRemoteInverterData.pv0.power = incommingMessage.toFloat();
-            } else if(String(topic) == instance->mqttMainTopicPath + "/pv0/I") {
+            else if (String(topic) == instance->mqttMainTopicPath + "/pv0/I")
                 instance->lastRemoteInverterData.pv0.current = incommingMessage.toFloat();
-            } else if(String(topic) == instance->mqttMainTopicPath + "/pv0/U") {
+            else if (String(topic) == instance->mqttMainTopicPath + "/pv0/U")
                 instance->lastRemoteInverterData.pv0.voltage = incommingMessage.toFloat();
-            } else if(String(topic) == instance->mqttMainTopicPath + "/pv0/dailyEnergy") {
+            else if (String(topic) == instance->mqttMainTopicPath + "/pv0/dailyEnergy")
                 instance->lastRemoteInverterData.pv0.dailyEnergy = incommingMessage.toFloat();
-            } else if(String(topic) == instance->mqttMainTopicPath + "/pv0/totalEnergy") {
+            else if (String(topic) == instance->mqttMainTopicPath + "/pv0/totalEnergy")
                 instance->lastRemoteInverterData.pv0.totalEnergy = incommingMessage.toFloat();
-            } else if(String(topic) == instance->mqttMainTopicPath + "/pv1/P") {
+            else if (String(topic) == instance->mqttMainTopicPath + "/pv1/P")
                 instance->lastRemoteInverterData.pv1.power = incommingMessage.toFloat();
-            } else if(String(topic) == instance->mqttMainTopicPath + "/pv1/I") {
+            else if (String(topic) == instance->mqttMainTopicPath + "/pv1/I")
                 instance->lastRemoteInverterData.pv1.current = incommingMessage.toFloat();
-            } else if(String(topic) == instance->mqttMainTopicPath + "/pv1/U") {
+            else if (String(topic) == instance->mqttMainTopicPath + "/pv1/U")
                 instance->lastRemoteInverterData.pv1.voltage = incommingMessage.toFloat();
-            } else if(String(topic) == instance->mqttMainTopicPath + "/pv1/dailyEnergy") {
+            else if (String(topic) == instance->mqttMainTopicPath + "/pv1/dailyEnergy")
                 instance->lastRemoteInverterData.pv1.dailyEnergy = incommingMessage.toFloat();
-            } else if(String(topic) == instance->mqttMainTopicPath + "/pv1/totalEnergy") {
+            else if (String(topic) == instance->mqttMainTopicPath + "/pv1/totalEnergy")
                 instance->lastRemoteInverterData.pv1.totalEnergy = incommingMessage.toFloat();
-            } else if(String(topic) == instance->mqttMainTopicPath + "/inverter/Temp") {
+            else if (String(topic) == instance->mqttMainTopicPath + "/inverter/Temp")
                 instance->lastRemoteInverterData.inverterTemp = incommingMessage.toFloat();
-            } else if(String(topic) == instance->mqttMainTopicPath + "/inverter/PowerLimit") {
+            else if (String(topic) == instance->mqttMainTopicPath + "/inverter/PowerLimit")
                 instance->lastRemoteInverterData.powerLimit = incommingMessage.toInt();
-            } else if(String(topic) == instance->mqttMainTopicPath + "/inverter/WifiRSSI") {
+            else if (String(topic) == instance->mqttMainTopicPath + "/inverter/WifiRSSI")
                 instance->lastRemoteInverterData.dtuRssi = incommingMessage.toInt();
-            } else if(String(topic) == instance->mqttMainTopicPath + "/time/stamp") {
+            else if (String(topic) == instance->mqttMainTopicPath + "/inverter/cloudPause")
+            {
+                if (incommingMessage == "1")
+                    instance->lastRemoteInverterData.cloudPause = true;
+                else
+                    instance->lastRemoteInverterData.cloudPause = false;
+            }
+            else if (String(topic) == instance->mqttMainTopicPath + "/inverter/dtuConnectState")
+                instance->lastRemoteInverterData.dtuConnectState = incommingMessage.toInt();
+            else if (String(topic) == instance->mqttMainTopicPath + "/time/stamp")
+            {
                 instance->lastRemoteInverterData.respTimestamp = incommingMessage.toInt();
                 instance->lastRemoteInverterData.updateReceived = true;
-            }            
+            }
             else
             {
                 Serial.println("MQTT: received message for unknown topic: " + String(topic));
@@ -284,36 +293,40 @@ void MQTTHandler::reconnect()
                 client.subscribe((mqttMainTopicPath + "/grid/totalEnergy").c_str());
                 Serial.println("MQTT:\t\t subscribe to: " + (mqttMainTopicPath + "/grid/totalEnergy"));
 
-                client.subscribe((mqttMainTopicPath + "/pv0/P").c_str());   // Panel 0 power
+                client.subscribe((mqttMainTopicPath + "/pv0/P").c_str()); // Panel 0 power
                 Serial.println("MQTT:\t\t subscribe to: " + (mqttMainTopicPath + "/pv0/P"));
-                client.subscribe((mqttMainTopicPath + "/pv0/I").c_str());   // Panel 0 current
+                client.subscribe((mqttMainTopicPath + "/pv0/I").c_str()); // Panel 0 current
                 Serial.println("MQTT:\t\t subscribe to: " + (mqttMainTopicPath + "/pv0/I"));
-                client.subscribe((mqttMainTopicPath + "/pv0/U").c_str());   // Panel 0 voltage
+                client.subscribe((mqttMainTopicPath + "/pv0/U").c_str()); // Panel 0 voltage
                 Serial.println("MQTT:\t\t subscribe to: " + (mqttMainTopicPath + "/pv0/U"));
                 client.subscribe((mqttMainTopicPath + "/pv0/dailyEnergy").c_str());
                 Serial.println("MQTT:\t\t subscribe to: " + (mqttMainTopicPath + "/pv0/dailyEnergy"));
                 client.subscribe((mqttMainTopicPath + "/pv0/totalEnergy").c_str());
                 Serial.println("MQTT:\t\t subscribe to: " + (mqttMainTopicPath + "/pv0/totalEnergy"));
-                
-                client.subscribe((mqttMainTopicPath + "/pv1/P").c_str());   // Panel 1 power
+
+                client.subscribe((mqttMainTopicPath + "/pv1/P").c_str()); // Panel 1 power
                 Serial.println("MQTT:\t\t subscribe to: " + (mqttMainTopicPath + "/pv1/P"));
-                client.subscribe((mqttMainTopicPath + "/pv1/I").c_str());   // Panel 1 current
+                client.subscribe((mqttMainTopicPath + "/pv1/I").c_str()); // Panel 1 current
                 Serial.println("MQTT:\t\t subscribe to: " + (mqttMainTopicPath + "/pv1/I"));
-                client.subscribe((mqttMainTopicPath + "/pv1/U").c_str());   // Panel 1 voltage
+                client.subscribe((mqttMainTopicPath + "/pv1/U").c_str()); // Panel 1 voltage
                 Serial.println("MQTT:\t\t subscribe to: " + (mqttMainTopicPath + "/pv1/U"));
                 client.subscribe((mqttMainTopicPath + "/pv1/dailyEnergy").c_str());
                 Serial.println("MQTT:\t\t subscribe to: " + (mqttMainTopicPath + "/pv1/dailyEnergy"));
                 client.subscribe((mqttMainTopicPath + "/pv1/totalEnergy").c_str());
                 Serial.println("MQTT:\t\t subscribe to: " + (mqttMainTopicPath + "/pv1/totalEnergy"));
-                
+
                 client.subscribe((mqttMainTopicPath + "/inverter/Temp").c_str());
                 Serial.println("MQTT:\t\t subscribe to: " + (mqttMainTopicPath + "/inverter/Temp"));
                 client.subscribe((mqttMainTopicPath + "/inverter/PowerLimit").c_str());
                 Serial.println("MQTT:\t\t subscribe to: " + (mqttMainTopicPath + "/inverter/PowerLimit"));
                 client.subscribe((mqttMainTopicPath + "/inverter/WifiRSSI").c_str());
                 Serial.println("MQTT:\t\t subscribe to: " + (mqttMainTopicPath + "/inverter/WifiRSSI"));
+                client.subscribe((mqttMainTopicPath + "/inverter/cloudPause").c_str());
+                Serial.println("MQTT:\t\t subscribe to: " + (mqttMainTopicPath + "/inverter/dtuConnectState"));
+                client.subscribe((mqttMainTopicPath + "/inverter/dtuConnectState").c_str());
+                Serial.println("MQTT:\t\t subscribe to: " + (mqttMainTopicPath + "/inverter/cloudPause"));
                 client.subscribe((mqttMainTopicPath + "/time/stamp").c_str());
-                Serial.println("MQTT:\t\t subscribe to: " + (mqttMainTopicPath + "/time_stamp"));                
+                Serial.println("MQTT:\t\t subscribe to: " + (mqttMainTopicPath + "/time_stamp"));
             }
             else
             {
@@ -381,11 +394,14 @@ void MQTTHandler::setUseTLS(bool useTLS)
 {
     stopConnection();
     this->useTLS = useTLS;
-    if(useTLS) {
+    if (useTLS)
+    {
         wifiClientSecure.setInsecure();
         client.setClient(wifiClientSecure);
         Serial.println("MQTT:\t\t setUseTLS: initialized with TLS");
-    } else {
+    }
+    else
+    {
         client.setClient(wifiClient);
         Serial.println("MQTT:\t\t setUseTLS: initialized without TLS");
     }

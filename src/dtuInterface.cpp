@@ -669,6 +669,8 @@ void DTUInterface::checkingForLastDataReceived()
 
 
         dtuConnection.dtuErrorState = DTU_ERROR_LAST_SEND;
+        dtuConnection.dtuActiveOffToCloudUpdate = false;
+        dtuConnection.dtuConnectState = DTU_STATE_OFFLINE;
         dtuGlobalData.updateReceived = true;
         Serial.println("DTUinterface:\t checkingForLastDataReceived >>>>> TIMEOUT 5 min for DTU -> NIGHT - send zero values +++ currentTimestamp: " + String(dtuGlobalData.currentTimestamp) + " - lastRespTimestamp: " + String(dtuGlobalData.lastRespTimestamp));
     }
@@ -1071,6 +1073,7 @@ boolean DTUInterface::cloudPauseActiveControl()
         Serial.print(F("----> switch ''OFF'' DTU server connection to upload data from DTU to Cloud\n\n"));
         lastSwOff = dtuGlobalData.currentTimestamp;
         dtuConnection.dtuActiveOffToCloudUpdate = true;
+        dtuGlobalData.updateReceived = true; // update at start of pause
     }
     else if (dtuGlobalData.currentTimestamp > lastSwOff + DTU_CLOUD_UPLOAD_SECONDS && dtuConnection.dtuActiveOffToCloudUpdate)
     {

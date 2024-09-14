@@ -657,6 +657,8 @@ void updateValuesToMqtt(boolean haAutoDiscovery = false)
   keyValueStore["inverter_Temp"] = String(dtuGlobalData.inverterTemp).c_str();
   keyValueStore["inverter_PowerLimit"] = String(dtuGlobalData.powerLimit).c_str();
   keyValueStore["inverter_WifiRSSI"] = String(dtuGlobalData.dtuRssi).c_str();
+  keyValueStore["inverter_cloudPause"] = String(dtuConnection.dtuActiveOffToCloudUpdate).c_str();
+  keyValueStore["inverter_dtuConnectState"] = String(dtuConnection.dtuConnectState).c_str();
   // copy
   for (const auto &pair : keyValueStore)
   {
@@ -668,28 +670,28 @@ void updateValuesToMqtt(boolean haAutoDiscovery = false)
 // update all apis according to current states and settings
 void updateDataToApis()
 {
-  if (!dtuConnection.dtuActiveOffToCloudUpdate) // normal update
+  // if (!dtuConnection.dtuActiveOffToCloudUpdate) // normal update
+  // {
+  if (((globalControls.getDataAuto || globalControls.getDataOnce) && dtuGlobalData.uptodate) || dtuConnection.dtuErrorState == DTU_ERROR_LAST_SEND)
   {
-    if (((globalControls.getDataAuto || globalControls.getDataOnce) && dtuGlobalData.uptodate) || dtuConnection.dtuErrorState == DTU_ERROR_LAST_SEND)
-    {
-      if (userConfig.openhabActive)
-        updateValueToOpenhab();
-      if (userConfig.mqttActive)
-        updateValuesToMqtt(userConfig.mqttHAautoDiscoveryON);
+    if (userConfig.openhabActive)
+      updateValueToOpenhab();
+    if (userConfig.mqttActive)
+      updateValuesToMqtt(userConfig.mqttHAautoDiscoveryON);
 
-      if (globalControls.dataFormatJSON)
-      {
-        dtuInterface.printDataAsJsonToSerial();
-      }
-      else
-      {
-        dtuInterface.printDataAsTextToSerial();
-      }
-      if (globalControls.getDataOnce)
-        globalControls.getDataOnce = false;
+    if (globalControls.dataFormatJSON)
+    {
+      dtuInterface.printDataAsJsonToSerial();
     }
+    else
+    {
+      dtuInterface.printDataAsTextToSerial();
+    }
+    if (globalControls.getDataOnce)
+      globalControls.getDataOnce = false;
   }
 }
+// }
 
 // ****
 
@@ -1203,6 +1205,11 @@ void loop()
         dtuGlobalData.powerLimit = remoteData.powerLimit;
         dtuGlobalData.dtuRssi = remoteData.dtuRssi;
 
+        if (remoteData.cloudPause)
+          dtuConnection.dtuActiveOffToCloudUpdate = true;
+        else
+          dtuConnection.dtuActiveOffToCloudUpdate = false;
+        dtuConnection.dtuConnectState = remoteData.dtuConnectState;
         dtuGlobalData.lastRespTimestamp = remoteData.respTimestamp;
         dtuGlobalData.currentTimestamp = remoteData.respTimestamp; // setting the local counter
         Serial.println("\nMQTT: changed remote inverter data");
@@ -1289,7 +1296,7 @@ void loop()
   {
     Serial.printf(">>>>> %02is task - state --> ", int(interval5000ms));
     Serial.print("local: " + dtuInterface.getTimeStringByTimestamp(dtuGlobalData.currentTimestamp));
-    Serial.println(" --- NTP: " + timeClient.getFormattedTime());
+    Serial.println(" --- NTP: " + timeClient.getFormattedTime() + " ---> dtuConnState: " + String(dtuConnection.dtuConnectState));
 
     previousMillis5000ms = currentMillis;
     // -------->
