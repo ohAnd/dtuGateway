@@ -57,6 +57,7 @@ struct connectionControl
 {
   boolean preventCloudErrors = true;
   boolean dtuActiveOffToCloudUpdate = false;
+  boolean dtuConnectionOnline = true;          // true if connection is online as valued a summary
   uint8_t dtuConnectState = DTU_STATE_OFFLINE;
   uint8_t dtuErrorState = DTU_ERROR_NO_ERROR;
   uint8_t dtuTxRxState = DTU_TXRX_STATE_IDLE;
@@ -142,12 +143,14 @@ private:
     void initializeCRC();
 
     static void txrxStateObserver();
-
+    boolean lastOnlineOfflineState = false;
+    unsigned long lastOnlineOfflineChange = 0;
+    void dtuConnectionObserver();
 
     void checkingDataUpdate();
     void checkingForLastDataReceived();
     boolean cloudPauseActiveControl();
-    
+        
     // Protobuf functions
     void writeReqAppGetHistPower();
     void readRespAppGetHistPower(pb_istream_t istream);

@@ -658,6 +658,7 @@ void updateValuesToMqtt(boolean haAutoDiscovery = false)
   keyValueStore["inverter_PowerLimit"] = String(dtuGlobalData.powerLimit).c_str();
   keyValueStore["inverter_WifiRSSI"] = String(dtuGlobalData.dtuRssi).c_str();
   keyValueStore["inverter_cloudPause"] = String(dtuConnection.dtuActiveOffToCloudUpdate).c_str();
+  keyValueStore["inverter_dtuConnectionOnline"] = String(dtuConnection.dtuConnectionOnline).c_str();
   keyValueStore["inverter_dtuConnectState"] = String(dtuConnection.dtuConnectState).c_str();
   // copy
   for (const auto &pair : keyValueStore)
@@ -1205,10 +1206,9 @@ void loop()
         dtuGlobalData.powerLimit = remoteData.powerLimit;
         dtuGlobalData.dtuRssi = remoteData.dtuRssi;
 
-        if (remoteData.cloudPause)
-          dtuConnection.dtuActiveOffToCloudUpdate = true;
-        else
-          dtuConnection.dtuActiveOffToCloudUpdate = false;
+        dtuConnection.dtuActiveOffToCloudUpdate = remoteData.cloudPause;
+        dtuConnection.dtuConnectionOnline = remoteData.dtuConnectionOnline;
+
         dtuConnection.dtuConnectState = remoteData.dtuConnectState;
         dtuGlobalData.lastRespTimestamp = remoteData.respTimestamp;
         dtuGlobalData.currentTimestamp = remoteData.respTimestamp; // setting the local counter
@@ -1264,7 +1264,7 @@ void loop()
       if (dtuConnection.dtuActiveOffToCloudUpdate)
         blinkCode = BLINK_PAUSE_CLOUD_UPDATE;
 
-      if (userConfig.openhabActive) // && dtuConnection.dtuConnectState == DTU_STATE_CONNECTED)
+      if (userConfig.openhabActive && !userConfig.remoteDisplayActive)
         getPowerSetDataFromOpenHab();
 
       // direct request of new powerLimit

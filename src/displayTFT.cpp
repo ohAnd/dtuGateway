@@ -110,12 +110,7 @@ void DisplayTFT::drawScreen(String version, String time)
             drawMainDTUOnline(true);
             displayState = 0;
         }
-        // else if (lastDisplayData.remoteDisplayActive)
-        // {
-        //     drawMainDTUOnline();
-        //     displayState = 2;
-        // }
-        else if (dtuConnection.dtuConnectState == DTU_STATE_OFFLINE || dtuConnection.dtuConnectState == DTU_STATE_TRY_RECONNECT || dtuConnection.dtuConnectState == DTU_STATE_CONNECT_ERROR || dtuConnection.dtuConnectState == DTU_STATE_STOPPED)
+        else if (dtuConnection.dtuConnectionOnline == false)
         {
             drawMainDTUOffline();
             displayState = 3;
@@ -376,30 +371,59 @@ void DisplayTFT::setBrightnessAuto()
 
 void DisplayTFT::checkNightMode()
 {
+    boolean isNightBySchedule = false;
+    boolean isNightByOffline = false;
     // get currentTime in minutes to 00:00 of current day from current time in minutes to 1.1.1970 00:00
     uint16_t currentTime = (platformData.currentNTPtime / 60) % 1440;
     // Serial.println("current time in minutes today: " + String(currentTime) + " - start: " + String(userConfig.displayNightmodeStart) + " - end: " + String(userConfig.displayNightmodeEnd) + " - current brightness: " + String(brightness) + " - dtuState: " + String(dtuConnection.dtuConnectState) + " night: " + String(isNight));
     if (userConfig.displayNightMode)
     {
+        // schedule trigger
         // check if night mode can be activated - start time is smaller than end time
         if (
             (userConfig.displayNightmodeStart < userConfig.displayNightmodeEnd && currentTime >= userConfig.displayNightmodeStart && currentTime < userConfig.displayNightmodeEnd) ||
             (userConfig.displayNightmodeStart > userConfig.displayNightmodeEnd && (currentTime >= userConfig.displayNightmodeStart || currentTime < userConfig.displayNightmodeEnd)))
         {
-            // Serial.println(" >> night mode active");
-            if (!isNight)
-            {
-                isNight = true;
-                Serial.println("DisplayTFT:\t >> night mode activated");
-            }
+            isNightBySchedule = true;
+            // Serial.println("DisplayTFT:\t >> night mode activated by schedule");
         }
         else
         {
-            // Serial.println(" >> day mode active");
+            isNightBySchedule = false;
+            // Serial.println("DisplayTFT:\t >> day mode activated by schedule");
+        }
+
+        // offline trigger
+        if (dtuConnection.dtuConnectionOnline == true)
+        {
+            isNightByOffline = false;
+            // Serial.println("DisplayTFT:\t >> night mode activated by offline trigger");
+        }
+        else if (dtuConnection.dtuConnectionOnline == false)
+        {
+            isNightByOffline = true;
+            // Serial.println("DisplayTFT:\t >> day mode activated by offline trigger");
+        }
+
+        // summary
+        // start night mode if schedule or offline trigger (when enabled) is active
+        if (isNightBySchedule || (userConfig.displayNightModeOfflineTrigger && isNightByOffline))
+        {
+            if (!isNight)
+            {
+                isNight = true;
+                Serial.println("DisplayTFT:\t >> night mode activated - schedule: " + String(isNightBySchedule) + " - offline: " + String(isNightByOffline));
+            }
+        }
+        // start day mode if 
+        // offline trigger is enabled and schedule is not active and offline is not active OR
+        // offline trigger is dsiabled and schedule is not active
+        else if ((userConfig.displayNightModeOfflineTrigger && !isNightBySchedule && !isNightByOffline) || (!userConfig.displayNightModeOfflineTrigger && !isNightBySchedule))
+        {
             if (isNight)
             {
                 isNight = false;
-                Serial.println("DisplayTFT:\t >> day mode activated");
+                Serial.println("DisplayTFT:\t >> day mode activated - schedule: " + String(isNightBySchedule) + " - offline: " + String(isNightByOffline));
             }
         }
     }

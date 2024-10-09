@@ -173,6 +173,8 @@ void UserConfigManager::printConfigdata()
     Serial.println(userConfig.displayNightClock);
     Serial.print(F("display night mode: \t\t"));
     Serial.println(userConfig.displayNightMode);
+    Serial.print(F("display night mode offline trigger: \t"));
+    Serial.println(userConfig.displayNightModeOfflineTrigger);
     Serial.print(F("display nightmode start: \t"));
     Serial.println(userConfig.displayNightmodeStart);
     Serial.print(F("display nightmode end: \t\t"));
@@ -216,6 +218,7 @@ JsonDocument UserConfigManager::mappingStructToJson(const UserConfig &config)
     doc["display"]["brightnessNight"] = config.displayBrightnessNight;
     doc["display"]["nightClock"] = config.displayNightClock;
     doc["display"]["nightMode"] = config.displayNightMode;
+    doc["display"]["nightModeOfflineTrigger"] = config.displayNightModeOfflineTrigger;
     doc["display"]["nightmodeStart"] = config.displayNightmodeStart;
     doc["display"]["nightmodeEnd"] = config.displayNightmodeEnd;
 
@@ -259,6 +262,7 @@ void UserConfigManager::mappingJsonToStruct(JsonDocument doc)
     userConfig.displayBrightnessNight = doc["display"]["brightnessNight"];
     userConfig.displayNightClock = doc["display"]["nightClock"];
     userConfig.displayNightMode = doc["display"]["nightMode"];
+    userConfig.displayNightModeOfflineTrigger = doc["display"]["nightModeOfflineTrigger"].as<bool>();
     userConfig.displayNightmodeStart = doc["display"]["nightmodeStart"];
     userConfig.displayNightmodeEnd = doc["display"]["nightmodeEnd"];
 

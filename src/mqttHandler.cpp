@@ -92,6 +92,13 @@ void MQTTHandler::subscribedMessageArrived(char *topic, byte *payload, unsigned 
                 else
                     instance->lastRemoteInverterData.cloudPause = false;
             }
+            else if (String(topic) == instance->mqttMainTopicPath + "/inverter/dtuConnectionOnline")
+            {
+                if (incommingMessage == "1")
+                    instance->lastRemoteInverterData.dtuConnectionOnline = true;
+                else
+                    instance->lastRemoteInverterData.dtuConnectionOnline = false;
+            }
             else if (String(topic) == instance->mqttMainTopicPath + "/inverter/dtuConnectState")
                 instance->lastRemoteInverterData.dtuConnectState = incommingMessage.toInt();
             else if (String(topic) == instance->mqttMainTopicPath + "/time/stamp")
@@ -323,6 +330,8 @@ void MQTTHandler::reconnect()
                 Serial.println("MQTT:\t\t subscribe to: " + (mqttMainTopicPath + "/inverter/WifiRSSI"));
                 client.subscribe((mqttMainTopicPath + "/inverter/cloudPause").c_str());
                 Serial.println("MQTT:\t\t subscribe to: " + (mqttMainTopicPath + "/inverter/dtuConnectState"));
+                client.subscribe((mqttMainTopicPath + "/inverter/dtuConnectionOnline").c_str());
+                Serial.println("MQTT:\t\t subscribe to: " + (mqttMainTopicPath + "/inverter/dtuConnectionOnline"));
                 client.subscribe((mqttMainTopicPath + "/inverter/dtuConnectState").c_str());
                 Serial.println("MQTT:\t\t subscribe to: " + (mqttMainTopicPath + "/inverter/cloudPause"));
                 client.subscribe((mqttMainTopicPath + "/time/stamp").c_str());

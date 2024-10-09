@@ -38,12 +38,6 @@ void DTUInterface::setup(const char *server)
     }
 }
 
-void DTUInterface::setServer(const char *server)
-{
-    serverIP = server;
-    disconnect(DTU_STATE_OFFLINE);
-}
-
 void DTUInterface::connect()
 {
     if (client && !client->connected() && !dtuConnection.dtuActiveOffToCloudUpdate)
@@ -96,6 +90,12 @@ void DTUInterface::getDataUpdate()
     }
 }
 
+void DTUInterface::setServer(const char *server)
+{
+    serverIP = server;
+    disconnect(DTU_STATE_OFFLINE);
+}
+
 void DTUInterface::setPowerLimit(int limit)
 {
     dtuGlobalData.powerLimitSet = limit;
@@ -128,6 +128,7 @@ void DTUInterface::requestRestartDevice()
 void DTUInterface::dtuLoop()
 {
     txrxStateObserver();
+    dtuConnectionObserver();
 
     // check if cloud pause is active to prevent cloud errors
     if (dtuConnection.preventCloudErrors)
@@ -196,6 +197,38 @@ void DTUInterface::txrxStateObserver()
     {
         Serial.println(F("DTUinterface:\t stateObserver - timeout - reset txrx state to DTU_TXRX_STATE_IDLE"));
         dtuConnection.dtuTxRxState = DTU_TXRX_STATE_IDLE;
+    }
+}
+
+void DTUInterface::dtuConnectionObserver()
+{
+    boolean currentOnlineOfflineState = false;
+    if (dtuConnection.dtuConnectState == DTU_STATE_CONNECTED || dtuConnection.dtuConnectState == DTU_STATE_CLOUD_PAUSE)
+    {
+        currentOnlineOfflineState = true;
+    }
+    else if (dtuConnection.dtuConnectState == DTU_STATE_OFFLINE || dtuConnection.dtuConnectState == DTU_STATE_TRY_RECONNECT || dtuConnection.dtuConnectState == DTU_STATE_STOPPED || dtuConnection.dtuConnectState == DTU_STATE_CONNECT_ERROR || dtuConnection.dtuConnectState == DTU_STATE_DTU_REBOOT)
+    {
+        currentOnlineOfflineState = false;
+    }
+
+    if (currentOnlineOfflineState != lastOnlineOfflineState)
+    {
+        Serial.println("DTUinterface:\t setOverallOnlineOfflineState - change from " + String(lastOnlineOfflineState) + " to " + String(dtuConnection.dtuConnectionOnline));
+        lastOnlineOfflineChange = millis();
+        lastOnlineOfflineState = currentOnlineOfflineState;
+    }
+
+    // summary of connection state
+    if (currentOnlineOfflineState)
+    {
+        dtuConnection.dtuConnectionOnline = true;
+    }
+    else if (millis() - lastOnlineOfflineChange > 90000 && currentOnlineOfflineState == false)
+    {
+        Serial.print(F("DTUinterface:\t setOverallOnlineOfflineState - timeout - reset online offline state"));
+        Serial.println(" - difference: " + String((millis() - lastOnlineOfflineChange)/1000,3) + " ms - current conn state: " + String(dtuConnection.dtuConnectState));
+        dtuConnection.dtuConnectionOnline = false;
     }
 }
 
@@ -441,7 +474,89 @@ void DTUInterface::initializeCRC()
     // Serial.println(F("DTUinterface:\t CRC initialized"));
 }
 
-// // protocol buffer methods
+void DTUInterface::checkingForLastDataReceived()
+{
+    // check if last data received - currentTimestamp + 5 sec (to debounce async current timestamp) - lastRespTimestamp > 3 min
+    if (((dtuGlobalData.currentTimestamp + 5) - dtuGlobalData.lastRespTimestamp) > (3 * 60) && dtuGlobalData.grid.voltage > 0 && dtuConnection.dtuErrorState != DTU_ERROR_LAST_SEND) // dtuGlobalData.grid.voltage > 0 indicates dtu/ inverter was working
+    {
+        dtuGlobalData.grid.power = 0;
+        dtuGlobalData.grid.current = 0;
+        dtuGlobalData.grid.voltage = 0;
+
+        dtuGlobalData.pv0.power = 0;
+        dtuGlobalData.pv0.current = 0;
+        dtuGlobalData.pv0.voltage = 0;
+
+        dtuGlobalData.pv1.power = 0;
+        dtuGlobalData.pv1.current = 0;
+        dtuGlobalData.pv1.voltage = 0;
+
+        dtuConnection.dtuErrorState = DTU_ERROR_LAST_SEND;
+        dtuConnection.dtuActiveOffToCloudUpdate = false;
+        dtuConnection.dtuConnectState = DTU_STATE_OFFLINE;
+        dtuGlobalData.updateReceived = true;
+        Serial.println("DTUinterface:\t checkingForLastDataReceived >>>>> TIMEOUT 5 min for DTU -> NIGHT - send zero values +++ currentTimestamp: " + String(dtuGlobalData.currentTimestamp) + " - lastRespTimestamp: " + String(dtuGlobalData.lastRespTimestamp));
+    }
+}
+
+/**
+ * @brief Checks for data updates and performs necessary actions.
+ *
+ * This function checks for hanging values on the DTU side and updates the grid voltage history.
+ * It also checks if the response timestamp has changed and updates the local time if necessary.
+ * If there is a response time error, it stops the connection to the DTU.
+ */
+void DTUInterface::checkingDataUpdate()
+{
+    // checking for hanging values on DTU side
+    // fill grid voltage history
+    gridVoltHist[gridVoltCnt++] = dtuGlobalData.grid.voltage;
+    if (gridVoltCnt > 9)
+        gridVoltCnt = 0;
+
+    bool gridVoltValueHanging = true;
+    // Serial.println(F("DTUinterface:\t GridV check"));
+    // compare all values in history with the first value - if all are equal, then the value is hanging
+    for (uint8_t i = 1; i < 10; i++)
+    {
+        // Serial.println("DTUinterface:\t --> " + String(i) + " compare : " + String(gridVoltHist[i]) + " V - with: " + String(gridVoltHist[0]) + " V");
+        if (gridVoltHist[i] != gridVoltHist[0])
+        {
+            gridVoltValueHanging = false;
+            break;
+        }
+    }
+    // Serial.println("DTUinterface:\t GridV check result: " + String(gridVoltValueHanging));
+    if (gridVoltValueHanging)
+    {
+        Serial.println(F("DTUinterface:\t checkingDataUpdate -> grid voltage observer found hanging value (DTU_ERROR_DATA_NO_CHANGE) - try to reboot DTU"));
+        handleError(DTU_ERROR_DATA_NO_CHANGE);
+        dtuGlobalData.uptodate = false;
+    }
+
+    // check for up-to-date - last response timestamp have to not equal the current response timestamp
+    if ((dtuGlobalData.lastRespTimestamp != dtuGlobalData.respTimestamp) && (dtuGlobalData.respTimestamp != 0))
+    {
+        dtuGlobalData.uptodate = true;
+        dtuConnection.dtuErrorState = DTU_ERROR_NO_ERROR;
+        // sync local time (in seconds) to DTU time, only if abbrevation about 3 seconds
+        if (abs((int(dtuGlobalData.respTimestamp) - int(dtuGlobalData.currentTimestamp))) > 3)
+        {
+            dtuGlobalData.currentTimestamp = dtuGlobalData.respTimestamp;
+            Serial.print(F("DTUinterface:\t checkingDataUpdate ---> synced local time with DTU time\n"));
+        }
+    }
+    else
+    {
+        dtuGlobalData.uptodate = false;
+        Serial.println(F("DTUinterface:\t checkingDataUpdate -> (DTU_ERROR_NO_TIME) - try to reboot DTU"));
+        // stopping connection to DTU when response time error - try with reconnec
+        handleError(DTU_ERROR_NO_TIME);
+    }
+    dtuGlobalData.lastRespTimestamp = dtuGlobalData.respTimestamp;
+}
+
+// protocol buffer methods
 
 void DTUInterface::writeReqRealDataNew()
 {
@@ -589,90 +704,8 @@ void DTUInterface::readRespRealDataNew(pb_istream_t istream)
     }
     else
     {
+        Serial.println(F("DTUinterface:\t readRespRealDataNew -> got timestamp == 0 (DTU_ERROR_NO_TIME) - try to reboot DTU"));
         handleError(DTU_ERROR_NO_TIME);
-    }
-}
-
-/**
- * @brief Checks for data updates and performs necessary actions.
- *
- * This function checks for hanging values on the DTU side and updates the grid voltage history.
- * It also checks if the response timestamp has changed and updates the local time if necessary.
- * If there is a response time error, it stops the connection to the DTU.
- */
-void DTUInterface::checkingDataUpdate()
-{
-    // checking for hanging values on DTU side
-    // fill grid voltage history
-    gridVoltHist[gridVoltCnt++] = dtuGlobalData.grid.voltage;
-    if (gridVoltCnt > 9)
-        gridVoltCnt = 0;
-
-    bool gridVoltValueHanging = true;
-    // Serial.println(F("DTUinterface:\t GridV check"));
-    // compare all values in history with the first value - if all are equal, then the value is hanging
-    for (uint8_t i = 1; i < 10; i++)
-    {
-        // Serial.println("DTUinterface:\t --> " + String(i) + " compare : " + String(gridVoltHist[i]) + " V - with: " + String(gridVoltHist[0]) + " V");
-        if (gridVoltHist[i] != gridVoltHist[0])
-        {
-            gridVoltValueHanging = false;
-            break;
-        }
-    }
-    // Serial.println("DTUinterface:\t GridV check result: " + String(gridVoltValueHanging));
-    if (gridVoltValueHanging)
-    {
-        Serial.println(F("DTUinterface:\t checkingDataUpdate -> grid voltage observer found hanging value - try to reboot DTU"));
-        handleError(DTU_ERROR_DATA_NO_CHANGE);
-        dtuGlobalData.uptodate = false;
-    }
-
-    // check for up-to-date - last response timestamp have to not equal the current response timestamp
-    if ((dtuGlobalData.lastRespTimestamp != dtuGlobalData.respTimestamp) && (dtuGlobalData.respTimestamp != 0))
-    {
-        dtuGlobalData.uptodate = true;
-        dtuConnection.dtuErrorState = DTU_ERROR_NO_ERROR;
-        // sync local time (in seconds) to DTU time, only if abbrevation about 3 seconds
-        if (abs((int(dtuGlobalData.respTimestamp) - int(dtuGlobalData.currentTimestamp))) > 3)
-        {
-            dtuGlobalData.currentTimestamp = dtuGlobalData.respTimestamp;
-            Serial.print(F("DTUinterface:\t checkingDataUpdate ---> synced local time with DTU time\n"));
-        }
-    }
-    else
-    {
-        dtuGlobalData.uptodate = false;
-        Serial.print(F("DTUinterface:\t checkingDataUpdate -> DTU_ERROR_NO_TIME\n"));
-        // stopping connection to DTU when response time error - try with reconnec
-        handleError(DTU_ERROR_NO_TIME);
-    }
-    dtuGlobalData.lastRespTimestamp = dtuGlobalData.respTimestamp;
-}
-
-void DTUInterface::checkingForLastDataReceived()
-{
-    // check if last data received - currentTimestamp + 5 sec (to debounce async current timestamp) - lastRespTimestamp > 3 min
-    if (((dtuGlobalData.currentTimestamp + 5) - dtuGlobalData.lastRespTimestamp) > (3 * 60) && dtuGlobalData.grid.voltage > 0 && dtuConnection.dtuErrorState != DTU_ERROR_LAST_SEND) // dtuGlobalData.grid.voltage > 0 indicates dtu/ inverter was working
-    {
-        dtuGlobalData.grid.power = 0;
-        dtuGlobalData.grid.current = 0;
-        dtuGlobalData.grid.voltage = 0;
-
-        dtuGlobalData.pv0.power = 0;
-        dtuGlobalData.pv0.current = 0;
-        dtuGlobalData.pv0.voltage = 0;
-
-        dtuGlobalData.pv1.power = 0;
-        dtuGlobalData.pv1.current = 0;
-        dtuGlobalData.pv1.voltage = 0;
-
-
-        dtuConnection.dtuErrorState = DTU_ERROR_LAST_SEND;
-        dtuConnection.dtuActiveOffToCloudUpdate = false;
-        dtuConnection.dtuConnectState = DTU_STATE_OFFLINE;
-        dtuGlobalData.updateReceived = true;
-        Serial.println("DTUinterface:\t checkingForLastDataReceived >>>>> TIMEOUT 5 min for DTU -> NIGHT - send zero values +++ currentTimestamp: " + String(dtuGlobalData.currentTimestamp) + " - lastRespTimestamp: " + String(dtuGlobalData.lastRespTimestamp));
     }
 }
 
