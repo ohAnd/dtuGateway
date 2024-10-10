@@ -278,7 +278,6 @@ void DisplayTFT::drawFooter(String time)
         tft.drawCentreString("yield", 120, 225, 1);
         
         tft.setTextColor(TFT_CYAN, TFT_BLACK);
-        lastDisplayData.totalYieldTotal = 1055.7;
         tft.drawCentreString(String(lastDisplayData.totalYieldDay, 3), 85, 198, 2);
         tft.drawCentreString(String(lastDisplayData.totalYieldTotal, 1), 155, 198, 2);
     }
