@@ -25,6 +25,9 @@ void DisplayTFT::setup()
         orientation = 3;
     tft.setRotation(orientation);
     tft.fillScreen(TFT_BLACK);
+    // Swap the colour byte order when rendering
+    tft.setSwapBytes(true);
+
     pinMode(BACKLIIGHT_PIN, OUTPUT);
     brightness = userConfig.displayBrightnessDay;
     // set brightness to max - workaround for unconfigured brightness and no backlight control
@@ -105,19 +108,16 @@ void DisplayTFT::drawScreen(String version, String time)
         else if (dtuConnection.dtuConnectState == DTU_STATE_CLOUD_PAUSE)
         {
             drawMainDTUOnline(true);
-            displayState = 1;
+            displayState = 0;
         }
-        else if (lastDisplayData.remoteDisplayActive)
-        {
-            drawMainDTUOnline();
-            displayState = 2;
-        }
-        else if (dtuConnection.dtuConnectState == DTU_STATE_OFFLINE || dtuConnection.dtuConnectState == DTU_STATE_TRY_RECONNECT || dtuConnection.dtuConnectState == DTU_STATE_CONNECT_ERROR || dtuConnection.dtuConnectState == DTU_STATE_STOPPED)
+        else if (dtuConnection.dtuConnectionOnline == false)
         {
             drawMainDTUOffline();
             displayState = 3;
         }
-    } else {
+    }
+    else
+    {
         displayState = 4;
     }
 
@@ -134,55 +134,51 @@ void DisplayTFT::drawScreen(String version, String time)
 void DisplayTFT::drawMainDTUOnline(bool pause)
 {
 
-    // state dependend screen change
+    // show a cloud upload symbol if cloud pause active
     if (pause)
-    {
-        tft.setTextColor(TFT_VIOLET, TFT_NAVY);
-        tft.drawCentreString("cloud pause", 120, 110, 4);     
-    }
+        tft.pushImage(195, 70, cloudWidth, cloudHeight, cloud);
+    else
+        tft.fillRect(195, 70, 32, 26, TFT_BLACK); // clear icon
 
-    if (!pause)
-    {
-        // main screen
-        // --- base window for wattage ----------------------------------
-        uint32_t wattRingColor = TFT_CYAN;
-        if (lastDisplayData.remoteDisplayActive)
-            wattRingColor = TFT_DARKGREEN;
-        tft.drawSmoothArc(119, 119, 75, 75 - 1, 47, 313, wattRingColor, TFT_BLACK);
-        tft.drawWideLine(64, 169, 64 + 109, 169, 2, wattRingColor, TFT_BLACK);
+    // main screen
+    // --- base window for wattage ----------------------------------
+    uint32_t wattRingColor = TFT_CYAN;
+    if (lastDisplayData.remoteDisplayActive)
+        wattRingColor = TFT_DARKGREEN;
+    tft.drawSmoothArc(119, 119, 75, 75 - 1, 47, 313, wattRingColor, TFT_BLACK);
+    tft.drawWideLine(64, 169, 64 + 109, 169, 2, wattRingColor, TFT_BLACK);
 
-        // ----------------------------------------------
-        // tft.pushImage(70, 200, 16, 16, wifiIcon);
-        // ----------------------------------------------
-        // current power
-        tft.setTextColor(TFT_DARKCYAN, TFT_BLACK);
-        tft.drawCentreString("W", 120, 57, 4);
+    // ----------------------------------------------
+    // tft.pushImage(70, 200, 16, 16, wifiIcon);
+    // ----------------------------------------------
+    // current power
+    tft.setTextColor(TFT_DARKCYAN, TFT_BLACK);
+    tft.drawCentreString("W", 120, 57, 4);
 
-        tft.setTextColor(TFT_WHITE, TFT_BLACK);
-        // tft.drawCentreString(String(lastDisplayData.totalPower), 120, 84, 6);
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);
+    // tft.drawCentreString(String(lastDisplayData.totalPower), 120, 84, 6);
 
-        tft.setTextDatum(TC_DATUM); // centered datum
-        int padding = tft.textWidth("999.9", 6);
-        tft.setTextPadding(padding);
-        tft.drawNumber(lastDisplayData.totalPower, 120, 84, 6);
+    tft.setTextDatum(TC_DATUM); // centered datum
+    int padding = tft.textWidth("999.9", 6);
+    tft.setTextPadding(padding);
+    tft.drawNumber(lastDisplayData.totalPower, 120, 84, 6);
 
-        // power limit
-        tft.setTextColor(TFT_GREENYELLOW, TFT_BLACK);
+    // power limit
+    tft.setTextColor(TFT_GREENYELLOW, TFT_BLACK);
 
-        tft.setTextDatum(TC_DATUM); // centered datum
-        padding = tft.textWidth("999", 6);
-        tft.setTextPadding(padding);
-        // tft.drawCentreString(String(lastDisplayData.powerLimit) + " %", 120, 130, 4);
-        tft.drawNumber(lastDisplayData.powerLimit, 120, 130, 4);
-        tft.setTextPadding(0); // reset padding
+    tft.setTextDatum(TC_DATUM); // centered datum
+    padding = tft.textWidth("999", 6);
+    tft.setTextPadding(padding);
+    // tft.drawCentreString(String(lastDisplayData.powerLimit) + " %", 120, 130, 4);
+    tft.drawNumber(lastDisplayData.powerLimit, 120, 130, 4);
+    tft.setTextPadding(0); // reset padding
 
-        tft.drawString("%", 148, 135, 2);
+    tft.drawString("%", 148, 135, 2);
 
-        tft.setTextColor(TFT_DARKCYAN, TFT_BLACK);
-        tft.drawCentreString("Power Limit", 120, 150, 2);
+    tft.setTextColor(TFT_DARKCYAN, TFT_BLACK);
+    tft.drawCentreString("Power Limit", 120, 150, 2);
 
-        // tft.fillRoundRect(80, 120, 100, 26, 1, TFT_BLACK);
-    }
+    // tft.fillRoundRect(80, 120, 100, 26, 1, TFT_BLACK);
 }
 
 void DisplayTFT::drawMainDTUOffline()
@@ -294,7 +290,9 @@ void DisplayTFT::drawFooter(String time)
         {
             tft.setTextColor(SPECIAL_BLUE, TFT_BLACK);
             tft.drawCentreString("  " + String(lastDisplayData.totalPower) + " W  ", 120, 174, 4);
-        } else {
+        }
+        else
+        {
             tft.fillRect(60, 170, 120, 37, TFT_BLACK); // clear power display
         }
 
@@ -371,39 +369,61 @@ void DisplayTFT::setBrightnessAuto()
     }
 }
 
-void DisplayTFT::drawIcon(const uint16_t *icon, int16_t x, int16_t y, int16_t w, int16_t h)
-{
-    //   tft.drawBitmap(x, y, icon, w, h, TFT_WHITE);
-
-    tft.pushImage(10, 10, 16, 16, icon);
-}
-
 void DisplayTFT::checkNightMode()
 {
+    boolean isNightBySchedule = false;
+    boolean isNightByOffline = false;
     // get currentTime in minutes to 00:00 of current day from current time in minutes to 1.1.1970 00:00
     uint16_t currentTime = (platformData.currentNTPtime / 60) % 1440;
     // Serial.println("current time in minutes today: " + String(currentTime) + " - start: " + String(userConfig.displayNightmodeStart) + " - end: " + String(userConfig.displayNightmodeEnd) + " - current brightness: " + String(brightness) + " - dtuState: " + String(dtuConnection.dtuConnectState) + " night: " + String(isNight));
     if (userConfig.displayNightMode)
     {
+        // schedule trigger
         // check if night mode can be activated - start time is smaller than end time
         if (
             (userConfig.displayNightmodeStart < userConfig.displayNightmodeEnd && currentTime >= userConfig.displayNightmodeStart && currentTime < userConfig.displayNightmodeEnd) ||
             (userConfig.displayNightmodeStart > userConfig.displayNightmodeEnd && (currentTime >= userConfig.displayNightmodeStart || currentTime < userConfig.displayNightmodeEnd)))
         {
-            // Serial.println(" >> night mode active");
-            if (!isNight)
-            {
-                isNight = true;
-                Serial.println("DisplayTFT:\t >> night mode activated");
-            }
+            isNightBySchedule = true;
+            // Serial.println("DisplayTFT:\t >> night mode activated by schedule");
         }
         else
         {
-            // Serial.println(" >> day mode active");
+            isNightBySchedule = false;
+            // Serial.println("DisplayTFT:\t >> day mode activated by schedule");
+        }
+
+        // offline trigger
+        if (dtuConnection.dtuConnectionOnline == true)
+        {
+            isNightByOffline = false;
+            // Serial.println("DisplayTFT:\t >> night mode activated by offline trigger");
+        }
+        else if (dtuConnection.dtuConnectionOnline == false)
+        {
+            isNightByOffline = true;
+            // Serial.println("DisplayTFT:\t >> day mode activated by offline trigger");
+        }
+
+        // summary
+        // start night mode if schedule or offline trigger (when enabled) is active
+        if (isNightBySchedule || (userConfig.displayNightModeOfflineTrigger && isNightByOffline))
+        {
+            if (!isNight)
+            {
+                isNight = true;
+                Serial.println("DisplayTFT:\t >> night mode activated - schedule: " + String(isNightBySchedule) + " - offline: " + String(isNightByOffline));
+            }
+        }
+        // start day mode if 
+        // offline trigger is enabled and schedule is not active and offline is not active OR
+        // offline trigger is dsiabled and schedule is not active
+        else if ((userConfig.displayNightModeOfflineTrigger && !isNightBySchedule && !isNightByOffline) || (!userConfig.displayNightModeOfflineTrigger && !isNightBySchedule))
+        {
             if (isNight)
             {
                 isNight = false;
-                Serial.println("DisplayTFT:\t >> day mode activated");
+                Serial.println("DisplayTFT:\t >> day mode activated - schedule: " + String(isNightBySchedule) + " - offline: " + String(isNightByOffline));
             }
         }
     }

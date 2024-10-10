@@ -88,8 +88,8 @@ void Display::drawScreen()
             drawMainDTUOnline();
         else if (dtuConnection.dtuConnectState == DTU_STATE_CLOUD_PAUSE)
             drawMainDTUOnline(true);
-        else if (lastDisplayData.remoteDisplayActive)
-            drawMainDTUOnline();
+        // else if (lastDisplayData.remoteDisplayActive)
+        //     drawMainDTUOnline();
         else
             drawMainDTUOffline();
 

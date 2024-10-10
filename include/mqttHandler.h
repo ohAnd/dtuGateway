@@ -43,6 +43,9 @@ struct RemoteInverterData
   uint8_t powerLimit = 254;
   uint32_t dtuRssi = 0;
   uint32_t wifi_rssi_gateway = 0;
+  boolean cloudPause = false;
+  boolean dtuConnectionOnline = false;
+  uint8_t dtuConnectState = 0;
   uint32_t respTimestamp = 1704063600;     // init with start time stamp > 0
   boolean updateReceived = false;
   boolean remoteDisplayActive = false;

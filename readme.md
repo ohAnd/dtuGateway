@@ -109,20 +109,23 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
       - brightness day [0...255] - will also be used without night mode enabled for standard brightness (falling back to this after power value changed)
       - brightness night [0...255] - note: 0 = backlight off
       - (to disable PWM control for TFT without backlight control set both brightness values to zero)
+      - night clock - on/off - if enabled the clock will be shown at night, otherwise blank or dark screen at night
       - night mode enabled on/ off
+      - night mode OfflineTrigger on/off - the night mode will be additionally to the schedule triggered, if dtu is offline
       - night mode start in minutes to start of the day - e.g. 1320 for 22:00
       - night mode stop in minutes to start of the day - e.g. 360 for 6:00
       - night clock enabled on/ off - on = clock will be displayed instead of dark screen
       - example settings:
 
-        | setting         | value | comment |
-        |-----------------|-------|---------
-        | brightnessDay   | 150   | note: 255 - ~150 only difficult to perceive
-        | brightnessNight |  30   | 
-        | nightClock      | true  | show the clock instead of black screen during night time
-        | nightMode       | true  | night mode is enabled
-        | nightmodeStart  | 1320  | night time will start at 22 o'clock
-        | nightmodeEnd    | 390   | night time will end at 6:30 
+        | setting                 | value | comment |
+        |-------------------------|-------|---------
+        | brightnessDay           | 150   | note: 255 - ~150 only difficult to perceive
+        | brightnessNight         |  30   | 
+        | nightClock              | true  | show the clock instead of black screen during night (and/ or offline)
+        | nightMode               | true  | night mode is enabled
+        | nightModeOfflineTrigger | true  | night mode will be also triggered if dtu is offline
+        | nightmodeStart          | 1320  | night time will start at 22 o'clock
+        | nightmodeEnd            | 390   | night time will end at 6:30 
 
 
 - display hardware types
@@ -392,7 +395,7 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
     | ESP-WROOM-32 NodeMCU-32S                         | ESP32      | 3.3V | GND | D22/GPIO22/SCL   | D21/GPIO21/SDA   |   OK   |
 
 - optional display GC9A01 round TFT 1,28" 240x240 (e.g. [link](https://de.aliexpress.com/i/1005006190625792.html)):
-  - connect SSH1106 driven round TFT display (240x240) with your ESP8266/ ESP32 board (VCC, GND, SCL, SDA, DC, CS, RST)
+  - connect GC9A01 driven round TFT display (240x240) with your ESP8266/ ESP32 board (VCC, GND, SCL, SDA, DC, CS, RST, BLK)
   - pinning for different boards (display connector to ESPxx board pins)
   - BLK = backlight control - will be served with PWM via GPIO 4
 
