@@ -269,11 +269,16 @@ void Display::drawFooter()
     u8g2.drawRFrame(0 + offset_x, 54 + offset_y, 127, 14, 4);
     // footer - content
     u8g2.setFont(u8g2_font_5x7_tf);
-    // u8g2.drawStr(3 + offset_x, 57 + offset_y, lastDisplayData.formattedTime);
-    // u8g2.drawStr(3 + 11 * 4 + offset_x, 57 + offset_y, "FW:");
-    // u8g2.drawStr(3 + 11 * 4 + 4 * 4 + offset_x, 57 + offset_y, lastDisplayData.version);
-    u8g2.drawStr(3 + offset_x, 56 + offset_y, ("d: " + String(lastDisplayData.totalYieldDay, 3) + " kWh").c_str());
-    u8g2.drawStr(3 + 18 * 4 + offset_x, 56 + offset_y, ("t: " + String(lastDisplayData.totalYieldTotal, 0) + " kWh").c_str());
+
+    String yieldDay = String(lastDisplayData.totalYieldDay, 3) + " kWh";    
+    u8g2.drawStr(3 + offset_x, 56 + offset_y, String("d:").c_str());
+    u8g2.drawStr(14 + offset_x, 56 + offset_y, yieldDay.c_str());
+
+    String yieldTotal = String(lastDisplayData.totalYieldTotal, 1) + " kWh";
+    u8g2_uint_t width = u8g2.getUTF8Width(yieldTotal.c_str());
+    int yieldTotal_xpos = (124 - width);
+    u8g2.drawStr(yieldTotal_xpos - 11 + offset_x, 56 + offset_y, String("t:").c_str());
+    u8g2.drawStr(yieldTotal_xpos + offset_x, 56 + offset_y, yieldTotal.c_str());
 }
 
 void Display::checkChangedValues()

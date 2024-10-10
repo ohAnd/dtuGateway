@@ -272,12 +272,15 @@ void DisplayTFT::drawFooter(String time)
         tft.drawCentreString(time, 120, 174, 4);
 
         tft.setTextColor(TFT_DARKCYAN, TFT_BLACK);
-        tft.drawCentreString("day", 85, 215, 1);
+        tft.drawCentreString("day", 85, 215, 1);        
+        tft.drawCentreString("kWh", 120, 215, 1);
+        tft.drawCentreString("total", 155, 215, 1);        
         tft.drawCentreString("yield", 120, 225, 1);
-        tft.drawCentreString("total", 153, 215, 1);
+        
         tft.setTextColor(TFT_CYAN, TFT_BLACK);
-        tft.drawCentreString(String(lastDisplayData.totalYieldDay, 3) + " kWh", 85, 198, 2);
-        tft.drawCentreString(String(lastDisplayData.totalYieldTotal, 0) + " kWh", 160, 198, 2);
+        lastDisplayData.totalYieldTotal = 1055.7;
+        tft.drawCentreString(String(lastDisplayData.totalYieldDay, 3), 85, 198, 2);
+        tft.drawCentreString(String(lastDisplayData.totalYieldTotal, 1), 155, 198, 2);
     }
     else if (userConfig.displayNightClock) // if it is night then show the clock
     {

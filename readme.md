@@ -227,6 +227,7 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
 ```json 
 {
   "chipid": 123456,
+  "chipType": "ESP32",
   "host": "dtuGateway_123456",
   "initMode": 0,
   "firmware": {

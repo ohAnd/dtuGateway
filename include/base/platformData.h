@@ -16,6 +16,17 @@ struct baseDataStruct
   boolean esp32 = false;
   String espUniqueName = String(AP_NAME_START) + "_" + chipID;
 
+  #if defined(ESP8266)
+  String chipType = "ESP8266";
+  #warning "setting chipType for ESP8266"
+  #elif CONFIG_IDF_TARGET_ESP32
+  String chipType = "ESP32";
+  #warning "setting chipType for ESP32"
+  #elif CONFIG_IDF_TARGET_ESP32S2
+  String chipType = "ESP32 S2 (LOLIN S2 Mini)";
+  #warning "setting chipType for ESP32S2"
+  #endif
+
   const char *fwVersion = VERSION;
   const char *fwBuildDate = BUILDTIME;
   
