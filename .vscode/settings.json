@@ -3,6 +3,7 @@
     "files.associations": {
         "ranges": "cpp",
         "string": "cpp",
-        "map": "cpp"
+        "map": "cpp",
+        "cmath": "cpp"
     }
 }

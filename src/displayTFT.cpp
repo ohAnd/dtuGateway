@@ -89,7 +89,7 @@ void DisplayTFT::drawScreen(String version, String time)
 {
     // store last shown value
     lastDisplayData.totalYieldDay = dtuGlobalData.grid.dailyEnergy;
-    lastDisplayData.totalYieldTotal = round(dtuGlobalData.grid.totalEnergy);
+    lastDisplayData.totalYieldTotal = dtuGlobalData.grid.totalEnergy;
     lastDisplayData.rssiGW = dtuGlobalData.wifi_rssi_gateway;
     lastDisplayData.rssiDTU = dtuGlobalData.dtuRssi;
     lastDisplayData.totalPower = round(dtuGlobalData.grid.power);
