@@ -307,7 +307,7 @@ void DisplayTFT::drawFooter(String time)
         tft.fillScreen(TFT_BLACK);
     }
 
-    // show second clock ring only if it is not night or it is night and night clock is enabled
+    // show second clock ring only if generally enabled and if it is not night or it is night and night clock is enabled
     if (!isNight || (isNight && userConfig.displayNightClock))
     {
         uint32_t secActiveRingColor = isNight ? TFT_MAROON : TFT_RED;
@@ -319,6 +319,9 @@ void DisplayTFT::drawFooter(String time)
 
         int sec = (time.substring(time.lastIndexOf(":") + 1)).toInt();
         int secpoint = (sec * 6) + 180;
+
+        if(userConfig.displayTFTsecondsRing == false)
+            sec = 0;
 
         // black circle
         if (sec < 31)

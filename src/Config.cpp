@@ -179,6 +179,8 @@ void UserConfigManager::printConfigdata()
     Serial.println(userConfig.displayNightmodeStart);
     Serial.print(F("display nightmode end: \t\t"));
     Serial.println(userConfig.displayNightmodeEnd);
+    Serial.print(F("display TFT seconds ring: \t"));
+    Serial.println(userConfig.displayTFTsecondsRing);
 
     Serial.print(F("--------------------------------------\n"));
 }
@@ -221,6 +223,7 @@ JsonDocument UserConfigManager::mappingStructToJson(const UserConfig &config)
     doc["display"]["nightModeOfflineTrigger"] = config.displayNightModeOfflineTrigger;
     doc["display"]["nightmodeStart"] = config.displayNightmodeStart;
     doc["display"]["nightmodeEnd"] = config.displayNightmodeEnd;
+    doc["display"]["TFTsecondsRing"] = config.displayTFTsecondsRing;
 
     doc["local"]["selectedUpdateChannel"] = config.selectedUpdateChannel;
     doc["local"]["wifiAPstart"] = config.wifiAPstart;
@@ -265,6 +268,7 @@ void UserConfigManager::mappingJsonToStruct(JsonDocument doc)
     userConfig.displayNightModeOfflineTrigger = doc["display"]["nightModeOfflineTrigger"].as<bool>();
     userConfig.displayNightmodeStart = doc["display"]["nightmodeStart"];
     userConfig.displayNightmodeEnd = doc["display"]["nightmodeEnd"];
+    userConfig.displayTFTsecondsRing = doc["display"]["TFTsecondsRing"].as<bool>();
 
     userConfig.selectedUpdateChannel = doc["local"]["selectedUpdateChannel"];
     userConfig.wifiAPstart = doc["local"]["wifiAPstart"];

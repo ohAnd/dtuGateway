@@ -34,21 +34,22 @@ struct UserConfig
     boolean mqttHAautoDiscoveryON = false;
     boolean mqttActive            = false;
 
-    boolean remoteDisplayActive   = false; // remote display to get data from mqtt
+    boolean remoteDisplayActive   = false;  // remote display to get data from mqtt
     
-    uint8_t displayConnected      = 0; // OLED default
-    uint16_t displayOrientation   = 0; // OLED 0,180 degrees - TFT 0,90,180,270 degrees
+    uint8_t displayConnected      = 0;      // OLED default
+    uint16_t displayOrientation   = 0;      // OLED 0,180 degrees - TFT 0,90,180,270 degrees
     uint8_t displayBrightnessDay  = 100;
     uint8_t displayBrightnessNight = 10;
-    boolean displayNightClock     = false; // in night mode: true - display clock/ false - display dark screen
-    boolean displayNightMode      = false; // night mode enabled
+    boolean displayNightClock     = false;  // in night mode: true - display clock/ false - display dark screen
+    boolean displayNightMode      = false;  // night mode enabled
     boolean displayNightModeOfflineTrigger = false; // night mode triggered by offline state
-    uint16_t displayNightmodeStart = 1320; // 22:00 = 22 * 60 = 1320
-    uint16_t displayNightmodeEnd   = 360; // 06:00 = 6 * 60 = 360
+    uint16_t displayNightmodeStart = 1320;  // 22:00 = 22 * 60 = 1320
+    uint16_t displayNightmodeEnd   = 360;   // 06:00 = 6 * 60 = 360
+    boolean displayTFTsecondsRing = true;   // TFT display seconds ring
 
     boolean wifiAPstart           = true;
-    int selectedUpdateChannel     = 0; // 0 - release 1 - snapshot
-    int timezoneOffest            = 7200; // default CEST
+    int selectedUpdateChannel     = 0;      // 0 - release 1 - snapshot
+    int timezoneOffest            = 7200;   // default CEST
 };
 
 extern UserConfig userConfig;
