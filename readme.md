@@ -115,6 +115,7 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
       - night mode start in minutes to start of the day - e.g. 1320 for 22:00
       - night mode stop in minutes to start of the day - e.g. 360 for 6:00
       - night clock enabled on/ off - on = clock will be displayed instead of dark screen
+      - TFT display only: enable/ disable the seconds ring (red) - if diabled only the static ring is visible and in nightmode there is no ring displayed
       - example settings:
 
         | setting                 | value | comment |
@@ -126,6 +127,7 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
         | nightModeOfflineTrigger | true  | night mode will be also triggered if dtu is offline
         | nightmodeStart          | 1320  | night time will start at 22 o'clock
         | nightmodeEnd            | 390   | night time will end at 6:30 
+        | displayTFTsecondsRing   | true  | seconds ring in TFT display is enabled
 
 
 - display hardware types
@@ -227,6 +229,7 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
 ```json 
 {
   "chipid": 123456,
+  "chipType": "ESP32",
   "host": "dtuGateway_123456",
   "initMode": 0,
   "firmware": {

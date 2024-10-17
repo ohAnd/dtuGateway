@@ -270,6 +270,7 @@ void DTUwebserver::handleInfojson(AsyncWebServerRequest *request)
 {
     String JSON = "{";
     JSON = JSON + "\"chipid\": " + String(platformData.chipID) + ",";
+    JSON = JSON + "\"chipType\": \"" + platformData.chipType + "\",";
     JSON = JSON + "\"host\": \"" + platformData.espUniqueName + "\",";
     JSON = JSON + "\"initMode\": " + userConfig.wifiAPstart + ",";
 

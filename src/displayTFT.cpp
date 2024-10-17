@@ -89,7 +89,7 @@ void DisplayTFT::drawScreen(String version, String time)
 {
     // store last shown value
     lastDisplayData.totalYieldDay = dtuGlobalData.grid.dailyEnergy;
-    lastDisplayData.totalYieldTotal = round(dtuGlobalData.grid.totalEnergy);
+    lastDisplayData.totalYieldTotal = dtuGlobalData.grid.totalEnergy;
     lastDisplayData.rssiGW = dtuGlobalData.wifi_rssi_gateway;
     lastDisplayData.rssiDTU = dtuGlobalData.dtuRssi;
     lastDisplayData.totalPower = round(dtuGlobalData.grid.power);
@@ -272,12 +272,14 @@ void DisplayTFT::drawFooter(String time)
         tft.drawCentreString(time, 120, 174, 4);
 
         tft.setTextColor(TFT_DARKCYAN, TFT_BLACK);
-        tft.drawCentreString("day", 85, 215, 1);
+        tft.drawCentreString("day", 85, 215, 1);        
+        tft.drawCentreString("kWh", 120, 215, 1);
+        tft.drawCentreString("total", 155, 215, 1);        
         tft.drawCentreString("yield", 120, 225, 1);
-        tft.drawCentreString("total", 153, 215, 1);
+        
         tft.setTextColor(TFT_CYAN, TFT_BLACK);
-        tft.drawCentreString(String(lastDisplayData.totalYieldDay, 3) + " kWh", 85, 198, 2);
-        tft.drawCentreString(String(lastDisplayData.totalYieldTotal, 0) + " kWh", 160, 198, 2);
+        tft.drawCentreString(String(lastDisplayData.totalYieldDay, 3), 85, 198, 2);
+        tft.drawCentreString(String(lastDisplayData.totalYieldTotal, 1), 155, 198, 2);
     }
     else if (userConfig.displayNightClock) // if it is night then show the clock
     {
@@ -305,7 +307,7 @@ void DisplayTFT::drawFooter(String time)
         tft.fillScreen(TFT_BLACK);
     }
 
-    // show second clock ring only if it is not night or it is night and night clock is enabled
+    // show second clock ring only if generally enabled and if it is not night or it is night and night clock is enabled
     if (!isNight || (isNight && userConfig.displayNightClock))
     {
         uint32_t secActiveRingColor = isNight ? TFT_MAROON : TFT_RED;
@@ -317,6 +319,9 @@ void DisplayTFT::drawFooter(String time)
 
         int sec = (time.substring(time.lastIndexOf(":") + 1)).toInt();
         int secpoint = (sec * 6) + 180;
+
+        if(userConfig.displayTFTsecondsRing == false)
+            sec = 0;
 
         // black circle
         if (sec < 31)

@@ -190,6 +190,8 @@ const char INDEX_HTML[] PROGMEM = R"=====(
     </div>
     <div class="popup" id="updateMenu">
         <h2>Update</h2>
+        <h6 id="chipType">controller architecture type: ...</h6>
+        <hr>
         <div style="padding-bottom: 10px;">
 
             <div style="padding-bottom: 10px;"></div>
@@ -668,6 +670,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             $('#rssitext_dtu').html(wifiDTUPercent + '%');
 
             $('#firmware').html("fw version: " + data.firmware.version);
+            $('#chipType').html("controller architecture type: " + data.chipType);
 
             if (data.firmware.selectedUpdateChannel == 0) { $("#relChanStable").addClass("selected"); $("#relChanSnapshot").removeClass("selected"); }
             else { $("#relChanStable").removeClass("selected"); $("#relChanSnapshot").addClass("selected"); }
