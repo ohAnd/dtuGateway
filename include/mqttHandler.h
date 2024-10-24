@@ -9,6 +9,8 @@
 #include <PubSubClient.h>
 #include <WiFiClientSecure.h>
 
+#include <base/platformData.h>
+
 // MQTT_CONNECTION_TIMEOUT (-4): The server didn't respond within the keep-alive time.
 // MQTT_CONNECTION_LOST (-3): The network connection was broken.
 // MQTT_CONNECT_FAILED (-2): The network connection failed.
@@ -56,7 +58,7 @@ public:
     MQTTHandler(const char *broker, int port, const char *user, const char *password, bool useTLS);
     void setup();
     void loop();
-    void publishDiscoveryMessage(const char *entity, const char *entityName, const char *unit, bool deleteMessage, const char *icon=NULL, const char *deviceClass=NULL);
+    void publishDiscoveryMessage(const char *entity, const char *entityName, const char *unit, bool deleteMessage, const char *icon=NULL, const char *deviceClass=NULL, boolean diagnostic=false);
     void publishStandardData(String entity, String value);
     
     // Setters for runtime configuration
@@ -64,6 +66,7 @@ public:
     void setPort(int port);
     void setUser(const char* user);
     void setPassword(const char* password);
+    void setAutoDiscovery(boolean autoDiscovery);
     void setUseTLS(bool useTLS);
     void setConfiguration(const char *broker, int port, const char *user, const char *password, bool useTLS, const char *sensorUniqueName, const char *mainTopicPath, bool autoDiscovery, const char * ipAddress);
     void setMainTopic(String mainTopicPath);

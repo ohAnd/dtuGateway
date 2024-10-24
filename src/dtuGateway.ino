@@ -67,16 +67,23 @@ int wifiTimeoutLong = WIFI_RETRY_TIME_SECONDS;
 // <--- END initializing here and published over platformData.h
 
 // blink code for status display
-#if defined(ESP8266)
-// #define LED_BLINK LED_BUILTIN
+// defaults
 #define LED_BLINK 2
 #define LED_BLINK_ON LOW
 #define LED_BLINK_OFF HIGH
-#elif defined(ESP32)
-#define LED_BLINK 2 // double occupancy with TFT display SPI DC pin
+
+#if defined(ESP8266)
+#warning "Compiling for ESP8266"
+#elif CONFIG_IDF_TARGET_ESP32
+#undef LED_BLINK
+#undef LED_BLINK_ON
+#undef LED_BLINK_OFF
+#define LED_BLINK 2
 #define LED_BLINK_ON HIGH
 #define LED_BLINK_OFF LOW
+#warning "Compiling for ESP32"
 #endif
+
 
 #define BLINK_NORMAL_CONNECTION 0    // 1 Hz blip - normal connection and running
 #define BLINK_WAITING_NEXT_TRY_DTU 1 // 1 Hz - waiting for next try to connect to DTU
@@ -546,14 +553,14 @@ String getMessageFromOpenhab(String key)
   }
 }
 // get PowerSet data from openhab
-uint8_t lastOpenhabLimit = 255;
+// uint8_t lastOpenhabLimit = 255;
 boolean getPowerSetDataFromOpenHab()
 {
   uint8_t gotLimit = 0;
   uint8_t newLimit = 0;
   bool conversionSuccess = false;
 
-  String openhabMessage = getMessageFromOpenhab(String(userConfig.openItemPrefix) + "_PowerLimit_Set");
+  String openhabMessage = getMessageFromOpenhab(String(userConfig.openItemPrefix) + "_PowerLimitSet");
   if (openhabMessage.length() > 0)
   {
     gotLimit = openhabMessage.toInt();
@@ -569,19 +576,22 @@ boolean getPowerSetDataFromOpenHab()
       newLimit = 2;
     else
       newLimit = gotLimit;
-    // Serial.println("getMessageFromOpenhab - got new SetLimit: " + String(newLimit) + " %");
+    // Serial.println("getMessageFromOpenhab - got SetLimit: " + String(newLimit) + " %");// + " - last OH limit: " + String(lastOpenhabLimit) + " %");
   }
   else
   {
     Serial.println("OPENHAB:\t\t got wrong data for SetLimit: " + openhabMessage);
     return false;
   }
-  if (lastOpenhabLimit != newLimit && lastOpenhabLimit != 255)
+  if (dtuGlobalData.powerLimitSet != newLimit)// && lastOpenhabLimit != 255)
   {
+    // Serial.println("OPENHAB:\t\t got new OH Limit: " + String(dtuGlobalData.powerLimitSet) + " - last OH limit: " + String(lastOpenhabLimit) + " %");
+    Serial.print("OPENHAB:\t\t last OH limit: " + String(dtuGlobalData.powerLimitSet) + " %");
     dtuGlobalData.powerLimitSet = newLimit;
-    Serial.println("OPENHAB:\t\t got new OH Limit: " + String(dtuGlobalData.powerLimitSet) + " - last OH limit: " + String(lastOpenhabLimit) + " %");
+    Serial.println(" -> got new OH Limit: " + String(dtuGlobalData.powerLimitSet) + " %");
+    dtuGlobalData.powerLimitSetUpdate = true;
   }
-  lastOpenhabLimit = newLimit;
+  // lastOpenhabLimit = newLimit;
   return true;
 }
 
@@ -656,6 +666,7 @@ void updateValuesToMqtt(boolean haAutoDiscovery = false)
   // inverter
   keyValueStore["inverter_Temp"] = String(dtuGlobalData.inverterTemp).c_str();
   keyValueStore["inverter_PowerLimit"] = String(dtuGlobalData.powerLimit).c_str();
+  keyValueStore["inverter_PowerLimitSet"] = String(dtuGlobalData.powerLimitSet).c_str();
   keyValueStore["inverter_WifiRSSI"] = String(dtuGlobalData.dtuRssi).c_str();
   keyValueStore["inverter_cloudPause"] = String(dtuConnection.dtuActiveOffToCloudUpdate).c_str();
   keyValueStore["inverter_dtuConnectionOnline"] = String(dtuConnection.dtuConnectionOnline).c_str();
@@ -1178,9 +1189,15 @@ void loop()
       if (lastSetting.update == true)
       {
         dtuGlobalData.powerLimitSet = lastSetting.setValue;
+        dtuGlobalData.powerLimitSetUpdate = true;
         Serial.println("\nMQTT: changed powerset value to '" + String(dtuGlobalData.powerLimitSet) + "'");
       }
-
+      if(dtuGlobalData.powerLimitSetUpdate) {
+        mqttHandler.publishStandardData("inverter_PowerLimitSet", String(dtuGlobalData.powerLimitSet));
+        // postMessageToOpenhab(String(userConfig.openItemPrefix) + "_PowerLimitSet", (String)dtuGlobalData.powerLimit);
+        dtuGlobalData.powerLimitSetUpdate = false;
+      }
+    
       RemoteInverterData remoteData = mqttHandler.getRemoteInverterData();
       if (remoteData.updateReceived == true)
       {

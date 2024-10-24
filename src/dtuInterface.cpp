@@ -61,7 +61,7 @@ void DTUInterface::disconnect(uint8_t tgtState)
     {
         client->close(true);
         dtuConnection.dtuConnectState = tgtState;
-        dtuGlobalData.dtuRssi = 0;
+        // dtuGlobalData.dtuRssi = 0;
         Serial.println(F("DTUinterface:\t disconnect request - DTU connection closed"));
         if (tgtState == DTU_STATE_STOPPED)
         {
@@ -312,7 +312,7 @@ void DTUInterface::onDisconnect(void *arg, AsyncClient *c)
     // Connection lost
     Serial.println(F("DTUinterface:\t disconnected from DTU"));
     dtuConnection.dtuConnectState = DTU_STATE_OFFLINE;
-    dtuGlobalData.dtuRssi = 0;
+    // dtuGlobalData.dtuRssi = 0;
     DTUInterface *dtuInterface = static_cast<DTUInterface *>(arg);
     if (dtuInterface)
     {
@@ -490,6 +490,8 @@ void DTUInterface::checkingForLastDataReceived()
         dtuGlobalData.pv1.power = 0;
         dtuGlobalData.pv1.current = 0;
         dtuGlobalData.pv1.voltage = 0;
+
+        dtuGlobalData.dtuRssi = 0;
 
         dtuConnection.dtuErrorState = DTU_ERROR_LAST_SEND;
         dtuConnection.dtuActiveOffToCloudUpdate = false;

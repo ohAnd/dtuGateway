@@ -31,7 +31,7 @@ void MQTTHandler::subscribedMessageArrived(char *topic, byte *payload, unsigned 
     if (instance != nullptr)
     {
         incommingMessage = incommingMessage.substring(1, length + 1); //'#' has to be ignored
-        if (String(topic) == instance->mqttMainTopicPath + "/inverter/PowerLimit_Set")
+        if (String(topic) == instance->mqttMainTopicPath + "/inverter/PowerLimitSet/set" || String(topic) == "homeassistant/number/" + instance->mqttMainTopicPath + "/inverter_PowerLimitSet/set")
         {
 
             int gotLimit = (incommingMessage).toInt();
@@ -159,27 +159,43 @@ void MQTTHandler::loop()
     }
 }
 
-void MQTTHandler::publishDiscoveryMessage(const char *entity, const char *entityReadableName, const char *unit, bool deleteMessage, const char *icon, const char *deviceClass)
+void MQTTHandler::publishDiscoveryMessage(const char *entity, const char *entityReadableName, const char *unit, bool deleteMessage, const char *icon, const char *deviceClass, boolean diagnostic)
 {
+    String entityType = "sensor";
+    if (String(entity).indexOf("PowerLimitSet") > -1)
+        entityType = "number";
     String uniqueID = String(deviceGroupName) + "_" + String(entity);
     String entityGroup = String(entity).substring(0, String(entity).indexOf("_"));
     String entityName = String(entity).substring(String(entity).indexOf("_") + 1);
 
     // Create the config topic path for the entity e.g. "homeassistant/sensor/dtuGateway_12345678/grid_U/config"
-    String configTopicPath = "homeassistant/sensor/" + String(deviceGroupName) + "/" + String(entity) + "/config";
+    String configTopicPath = "homeassistant/" + entityType + "/" + String(deviceGroupName) + "/" + String(entity) + "/config";
     // Create the state topic path for the entity e.g. "dtu_12345678/grid/U"
-    String stateTopicPath = "homeassistant/sensor/" + String(deviceGroupName) + "/" + String(entity) + "/state";
+    String stateTopicPath = "homeassistant/" + entityType + "/" + String(deviceGroupName) + "/" + String(entity) + "/state";
+    String commandTopicPath = "homeassistant/" + entityType + "/" + String(deviceGroupName) + "/" + String(entity) + "/set";
+
     if (String(deviceGroupName) != mqttMainTopicPath)
+    {
         stateTopicPath = String(mqttMainTopicPath) + "/" + entityGroup + "/" + entityName;
+        commandTopicPath = String(mqttMainTopicPath) + "/" + entityGroup + "/" + entityName + "/set";
+    }
 
     JsonDocument doc;
     doc["name"] = String(entityReadableName);
+    if (entityType == "number")
+    {
+        doc["command_topic"] = commandTopicPath;
+        doc["mode"] = "box";
+        doc["min"] = 2;
+        doc["max"] = 100;
+    }
     doc["state_topic"] = stateTopicPath;
+
     if (deviceClass != NULL)
     {
         doc["device_class"] = deviceClass;
-        if (String(deviceClass) == "timestamp")
-            doc["value_template"] = "{{ as_datetime(value) }}";
+        // if (String(deviceClass) == "timestamp")
+        //     doc["value_template"] = "{{ as_datetime(value) }}";
     }
 
     if (unit != NULL)
@@ -187,13 +203,14 @@ void MQTTHandler::publishDiscoveryMessage(const char *entity, const char *entity
 
     if (icon != NULL)
         doc["icon"] = icon;
-
+    if (diagnostic)
+        doc["entity_category"] = "diagnostic";
     doc["unique_id"] = uniqueID;
     doc["device"]["name"] = "HMS-xxxxW-2T (" + String(deviceGroupName) + ")";
     doc["device"]["identifiers"] = deviceGroupName;
     doc["device"]["manufacturer"] = "ohAnd";
     doc["device"]["model"] = "dtuGateway ESP8266/ESP32";
-    doc["device"]["hw_version"] = "1.0";
+    doc["device"]["hw_version"] = "1.0 (" + platformData.chipType + ")";
     doc["device"]["sw_version"] = String(VERSION);
     // doc["device"]["configuration_url"] = "http://" + String(deviceGroupName);
     doc["device"]["configuration_url"] = "http://" + gw_ipAddress;
@@ -210,13 +227,18 @@ void MQTTHandler::publishDiscoveryMessage(const char *entity, const char *entity
     }
     else
     {
-        client.publish(configTopicPath.c_str(), NULL, false); // delete message without retain
+        client.publish(configTopicPath.c_str(), NULL, true); // delete message without retain
     }
 }
 
 void MQTTHandler::publishStandardData(String entity, String value)
 {
-    String stateTopicPath = "homeassistant/sensor/" + String(deviceGroupName) + "/" + String(entity) + "/state";
+    String entityType = "sensor";
+    if (String(entity).indexOf("PowerLimitSet") > -1)
+    {
+        entityType = "number";
+    }
+    String stateTopicPath = "homeassistant/" + entityType + "/" + String(deviceGroupName) + "/" + String(entity) + "/state";
     entity.replace("_", "/");
     if (String(deviceGroupName) != mqttMainTopicPath || !autoDiscoveryActive)
         stateTopicPath = String(mqttMainTopicPath) + "/" + entity;
@@ -257,13 +279,13 @@ boolean MQTTHandler::initiateDiscoveryMessages(bool autoDiscoveryRemove)
             publishDiscoveryMessage("pv0_totalEnergy", "Panel 0 yield total", "kWh", autoDiscoveryRemove, NULL, "energy");
             publishDiscoveryMessage("pv1_totalEnergy", "Panel 1 yield total", "kWh", autoDiscoveryRemove, NULL, "energy"); //"mdi:import"
 
-            publishDiscoveryMessage("inverter_Temp", "Inverter temperature", "°C", autoDiscoveryRemove, NULL, "temperature");       //"mdi:thermometer"
-            publishDiscoveryMessage("inverter_PowerLimit", "Inverter power limit", "%", autoDiscoveryRemove, NULL, "power_factor"); //"mdi:car-speed-limiter"
-            publishDiscoveryMessage("inverter_WifiRSSI", "Inverter WiFi strength", "%", autoDiscoveryRemove, "mdi:wifi");
+            publishDiscoveryMessage("inverter_PowerLimit", "power limit", "%", autoDiscoveryRemove, NULL, "power_factor"); //"mdi:car-speed-limiter"
+            publishDiscoveryMessage("inverter_PowerLimitSet", "power limit set", "%", autoDiscoveryRemove, "mdi:car-speed-limiter", "power_factor");
 
-            publishDiscoveryMessage("inverter_PowerLimit_Set", "Inverter power limit Set", "%", autoDiscoveryRemove, "mdi:car-speed-limiter", "power_factor");
+            publishDiscoveryMessage("inverter_Temp", "Inverter temperature", "°C", autoDiscoveryRemove, NULL, "temperature", true); //"mdi:thermometer"
+            publishDiscoveryMessage("inverter_WifiRSSI", "WiFi strength", "%", autoDiscoveryRemove, "mdi:wifi", NULL, true);
 
-            publishDiscoveryMessage("time_stamp", "Time stamp", NULL, autoDiscoveryRemove, NULL, "timestamp");
+            publishDiscoveryMessage("time_stamp", "Time stamp", NULL, autoDiscoveryRemove, "mdi:clock-time-eight-outline", "timestamp", true);
             return true;
         }
         else
@@ -339,8 +361,12 @@ void MQTTHandler::reconnect()
             }
             else
             {
-                client.subscribe((mqttMainTopicPath + "/inverter/PowerLimit_Set").c_str());
-                Serial.println("MQTT:\t\t subscribe to: " + (mqttMainTopicPath + "/inverter/PowerLimit_Set"));
+                String topic = mqttMainTopicPath + "/inverter/PowerLimitSet/set";
+                client.subscribe(topic.c_str());
+                Serial.println("MQTT:\t\t subscribe to: " + topic);
+                topic = "homeassistant/number/" + instance->mqttMainTopicPath + "/inverter_PowerLimitSet/set";
+                client.subscribe(topic.c_str());
+                Serial.println("MQTT:\t\t subscribe to: " + topic);
 
                 // Publish MQTT auto-discovery messages at every new connection, if enabled
                 initiateDiscoveryMessages();
@@ -397,6 +423,11 @@ void MQTTHandler::setPassword(const char *password)
 {
     stopConnection();
     mqtt_password = password;
+}
+
+void MQTTHandler::setAutoDiscovery(boolean autoDiscovery)
+{
+    autoDiscoveryActive = autoDiscovery;
 }
 
 void MQTTHandler::setUseTLS(bool useTLS)
