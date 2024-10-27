@@ -54,6 +54,7 @@ jobs:
         with:
           repo_token: "${{ secrets.GITHUB_TOKEN }}"
           automatic_release_tag: "v${{ env.CURRENT_VERSIONNUMBER }}"
+          draft: true
           prerelease: false
           title: "dtuGateway v${{ env.CURRENT_VERSIONNUMBER }}"
           files: |

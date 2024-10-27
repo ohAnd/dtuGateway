@@ -500,8 +500,9 @@ void DTUwebserver::handleUpdateBindingsSettings(AsyncWebServerRequest *request)
         if (userConfig.mqttActive)
         {
             // changing to given mqtt setting - inlcuding reset the connection
-            mqttHandler.setConfiguration(userConfig.mqttBrokerIpDomain, userConfig.mqttBrokerPort, userConfig.mqttBrokerUser, userConfig.mqttBrokerPassword, userConfig.mqttUseTLS, (platformData.espUniqueName).c_str(), userConfig.mqttBrokerMainTopic, userConfig.mqttHAautoDiscoveryON, ((platformData.dtuGatewayIP).toString()).c_str());
-
+            // mqttHandler.setConfiguration(userConfig.mqttBrokerIpDomain, userConfig.mqttBrokerPort, userConfig.mqttBrokerUser, userConfig.mqttBrokerPassword, userConfig.mqttUseTLS, (platformData.espUniqueName).c_str(), userConfig.mqttBrokerMainTopic, userConfig.mqttHAautoDiscoveryON, ((platformData.dtuGatewayIP).toString()).c_str());
+            
+            mqttHandler.setAutoDiscovery(userConfig.mqttHAautoDiscoveryON);
             Serial.println("WEB:\t\t handleUpdateBindingsSettings - HAautoDiscovery new state: " + String(userConfig.mqttHAautoDiscoveryON));
             // mqttHAautoDiscoveryON going from on to off - send one time the delete messages
             if (!userConfig.mqttHAautoDiscoveryON && mqttHAautoDiscoveryONlastState)
@@ -509,8 +510,8 @@ void DTUwebserver::handleUpdateBindingsSettings(AsyncWebServerRequest *request)
             else
                 mqttHandler.requestMQTTconnectionReset(false);
 
-            // after changing of auto discovery stop connection to initiate takeover of new settings
-            // mqttHandler.stopConnection();
+            platformData.rebootRequestedInSec = 3;
+            platformData.rebootRequested = true;
         }
 
         String JSON = "{";
@@ -562,6 +563,7 @@ void DTUwebserver::handleUpdatePowerLimit(AsyncWebServerRequest *request)
                 dtuGlobalData.powerLimitSet = 2;
             else
                 dtuGlobalData.powerLimitSet = gotLimit;
+            dtuGlobalData.powerLimitSetUpdate = true;
 
             Serial.println("WEB:\t\t got SetLimit: " + String(dtuGlobalData.powerLimitSet) + " - current limit: " + String(dtuGlobalData.powerLimit) + " %");
 
