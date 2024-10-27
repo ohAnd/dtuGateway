@@ -67,7 +67,9 @@ bool UserConfigManager::loadConfig(UserConfig &config)
     {
         Serial.println(F("UserConfigManager::loadConfig --- ERROR: config corrupted, reset to default"));
         saveConfig(defaultConfig);
-    } else {
+    }
+    else
+    {
         Serial.println("UserConfigManager::loadConfig - config loaded from json: " + String(filePath));
     }
 
@@ -109,78 +111,80 @@ void UserConfigManager::printConfigdata()
     // Configuration has been written before
     Serial.print(F("\n--------------------------------------\n"));
     Serial.print(F("Configuration loaded from config file: '/userconfig.json'\n"));
-    Serial.print(F("init (wifiAPstart): \t"));
-    Serial.println(userConfig.wifiAPstart);
 
-    Serial.print(F("wifi ssid: \t\t"));
+    Serial.print(F("wifi ssid: \t\t\t"));
     Serial.println(userConfig.wifiSsid);
-    Serial.print(F("wifi pass: \t\t"));
+    Serial.print(F("wifi pass: \t\t\t"));
     Serial.println(userConfig.wifiPassword);
 
-    Serial.print(F("\ndtu update time: \t"));
+    Serial.println(F("\ndtu"));
+    Serial.print(F("update time: \t\t\t"));
     Serial.println(userConfig.dtuUpdateTime);
-    Serial.print(F("dtu host: \t\t"));
+    Serial.print(F("host: \t\t\t\t"));
     Serial.println(userConfig.dtuHostIpDomain);
-    Serial.print(F("dtu ssid: \t\t"));
-    Serial.println(userConfig.dtuSsid);
-    Serial.print(F("dtu pass: \t\t"));
-    Serial.println(userConfig.dtuPassword);
-    Serial.print(F("cloud pause active: \t"));
+    Serial.print(F("cloud pause enabled: \t\t"));
     Serial.println(userConfig.dtuCloudPauseActive);
-    Serial.print(F("cloud pause time: \t"));
+    Serial.print(F("cloud pause time: \t\t"));
     Serial.println(userConfig.dtuCloudPauseTime);
 
-
-    Serial.print(F("\nopenhab host: \t\t"));
+    Serial.println(F("\nopenhab"));
+    Serial.print(F("host: \t\t\t\t"));
     Serial.println(userConfig.openhabHostIpDomain);
-    Serial.print(F("openhab item prefix: \t"));
+    Serial.print(F("item prefix: \t\t\t"));
     Serial.println(userConfig.openItemPrefix);
-    Serial.print(F("openhab binding active:\t"));
+    Serial.print(F("binding active:\t\t\t"));
     Serial.println(userConfig.openhabActive);
 
-    Serial.print(F("\nmqtt host: \t\t"));
+    Serial.println(F("\nmqtt"));
+    Serial.print(F("host: \t\t\t\t"));
     Serial.println(userConfig.mqttBrokerIpDomain);
-    Serial.print(F("mqtt port: \t\t"));
+    Serial.print(F("port: \t\t\t\t"));
     Serial.println(userConfig.mqttBrokerPort);
-    Serial.print(F("mqtt TLS: \t\t"));
+    Serial.print(F("TLS: \t\t\t\t"));
     Serial.println(userConfig.mqttUseTLS);
-    Serial.print(F("mqtt user: \t\t"));
+    Serial.print(F("user: \t\t\t\t"));
     Serial.println(userConfig.mqttBrokerUser);
-    Serial.print(F("mqtt pass: \t\t"));
+    Serial.print(F("pass: \t\t\t\t"));
     Serial.println(userConfig.mqttBrokerPassword);
-    Serial.print(F("mqtt topic: \t\t"));
+    Serial.print(F("topic: \t\t\t\t"));
     Serial.println(userConfig.mqttBrokerMainTopic);
-    Serial.print(F("mqtt binding active: \t"));
+    Serial.print(F("binding active: \t\t\t"));
     Serial.println(userConfig.mqttActive);
-    Serial.print(F("mqtt HA autoDiscovery: \t"));
+    Serial.print(F("HA autoDiscovery: \t\t"));
     Serial.println(userConfig.mqttHAautoDiscoveryON);
-    
-    Serial.print(F("\nremoteDisplay: \t\t"));
+
+    Serial.print(F("\nremoteDisplay: \t\t\t"));
     Serial.println(userConfig.remoteDisplayActive);
 
-    Serial.print(F("update channel: \t\t"));
-    Serial.println(userConfig.selectedUpdateChannel);
-
-    Serial.print(F("\ndisplay connected: \t"));
+    Serial.println(F("\ndisplay"));
+    Serial.print(F("connected: \t\t\t"));
     Serial.println(userConfig.displayConnected);
-    Serial.print(F("display orientation: \t\t"));
+    Serial.print(F("orientation: \t\t\t"));
     Serial.println(userConfig.displayOrientation);
-    Serial.print(F("display brightness day: \t\t"));
+    Serial.print(F("brightness day: \t\t\t"));
     Serial.println(userConfig.displayBrightnessDay);
-    Serial.print(F("display brightness night: \t"));
+    Serial.print(F("brightness night: \t\t"));
     Serial.println(userConfig.displayBrightnessNight);
-    Serial.print(F("display night clock: \t\t"));
+    Serial.print(F("night clock: \t\t\t"));
     Serial.println(userConfig.displayNightClock);
-    Serial.print(F("display night mode: \t\t"));
+    Serial.print(F("night mode: \t\t\t"));
     Serial.println(userConfig.displayNightMode);
-    Serial.print(F("display night mode offline trigger: \t"));
+    Serial.print(F("night mode offline trigger: \t"));
     Serial.println(userConfig.displayNightModeOfflineTrigger);
-    Serial.print(F("display nightmode start: \t"));
+    Serial.print(F("nightmode start: \t\t"));
     Serial.println(userConfig.displayNightmodeStart);
-    Serial.print(F("display nightmode end: \t\t"));
+    Serial.print(F("nightmode end: \t\t\t"));
     Serial.println(userConfig.displayNightmodeEnd);
-    Serial.print(F("display TFT seconds ring: \t"));
+    Serial.print(F("TFT seconds ring: \t\t"));
     Serial.println(userConfig.displayTFTsecondsRing);
+
+    Serial.print(F("\ninit (wifiAPstart): \t\t"));
+    Serial.println(userConfig.wifiAPstart);
+    Serial.print(F("update channel: \t\t\t"));
+    Serial.println(userConfig.selectedUpdateChannel);
+    Serial.print(F("timezone offset: \t\t"));
+    Serial.println(userConfig.timezoneOffest);
+
 
     Serial.print(F("--------------------------------------\n"));
 }
@@ -287,38 +291,43 @@ String UserConfigManager::createWebPage(bool updated)
     const String continueHtml = F("<form method=\"POST\" action=\"\">");
     const String savedAlert = F("<div class=\"alert alert-success\" role=\"alert\"><button type=\"button\" class=\"close\" data-dismiss=\"alert\" aria-label=\"Close\"><span aria-hidden=\"true\">&times;</span></button>The config has been saved. And the device will be rebooted</div>");
 
-    // const String endHtml = "<div class=\"form-group row\"><div class=\"col-sm-1\"><button class=\"btn btn-primary\" type=\"submit\">Save</button></div><div class=\"col-sm-1 offset-sm-0\"><button type=\"button\" class=\"btn btn-danger\" onclick=\"reset()\">Reset</button></div></div></form></div></body><script>function reset(){var url=window.location.href;if(url.indexOf('?')>0){url=url.substring(0,url.indexOf('?'));}url+='?reset=true';window.location.replace(url);}</script></html>";
-    const String endHtml = F("<div class=\"form-group row\"><div class=\"col-sm-1\"><button class=\"btn btn-primary\" type=\"submit\">Save</button></div></div></form></div></body><script>function reset(){var url=window.location.href;if(url.indexOf('?')>0){url=url.substring(0,url.indexOf('?'));}url+='?reset=true';window.location.replace(url);}</script></html>");
+    // const String endHtml = F("<div class=\"form-group row\"><div class=\"col-sm-1\"><button class=\"btn btn-primary\" type=\"submit\">Save</button></div></div></form></div></body><script>function reset(){var url=window.location.href;if(url.indexOf('?')>0){url=url.substring(0,url.indexOf('?'));}url+='?reset=true';window.location.replace(url);}</script></html>");
+
+    const String endHtml = F("</form></div></body><script>function reset(){var url=window.location.href;if(url.indexOf('?')>0){url=url.substring(0,url.indexOf('?'));}url+='?reset=true';window.location.replace(url);}window.onload=createEntryFields;");
+    const String endHtml2 = F("function createEntryFields(){var form=document.getElementsByTagName('form')[0];for(var key in mainTopicValue){var topic=mainTopicValue[key];var topicInfo=document.createElement('div');topicInfo.innerHTML='<label><h4>'+key+'</h4></label>';form.appendChild(topicInfo);for(var subKey in topic){var input=document.createElement('input');input.name=key+'.'+subKey;input.className='form-control';input.type='text';input.value=topic[subKey];var label=document.createElement('label');label.innerHTML=subKey;var div=document.createElement('div');div.className='form-group row';var div2=document.createElement('div');div2.className='col-2';div2.appendChild(label);var div3=document.createElement('div');div3.className='col-10';div3.appendChild(input);div.appendChild(div2);div.appendChild(div3);form.appendChild(div);}}var div=document.createElement('div');div.className='form-group row';div.innerHTML='<div class=\"col-12\"><button class=\"btn btn-primary\" type=\"submit\">Save</button></div>';form.appendChild(div);}</script></html>");
 
     String result = beginHtml;
 
     if (updated)
-    {
         result += savedAlert;
-    }
 
     result += continueHtml;
+    result += endHtml;
 
     JsonDocument doc;
     doc = mappingStructToJson(userConfig);
 
     JsonObject obj = doc.as<JsonObject>();
 
+    result += "var mainTopicValue = {";
     for (JsonPair kv : obj)
     {
         String mainKey = String(kv.key().c_str());
-        result += "<div><label><h4>" + mainKey + "</h4></label></div>";
-        // 1 layer below
+        result += "\"" + mainKey + "\": {";
         JsonObject obj1 = (kv.value()).as<JsonObject>();
         for (JsonPair kv1 : obj1)
         {
             String key = kv1.key().c_str();
-            String value = kv1.value();
-            result += "<div class=\"form-group row\"><div class=\"col-2\"><label>" + key + "</label></div><div class=\"col-10\"><input name=\"" + mainKey + "." + key + "\" class=\"form-control\" type=\"text\" value=\"" + value + "\" /></div></div>";
+            String value = kv1.value().as<String>();
+            result += "\"" + key + "\": \"" + value + "\",";
         }
+        result.remove(result.length() - 1); // Remove the last comma
+        result += "},";
     }
+    result.remove(result.length() - 1); // Remove the last comma
+    result += "};";
 
-    result += endHtml;
+    result += endHtml2;
 
     // Serial.println(F("\nCONFIG web - END generate html page for config interface"));
 

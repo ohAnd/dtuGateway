@@ -1110,7 +1110,7 @@ boolean DTUInterface::cloudPauseActiveControl()
         dtuConnection.dtuActiveOffToCloudUpdate = true;
         dtuGlobalData.updateReceived = true; // update at start of pause
     }
-    else if (dtuGlobalData.currentTimestamp > lastSwOff + DTU_CLOUD_UPLOAD_SECONDS && dtuConnection.dtuActiveOffToCloudUpdate)
+    else if (dtuGlobalData.currentTimestamp > lastSwOff + userConfig.dtuCloudPauseTime && dtuConnection.dtuActiveOffToCloudUpdate)
     {
         Serial.printf("\n\n<<< dtuCloudPauseActiveControl >>> --- ");
         Serial.printf("local time: %02i.%02i. - %02i:%02i:%02i ", stamp.day, stamp.month, stamp.hour, stamp.minute, stamp.second);
