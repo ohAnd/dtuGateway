@@ -57,7 +57,7 @@ struct connectionControl
 {
   boolean preventCloudErrors = true;
   boolean dtuActiveOffToCloudUpdate = false;
-  boolean dtuConnectionOnline = true;          // true if connection is online as valued a summary
+  boolean dtuConnectionOnline = false;          // true if connection is online as a valued summary
   uint8_t dtuConnectState = DTU_STATE_OFFLINE;
   uint8_t dtuErrorState = DTU_ERROR_NO_ERROR;
   uint8_t dtuTxRxState = DTU_TXRX_STATE_IDLE;

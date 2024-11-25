@@ -157,7 +157,7 @@ void UserConfigManager::printConfigdata()
     Serial.println(userConfig.remoteDisplayActive);
 
     Serial.println(F("\ndisplay"));
-    Serial.print(F("connected: \t\t\t"));
+    Serial.print(F("connected type: \t\t\t"));
     Serial.println(userConfig.displayConnected);
     Serial.print(F("orientation: \t\t\t"));
     Serial.println(userConfig.displayOrientation);

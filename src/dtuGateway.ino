@@ -485,6 +485,15 @@ boolean scanNetworksResult()
 // }
 
 // APIs (non REST)
+String getTimeStringByTimestamp(unsigned long timestamp)
+{
+  UnixTime stamp(1);
+  char buf[31];
+  stamp.getDateTime(timestamp - 3600);
+  // should have the format "2023-11-11T18:11:17+00:00"
+  snprintf(buf, sizeof(buf), "%04i-%02i-%02iT%02i:%02i:%02i%+03i:00", stamp.year, stamp.month, stamp.day, stamp.hour, stamp.minute, stamp.second, userConfig.timezoneOffest / 3600);
+  return String(buf);
+}
 
 // openhab
 // send item to openhab
@@ -641,7 +650,7 @@ void updateValuesToMqtt(boolean haAutoDiscovery = false)
 {
   Serial.println("MQTT:\t\t publish data (HA autoDiscovery = " + String(haAutoDiscovery) + ")");
   std::map<std::string, std::string> keyValueStore;
-  keyValueStore["time_stamp"] = String(dtuGlobalData.currentTimestamp).c_str();
+  keyValueStore["time_stamp"] = getTimeStringByTimestamp(platformData.currentNTPtime).c_str();
   // grid
   keyValueStore["grid_U"] = String(dtuGlobalData.grid.voltage).c_str();
   keyValueStore["grid_I"] = String(dtuGlobalData.grid.current).c_str();
