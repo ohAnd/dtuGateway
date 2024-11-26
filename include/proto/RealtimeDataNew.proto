@@ -101,24 +101,24 @@ message PvMO {
 }
 
 message RealDataNewReqDTO {
-    string device_serial_number = 1;       // Serial number of the device
+    string device_serial_number = 1[(nanopb).max_length = 16];       // Serial number of the device
     int32 timestamp = 2;                   // Timestamp of the data
-    int32 active_power = 3;                // Active power (Watts)
-    int32 cumulative_power = 4;            // Cumulative power (Watt-hours)
+    int32 ap = 3;                          // Number of packages
+    int32 cp = 4;                          // Current pacakge
     int32 firmware_version = 5;            // Firmware version
     repeated MeterMO meter_data = 6;       // Meter data array
     repeated RpMO rp_data = 7;             // RpMO data array
     repeated RSDMO rsd_data = 8;           // RSDMO data array
-    repeated SGSMO sgs_data = 9 [(nanopb).max_count = 2];           // SGSMO data array
+    repeated SGSMO sgs_data = 9 [(nanopb).max_count = 2]; // SGSMO data array
     repeated TGSMO tgs_data = 10;          // TGSMO data array
-    repeated PvMO pv_data = 11 [(nanopb).max_count = 4];            // PvMO data array
+    repeated PvMO pv_data = 11 [(nanopb).max_count = 4]; // PvMO data array
     uint64 dtu_power = 12;                 // Power of the DTU (Watts)
     uint64 dtu_daily_energy = 13;          // Daily energy of the DTU (Watt-hours)
 }
 
 message RealDataNewResDTO {
     string time_ymd_hms = 1;               // Timestamp in the format YMD_HMS
-    int32 cumulative_power = 2;            // Cumulative power (Watt-hours)
+    int32 cp = 2;                          // Current Package
     int32 error_code = 3;                  // Error code indicator
     int32 offset = 4;                      // Offset value
     int32 time = 5;                        // Timestamp value

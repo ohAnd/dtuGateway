@@ -84,7 +84,6 @@ int wifiTimeoutLong = WIFI_RETRY_TIME_SECONDS;
 #warning "Compiling for ESP32"
 #endif
 
-
 #define BLINK_NORMAL_CONNECTION 0    // 1 Hz blip - normal connection and running
 #define BLINK_WAITING_NEXT_TRY_DTU 1 // 1 Hz - waiting for next try to connect to DTU
 #define BLINK_WIFI_OFF 2             // 2 Hz - wifi off
@@ -579,10 +578,10 @@ boolean getPowerSetDataFromOpenHab()
 
   if (conversionSuccess)
   {
-    if (gotLimit < 2)
-      newLimit = 2;
+    if (gotLimit < 0)
+      newLimit = 0;
     else if (gotLimit > 100)
-      newLimit = 2;
+      newLimit = 100;
     else
       newLimit = gotLimit;
     // Serial.println("getMessageFromOpenhab - got SetLimit: " + String(newLimit) + " %");// + " - last OH limit: " + String(lastOpenhabLimit) + " %");
@@ -592,7 +591,7 @@ boolean getPowerSetDataFromOpenHab()
     Serial.println("OPENHAB:\t\t got wrong data for SetLimit: " + openhabMessage);
     return false;
   }
-  if (dtuGlobalData.powerLimitSet != newLimit)// && lastOpenhabLimit != 255)
+  if (dtuGlobalData.powerLimitSet != newLimit) // && lastOpenhabLimit != 255)
   {
     // Serial.println("OPENHAB:\t\t got new OH Limit: " + String(dtuGlobalData.powerLimitSet) + " - last OH limit: " + String(lastOpenhabLimit) + " %");
     Serial.print("OPENHAB:\t\t last OH limit: " + String(dtuGlobalData.powerLimitSet) + " %");
@@ -1064,13 +1063,32 @@ void getSerialCommand(String cmd, String value)
       ESP.restart();
     }
   }
-  else if (cmd == "rebootDTU")
+  else if (cmd == "rebootDTU") // cmd: 'rebootDTU 1'
   {
     Serial.print(F(" rebootDTU "));
     if (val == 1)
     {
       Serial.println(F(" request DTU reboot at DTUinterface ... "));
       dtuInterface.requestRestartDevice();
+    }
+  }
+  else if (cmd == "dtuInverter") // cmd: 'dtuInverter 1' or 'dtuInverter 0'
+  {
+    Serial.print(F(" dtu inverter "));
+    if (val == 1)
+    {
+      Serial.println(F(" request DTU inverter ON ... "));
+      dtuInterface.requestInverterTargetState(true);
+    }
+    else if (val == 0)
+    {
+      Serial.println(F(" request DTU inverter OFF ... "));
+      dtuInterface.requestInverterTargetState(false);
+    }
+    else
+    {
+      Serial.println(F(" request DTU inverter state ... <<<< TODO >>>"));
+      // dtuInterface.requestInverterTargetState(false);
     }
   }
   else if (cmd == "selectDisplay")
@@ -1201,12 +1219,13 @@ void loop()
         dtuGlobalData.powerLimitSetUpdate = true;
         Serial.println("\nMQTT: changed powerset value to '" + String(dtuGlobalData.powerLimitSet) + "'");
       }
-      if(dtuGlobalData.powerLimitSetUpdate) {
+      if (dtuGlobalData.powerLimitSetUpdate)
+      {
         mqttHandler.publishStandardData("inverter_PowerLimitSet", String(dtuGlobalData.powerLimitSet));
         // postMessageToOpenhab(String(userConfig.openItemPrefix) + "_PowerLimitSet", (String)dtuGlobalData.powerLimit);
         dtuGlobalData.powerLimitSetUpdate = false;
       }
-    
+
       RemoteInverterData remoteData = mqttHandler.getRemoteInverterData();
       if (remoteData.updateReceived == true)
       {
@@ -1294,17 +1313,20 @@ void loop()
         getPowerSetDataFromOpenHab();
 
       // direct request of new powerLimit
-      if (dtuGlobalData.powerLimitSet != dtuGlobalData.powerLimit &&
-          dtuGlobalData.powerLimitSet != 101 &&
+      if (dtuGlobalData.powerLimitSet != 101 &&
+          dtuGlobalData.powerLimitSet != 1 &&
           dtuGlobalData.uptodate &&
           dtuConnection.dtuConnectState == DTU_STATE_CONNECTED &&
           !userConfig.remoteDisplayActive)
       {
-        Serial.println("----- ----- set new power limit from " + String(dtuGlobalData.powerLimit) + " % to " + String(dtuGlobalData.powerLimitSet) + " % ----- ----- ");
-        dtuInterface.setPowerLimit(dtuGlobalData.powerLimitSet);
-        // set next normal request in 5 seconds from now on, only if last data updated within last 2 times of user setted update rate
-        if (dtuGlobalData.currentTimestamp - dtuGlobalData.lastRespTimestamp < (userConfig.dtuUpdateTime * 2))
-          platformData.dtuNextUpdateCounterSeconds = dtuGlobalData.currentTimestamp - userConfig.dtuUpdateTime + 5;
+        if ((dtuGlobalData.powerLimitSet != dtuGlobalData.powerLimit && dtuGlobalData.inverterOn) || (dtuGlobalData.powerLimitSet == 0 && dtuGlobalData.inverterOn) || (dtuGlobalData.powerLimitSet > 0 && !dtuGlobalData.inverterOn))
+        {
+          Serial.println("----- ----- set new power limit from " + String(dtuGlobalData.powerLimit) + " % to " + String(dtuGlobalData.powerLimitSet) + " % ----- ----- ");
+          dtuInterface.setPowerLimit(dtuGlobalData.powerLimitSet);
+          // set next normal request in 5 seconds from now on, only if last data updated within last 2 times of user setted update rate
+          if (dtuGlobalData.currentTimestamp - dtuGlobalData.lastRespTimestamp < (userConfig.dtuUpdateTime * 2))
+            platformData.dtuNextUpdateCounterSeconds = dtuGlobalData.currentTimestamp - userConfig.dtuUpdateTime + 5;
+        }
       }
     }
 

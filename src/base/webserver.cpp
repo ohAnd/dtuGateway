@@ -235,6 +235,7 @@ void DTUwebserver::handleDataJson(AsyncWebServerRequest *request)
     JSON = JSON + "\"pLim\": " + ((dtuGlobalData.powerLimit == 254) ? ("\"--\"") : (String(dtuGlobalData.powerLimit))) + ",";
     JSON = JSON + "\"pLimSet\": " + String(dtuGlobalData.powerLimitSet) + ",";
     JSON = JSON + "\"temp\": " + String(dtuGlobalData.inverterTemp) + ",";
+    JSON = JSON + "\"active\": " + String(dtuGlobalData.inverterOn) + ",";
     JSON = JSON + "\"uptodate\": " + String(dtuGlobalData.uptodate);
     JSON = JSON + "},";
 
@@ -557,10 +558,10 @@ void DTUwebserver::handleUpdatePowerLimit(AsyncWebServerRequest *request)
 
         if (conversionSuccess)
         {
-            if (gotLimit < 2)
-                dtuGlobalData.powerLimitSet = 2;
+            if (gotLimit < 0)
+                dtuGlobalData.powerLimitSet = 0;
             else if (gotLimit > 100)
-                dtuGlobalData.powerLimitSet = 2;
+                dtuGlobalData.powerLimitSet = 100;
             else
                 dtuGlobalData.powerLimitSet = gotLimit;
             dtuGlobalData.powerLimitSetUpdate = true;

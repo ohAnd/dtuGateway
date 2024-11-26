@@ -50,6 +50,8 @@
 #define DTU_TXRX_STATE_WAIT_GETCONFIG 3
 #define DTU_TXRX_STATE_WAIT_COMMAND 4
 #define DTU_TXRX_STATE_WAIT_RESTARTDEVICE 5
+#define DTU_TXRX_STATE_WAIT_INVERTER_TURN_OFF 6
+#define DTU_TXRX_STATE_WAIT_INVERTER_TURN_ON 7
 #define DTU_TXRX_STATE_ERROR 99
 
 
@@ -95,6 +97,8 @@ struct inverterData
   boolean uptodate = false;
   boolean updateReceived = false;
   int dtuResetRequested = 0;
+  char device_serial_number[16] = "";
+  boolean inverterOn = true;
 };
 
 
@@ -120,6 +124,7 @@ public:
     void getDataUpdate();
     void setPowerLimit(int limit);
     void requestRestartDevice();
+    void requestInverterTargetState(boolean OnOff);
 
     String getTimeStringByTimestamp(unsigned long timestamp);
     void printDataAsTextToSerial();
@@ -151,6 +156,7 @@ private:
     void checkingDataUpdate();
     void checkingForLastDataReceived();
     boolean cloudPauseActiveControl();
+    void evaluateInverterState();
         
     // Protobuf functions
     void writeReqAppGetHistPower();
@@ -162,11 +168,17 @@ private:
     void writeReqGetConfig();
     void readRespGetConfig(pb_istream_t istream);
     
-    boolean writeReqCommand(uint8_t setPercent);
-    boolean readRespCommand(pb_istream_t istream);
+    boolean writeReqCommandSetPowerlimit(uint8_t setPercent);
+    boolean readRespCommandSetPowerlimit(pb_istream_t istream);
     
-    boolean writeCommandRestartDevice();
+    boolean writeReqCommandRestartDevice();
     boolean readRespCommandRestartDevice(pb_istream_t istream);
+
+    boolean writeReqCommandInverterTurnOff();
+    boolean readRespCommandInverterTurnOff(pb_istream_t istream);
+
+    boolean writeReqCommandInverterTurnOn();
+    boolean readRespCommandInverterTurnOn(pb_istream_t istream);
     
     const char* serverIP;
     uint16_t serverPort;

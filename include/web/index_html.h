@@ -172,7 +172,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                 </div>
                 <hr>
                 <div> power limit set in %
-                    <input type="number" id="powerLimitSetNew" min="2" max="100" placeholder="">
+                    <input type="number" id="powerLimitSetNew" min="0" max="100" placeholder="">
                 </div>
             </div>
 
