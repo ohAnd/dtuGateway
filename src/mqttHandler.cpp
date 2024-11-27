@@ -186,7 +186,7 @@ void MQTTHandler::publishDiscoveryMessage(const char *entity, const char *entity
     {
         doc["command_topic"] = commandTopicPath;
         doc["mode"] = "box";
-        doc["min"] = 2;
+        doc["min"] = 0;
         doc["max"] = 100;
     }
     doc["state_topic"] = stateTopicPath;
