@@ -74,7 +74,7 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
   - power limit value is settable in an interval of [0 ... 100]
     - value 1 will be ignored due to the inverter capabilities
     - value = 0 switching the inverter off - dtu is still alive and measuring input values
-    - if in state inverter off any value > 2 will be switching the inverter on again
+    - if in state 'inverter off' any value > 0 will be switching the inverter on again (1 will be interpreted as 2)
 - for testing purposes the time between each request is adjustable (default 31 seconds) 
 - syncing time of gateway with the local time of the dtu to prevent wrong restart counters
 - configurable 'cloud pause' - see [experiences](#experiences-with-the-hoymiles-HMS-800W-2T) - to prevent missing updates by the dtu to the hoymiles cloud

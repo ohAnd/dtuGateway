@@ -535,22 +535,39 @@ String getMessageFromOpenhab(String key)
   HTTPClient http;
   if (WiFi.status() == WL_CONNECTED)
   {
-    String openhabHost = "http://" + String(userConfig.openhabHostIpDomain) + ":8080/rest/items/";
+    String openhabItemsUrl = "http://" + String(userConfig.openhabHostIpDomain) + ":8080/rest/items/" + key;
     http.setTimeout(2000); // prevent blocking of progam
-    if (http.begin(client, openhabHost + key + "/state"))
+    // if (http.begin(client, openhabHost + key + "/state"))
+    if (http.begin(client, openhabItemsUrl))
     {
       String payload = "";
       int httpCode = http.GET();
       if (httpCode == HTTP_CODE_OK)
       {
         payload = http.getString();
+        // Serial.println("OpenHAB:\t\t [HTTP] getMessageFromOpenhab (" + openhabItemsUrl + ") - got: " + payload);
+        http.end();
+        JsonDocument doc;
+        DeserializationError error = deserializeJson(doc, payload);
+        if (error)
+        {
+          Serial.println("deserializeJson() failed: " + String(error.c_str()));
+          return "error";
+        }
+        return doc["state"].as<String>();
+      }
+      else
+      {
+        Serial.println("OpenHAB:\t\t [HTTP] getMessageFromOpenhab (" + openhabItemsUrl + ") - ERROR: got httpCode: " + String(httpCode));
+        http.end();
+        return "httpError";
       }
       http.end();
-      return payload;
+      // return payload;
     }
     else
     {
-      Serial.println("OpenHAB:\t\t [HTTP] getMessageFromOpenhab Unable to connect " + openhabHost);
+      Serial.println("OpenHAB:\t\t [HTTP] getMessageFromOpenhab Unable to connect " + openhabItemsUrl);
       return "connectError";
     }
   }
@@ -1217,7 +1234,7 @@ void loop()
       {
         dtuGlobalData.powerLimitSet = lastSetting.setValue;
         dtuGlobalData.powerLimitSetUpdate = true;
-        Serial.println("\nMQTT: changed powerset value to '" + String(dtuGlobalData.powerLimitSet) + "'");
+        Serial.println("\nMQTT:\t changed powerset value to '" + String(dtuGlobalData.powerLimitSet) + "'");
       }
       if (dtuGlobalData.powerLimitSetUpdate)
       {
@@ -1314,12 +1331,14 @@ void loop()
 
       // direct request of new powerLimit
       if (dtuGlobalData.powerLimitSet != 101 &&
-          dtuGlobalData.powerLimitSet != 1 &&
           dtuGlobalData.uptodate &&
           dtuConnection.dtuConnectState == DTU_STATE_CONNECTED &&
           !userConfig.remoteDisplayActive)
       {
-        if ((dtuGlobalData.powerLimitSet != dtuGlobalData.powerLimit && dtuGlobalData.inverterOn) || (dtuGlobalData.powerLimitSet == 0 && dtuGlobalData.inverterOn) || (dtuGlobalData.powerLimitSet > 0 && !dtuGlobalData.inverterOn))
+        if (!(dtuGlobalData.powerLimitSet == 1 && dtuGlobalData.inverterOn) &&
+            ((dtuGlobalData.powerLimitSet != dtuGlobalData.powerLimit && dtuGlobalData.inverterOn) ||
+             (dtuGlobalData.powerLimitSet == 0 && dtuGlobalData.inverterOn) ||
+             (dtuGlobalData.powerLimitSet > 0 && !dtuGlobalData.inverterOn)))
         {
           Serial.println("----- ----- set new power limit from " + String(dtuGlobalData.powerLimit) + " % to " + String(dtuGlobalData.powerLimitSet) + " % ----- ----- ");
           dtuInterface.setPowerLimit(dtuGlobalData.powerLimitSet);

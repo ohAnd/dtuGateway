@@ -42,7 +42,7 @@ void MQTTHandler::subscribedMessageArrived(char *topic, byte *payload, unsigned 
                 setLimit = 100;
             else if (gotLimit < 0)
                 setLimit = 0;
-            Serial.println("MQTT: cleaned incoming message: '" + incommingMessage + "' (len: " + String(length) + ") + gotLimit: " + String(gotLimit) + " -> new setLimit: " + String(setLimit));
+            // Serial.println("MQTT: cleaned incoming message: '" + incommingMessage + "' (len: " + String(length) + ") + gotLimit: " + String(gotLimit) + " -> new setLimit: " + String(setLimit));
             instance->lastPowerLimitSet.setValue = setLimit;
             instance->lastPowerLimitSet.update = true;
         }
