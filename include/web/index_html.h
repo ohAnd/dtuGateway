@@ -96,7 +96,8 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                     <input type="text" id="mqttIP" class="ipv4Input" name="ipv4" placeholder="xxx.xxx.xxx.xxx">
                 </div>
                 <div>
-                <input type="checkbox" id="mqttUseTLS"> <small>TLS connection (e.g. 123456789.s1.eu.hivemq.cloud:8883) - works only with ESP32</small>
+                    <input type="checkbox" id="mqttUseTLS"> <small>TLS connection (e.g.
+                        123456789.s1.eu.hivemq.cloud:8883) - works only with ESP32</small>
                 </div>
                 <div>
                     <br>specify user on your mqtt broker instance:
@@ -161,7 +162,6 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                 <b onclick="hide('#changeSettings')" id="btnSettingsClose" class="form-button btn">close</b>
             </div>
         </div>
-    </div>
     </div>
     <div class="popup" id="updatePowerLimit" style="display: none;">
         <h2>Update power limit</h2>
@@ -255,7 +255,6 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             <b onclick="hide('#updateMenu')" class="form-button btn">close</b>
         </div>
     </div>
-    </div>
     <div class="popup" id="updateProgress">
         <h2>Update</h2>
         <hr>
@@ -272,9 +271,25 @@ const char INDEX_HTML[] PROGMEM = R"=====(
         </b>
         <hr>
     </div>
+    <div class="popup" id="warningOverview">
+        <h2>current dtu warnings</h2>
+        <h6>Displays the entries in the DTU sorted by the time they occurred <i id="warningsLastUpdate">(last updated: 01.01.2024 - 00:00:00)</i></h6>
+        <div style="text-align: center;">
+            <b onclick="hide('#warningOverview')" class="form-button btn">close</b>
+        </div>
+        <hr>
+        <div id="activeWarnings" style="padding-bottom: 10px;text-align: center; max-height: 68%; overflow-y: auto;">
+        </div>
+        <hr>
+    </div>
     <div id="frame">
         <div class="header">
             <b id="titleHeader">Hoymiles HMS-800W-2T - Gateway</b>
+            <div id="dtuWarnings">
+                <i class="fa fa-exclamation-triangle" style="color: darkcyan;"
+                    onclick="show('#warningOverview')"></i>
+                <span class="numBadge" id="dtuWarningsBadge">20</span>
+            </div>
         </div>
         <div class="row">
             <div class="column">
@@ -325,6 +340,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                         <small>I</small>
                         <b id="grid_current" class="panelValueSmall valueText">00.0 A</b>
                     </div>
+                    <i id="infoInveterOff" class="fa fa-power-off" style="color: orange;"></i>
                 </div>
             </div>
             <div class="column" id="time">
@@ -460,6 +476,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
         let timerInfoUpdate = 0;
         let cacheInfoData = {};
         let cacheData = {};
+        let cacheDtuData = {};
 
         $(document).ready(function () {
             console.log("document loading done");
@@ -468,6 +485,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             getDataValues();
             getInfoValues();
             requestVersionData();
+            getDtuDataValues();
 
             window.setInterval(function () {
                 getDataValues();
@@ -476,6 +494,10 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             timerInfoUpdate = window.setInterval(function () {
                 getInfoValues();
             }, 5000);
+
+            timerDtuDataUpdate = window.setInterval(function () {
+                getDtuDataValues();
+            }, 7500);
 
             // check every minute (62,5s) for an available update
             window.setInterval(function () {
@@ -659,6 +681,13 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                     dtuState = "no info";
             }
             checkValueUpdate('#dtu_error_state', dtuState);
+
+            if (data.inverter.active == 0) {
+                $('#infoInveterOff').show();
+            } else {
+                $('#infoInveterOff').hide();
+            }
+
             return true;
         }
 
@@ -1413,6 +1442,64 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             }
         }
 
+        function showDtuWarnings() {
+
+            cacheDtuData.warnings.length > 0 ? $('#dtuWarnings').show() : $('#dtuWarnings').hide();
+            numOfWarnings = cacheDtuData.warnings.length;
+            numOfWarningsActive = 0;
+            // clear the list berfore refill
+            $('#activeWarnings').empty();
+            // sort cacheDtuData.warnings by timestampStart - newest first
+            cacheDtuData.warnings.sort((a, b) => (a.timestampStart < b.timestampStart) ? 1 : -1);
+
+            for (let index = 0; index < cacheDtuData.warnings.length; index++) {
+                let warning = cacheDtuData.warnings[index];
+                if (warning.timestampStop == 0) {
+                    numOfWarningsActive++;
+                }
+                let warningRow = `
+                <div class="warningRow" style="display: flex; justify-content: space-between;">
+                    <div class="warningColumn" style="flex: 0 0 auto; padding: 5px;">
+                        <div class="warningTimestamp">${new Date(warning.timestampStart * 1000).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }).replace(',', ' -')}</div>
+                        ${warning.timestampStop !== 0 ? `<div class="warningTimestamp">${new Date(warning.timestampStop * 1000).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }).replace(',', ' -')}</div>` : ''}
+                    </div>
+                    <div class="warningColumn" style="flex: 0 0 5em; padding: 5px;">
+                        <div class="warningMessage">${warning.num}</div>
+                    </div>
+                    <div class="warningColumn" style="flex: 1; padding: 5px; text-align: left;">
+                        <div class="warningMessage">${warning.message}</div>
+                    </div>
+                    <div class="warningColumn" style="flex: 1; padding: 5px;">
+                `;
+
+                if (warning.message.toLowerCase().includes('undervoltage')) {
+                    warningRow = warningRow + `<div class="warningData">measured voltage: ${warning.data0/10} V</div>`;
+                    warningRow = warningRow + `<div class="warningData">minimal voltage: ${warning.data1/10} V</div>`;
+                } else {
+                    if (warning.data0 !== 0) warningRow = warningRow + `<div class="warningData">data0: ${warning.data0}</div>`
+                    if (warning.data1 !== 0) warningRow = warningRow + `<div class="warningData">data1: ${warning.data1}</div>`
+                }
+
+                warningRow = warningRow + `</div>
+                </div>
+                <hr style="border-top-color: lightgrey;">`;
+
+
+                $('#activeWarnings').append(warningRow);
+            }
+            if (numOfWarningsActive != 0) {
+                $('#dtuWarningsBadge').html(numOfWarningsActive);
+                $('#dtuWarningsBadge').css('background-color', 'orange');
+                $('#dtuWarningsBadge').css('color', 'black');
+            } else {
+                $('#dtuWarningsBadge').html(numOfWarnings);
+                $('#dtuWarningsBadge').css('background-color', 'darkcyan');
+                $('#dtuWarningsBadge').css('color', 'white');
+            }
+            $('#warningsLastUpdate').html("(last updated: " + getTime(cacheDtuData.warningsLastUpdate, "date") + " - " + getTime(cacheDtuData.warningsLastUpdate, "time") + ")");
+            //console.log("# of warnings: " + numOfWarnings + " - active: " + numOfWarningsActive);
+        }
+
         // alarmState = alert-success, alert-danger, alert-warning
         function showAlert(text, info, alarmState = "") {
             $('#alertBox').attr('class', "alert " + alarmState);
@@ -1501,10 +1588,29 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             });
         }
 
+        function getDtuDataValues() {
+            $.ajax({
+                url: 'api/dtuData.json',
+
+                type: 'GET',
+                contentType: false,
+                processData: false,
+                timeout: 2000,
+                success: function (dtuData) {
+                    cacheDtuData = dtuData;
+                    showDtuWarnings();
+                },
+                error: function () {
+                    console.log("timeout getting dtuData in local network");
+                }
+            });
+        }
+
     </script>
 
 </body>
 
 </html>
+
 
 )=====";

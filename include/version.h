@@ -1,3 +1,3 @@
-#define VERSION "2.1.29_localDev"
-#define BUILDTIME "30.11.2024 - 14:10:15"
-#define BUILDTIMESTAMP "1732972215"
+#define VERSION "2.1.88_localDev"
+#define BUILDTIME "10.12.2024 - 19:30:31"
+#define BUILDTIMESTAMP "1733855431"

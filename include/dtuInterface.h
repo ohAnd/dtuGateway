@@ -21,6 +21,7 @@
 #include "RealtimeDataNew.pb.h"
 #include "GetConfig.pb.h"
 #include "CommandPB.pb.h"
+#include "AlarmData.pb.h"
 #include "CRC16.h"
 #include "dtuConst.h"
 
@@ -29,6 +30,8 @@
 
 #define DTU_TIME_OFFSET 28800
 #define DTU_CLOUD_UPLOAD_SECONDS 40
+
+#define DTU_INVERTER_SWITCH_DELAY 60 // seconds to wait after inverter switch on/off
 
 #define DTU_STATE_OFFLINE 0
 #define DTU_STATE_CONNECTED 1
@@ -52,6 +55,9 @@
 #define DTU_TXRX_STATE_WAIT_RESTARTDEVICE 5
 #define DTU_TXRX_STATE_WAIT_INVERTER_TURN_OFF 6
 #define DTU_TXRX_STATE_WAIT_INVERTER_TURN_ON 7
+#define DTU_TXRX_STATE_WAIT_GET_ALARMS 8
+#define DTU_TXRX_STATE_WAIT_PERFORMANCE_DATA_MODE 9
+#define DTU_TXRX_STATE_WAIT_REQUEST_ALARMS 10
 #define DTU_TXRX_STATE_ERROR 99
 
 
@@ -79,6 +85,26 @@ struct baseData
   float totalEnergy = 0;
 };
 
+struct inverterCtrl
+{
+  boolean stateOn = true;
+  uint32_t lastSwitchedToOn = 0;
+  uint32_t lastSwitchedToOff = 0;
+};
+
+struct warnDataBlock 
+{
+  uint16_t num = 0;
+  uint16_t code = 0;
+  char message[64] = "";
+  uint32_t timestampStart = 0;
+  uint32_t timestampStop = 0;
+  uint32_t data0 = 0;
+  uint32_t data1 = 0;
+};
+
+#define WARN_DATA_MAX_ENTRIES 30
+
 struct inverterData
 {
   baseData grid;
@@ -98,7 +124,9 @@ struct inverterData
   boolean updateReceived = false;
   int dtuResetRequested = 0;
   char device_serial_number[16] = "";
-  boolean inverterOn = true;
+  inverterCtrl inverterControl;
+  warnDataBlock warnData[WARN_DATA_MAX_ENTRIES];
+  uint32_t warnDataLastTimestamp = 0;
 };
 
 
@@ -125,6 +153,7 @@ public:
     void setPowerLimit(int limit);
     void requestRestartDevice();
     void requestInverterTargetState(boolean OnOff);
+    void requestAlarms();
 
     String getTimeStringByTimestamp(unsigned long timestamp);
     void printDataAsTextToSerial();
@@ -156,7 +185,6 @@ private:
     void checkingDataUpdate();
     void checkingForLastDataReceived();
     boolean cloudPauseActiveControl();
-    void evaluateInverterState();
         
     // Protobuf functions
     void writeReqAppGetHistPower();
@@ -179,6 +207,15 @@ private:
 
     boolean writeReqCommandInverterTurnOn();
     boolean readRespCommandInverterTurnOn(pb_istream_t istream);
+
+    boolean writeReqCommandPerformanceDataMode();
+    boolean readRespCommandPerformanceDataMode(pb_istream_t istream);
+
+    boolean writeReqCommandRequestAlarms();
+    boolean readRespCommandRequestAlarms(pb_istream_t istream);
+
+    boolean writeReqCommandGetAlarms();
+    boolean readRespCommandGetAlarms(pb_istream_t istream);
     
     const char* serverIP;
     uint16_t serverPort;

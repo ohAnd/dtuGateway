@@ -103,7 +103,22 @@ void MQTTHandler::subscribedMessageArrived(char *topic, byte *payload, unsigned 
                 instance->lastRemoteInverterData.dtuConnectState = incommingMessage.toInt();
             else if (String(topic) == instance->mqttMainTopicPath + "/time/stamp")
             {
-                instance->lastRemoteInverterData.respTimestamp = incommingMessage.toInt();
+                // incommingMessage = 2024-12-05T15:59:43+01:00 - has to be converted to timestamp
+                struct tm tm;
+                char *ret = strptime(incommingMessage.c_str(), "%Y-%m-%dT%H:%M:%S", &tm);
+                if (ret != NULL) {
+                    time_t t = mktime(&tm);
+                    int offsetHours = atoi(ret + 1) / 100;
+                    int offsetMinutes = atoi(ret + 1) % 100;
+                    if (*ret == '+') {
+                        t -= (offsetHours * 3600 + offsetMinutes * 60);
+                    } else if (*ret == '-') {
+                        t += (offsetHours * 3600 + offsetMinutes * 60);
+                    }
+                    instance->lastRemoteInverterData.respTimestamp = t;
+                } else {
+                    Serial.println("MQTT: Failed to parse timestamp: " + incommingMessage);
+                }
                 instance->lastRemoteInverterData.updateReceived = true;
             }
             else

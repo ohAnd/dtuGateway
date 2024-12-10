@@ -1108,6 +1108,11 @@ void getSerialCommand(String cmd, String value)
       // dtuInterface.requestInverterTargetState(false);
     }
   }
+  else if (cmd == "getDtuAlarms") // cmd: 'getDtuAlarms 1'
+  {
+    Serial.println(F(" request DTU alarms "));
+    dtuInterface.requestAlarms();
+  }
   else if (cmd == "selectDisplay")
   {
     Serial.print(F(" selected Display"));
@@ -1335,10 +1340,10 @@ void loop()
           dtuConnection.dtuConnectState == DTU_STATE_CONNECTED &&
           !userConfig.remoteDisplayActive)
       {
-        if (!(dtuGlobalData.powerLimitSet == 1 && dtuGlobalData.inverterOn) &&
-            ((dtuGlobalData.powerLimitSet != dtuGlobalData.powerLimit && dtuGlobalData.inverterOn) ||
-             (dtuGlobalData.powerLimitSet == 0 && dtuGlobalData.inverterOn) ||
-             (dtuGlobalData.powerLimitSet > 0 && !dtuGlobalData.inverterOn)))
+        if (!(dtuGlobalData.powerLimitSet == 1 && dtuGlobalData.inverterControl.stateOn) &&
+            ((dtuGlobalData.powerLimitSet != dtuGlobalData.powerLimit && dtuGlobalData.inverterControl.stateOn) ||
+             (dtuGlobalData.powerLimitSet == 0 && dtuGlobalData.inverterControl.stateOn) ||
+             (dtuGlobalData.powerLimitSet > 0 && !dtuGlobalData.inverterControl.stateOn)))
         {
           Serial.println("----- ----- set new power limit from " + String(dtuGlobalData.powerLimit) + " % to " + String(dtuGlobalData.powerLimitSet) + " % ----- ----- ");
           dtuInterface.setPowerLimit(dtuGlobalData.powerLimitSet);

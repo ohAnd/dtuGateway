@@ -75,10 +75,16 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
     - value 1 will be ignored due to the inverter capabilities
     - value = 0 switching the inverter off - dtu is still alive and measuring input values
     - if in state 'inverter off' any value > 0 will be switching the inverter on again (1 will be interpreted as 2)
+    - hint: it seems there is no state reported regarding inverter on or off - but the inverter off state will be shown as a warning "Inverter remote off" - this will be used to recheck the state with every cyclic refresh of dtu warnings
 - for testing purposes the time between each request is adjustable (default 31 seconds) 
 - syncing time of gateway with the local time of the dtu to prevent wrong restart counters
 - configurable 'cloud pause' - see [experiences](#experiences-with-the-hoymiles-HMS-800W-2T) - to prevent missing updates by the dtu to the hoymiles cloud
 - automatic reboot of DTU, if there is an error detected (e.g. inplausible not changed values)
+- gathering the current dtu warnings and show them in the webfrontend
+  - click on icon in the top right corner - icon will be only shown if warnings were received
+  - a badge will reprting the number of warnings
+    - dark if only old warnings adn the number of this old warnings
+    - bright if there are active warnings and only the number of active warnings
  
 #### connections to the environment
 - serving the read data per /api/data.json
@@ -479,7 +485,6 @@ Via the web ui you can select the firmware file and start the update process. Pl
 latest release - changes will documented by commit messages
 https://github.com/ohAnd/dtuGateway/releases/latest
 
-(to be fair, the amount of downloads is the count of requests from the client to check for new firmware for the OTA update)
 
 ![GitHub Downloads (all assets, latest release)](https://img.shields.io/github/downloads/ohand/dtuGateway/latest/total)
 ![GitHub (Pre-)Release Date](https://img.shields.io/github/release-date/ohand/dtuGateway)
