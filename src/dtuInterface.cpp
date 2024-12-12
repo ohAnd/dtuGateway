@@ -1408,7 +1408,6 @@ boolean DTUInterface::readRespCommandInverterTurnOff(pb_istream_t istream)
 
 boolean DTUInterface::writeReqCommandPerformanceDataMode()
 {
-    dtuGlobalData.inverterControl.stateOn = false;
     if (!client->connected())
     {
         Serial.println(F("DTUinterface:\t writeReqCommandPerformanceDataMode - not possible - currently not connect"));
@@ -1476,8 +1475,6 @@ boolean DTUInterface::writeReqCommandPerformanceDataMode()
     Serial.println(F("DTUinterface:\t writeReqCommandPerformanceDataMode --- send request to DTU ..."));
     dtuConnection.dtuTxRxState = DTU_TXRX_STATE_WAIT_PERFORMANCE_DATA_MODE;
     client->write((const char *)message, 10 + stream.bytes_written);
-    // set global inverter state to off - will be checked in next data update
-    dtuGlobalData.inverterControl.stateOn = false;
     dtuGlobalData.inverterControl.lastSwitchedToOff = dtuGlobalData.currentTimestamp;
     // set next normal request in 5 seconds from now on, only if last data updated within last 2 times of user setted update rate
     if (dtuGlobalData.currentTimestamp - dtuGlobalData.lastRespTimestamp < (userConfig.dtuUpdateTime * 2))
@@ -1678,14 +1675,16 @@ boolean DTUInterface::readRespCommandGetAlarms(pb_istream_t istream)
     // Serial.printf("\ncommand req package idx: %i", winforeqdto.package_idx);
     // Serial.printf("\ncommand req warn device: %i\n", winforeqdto.warn_device);
 
-    if(winforeqdto.package_count == 0) {
+    if (winforeqdto.package_count == 0)
+    {
         Serial.println("DTUInterface:\t readRespCommandGetAlarms - request for alarms failed or no alarms available");
         return false;
     }
     dtuGlobalData.warnDataLastTimestamp = static_cast<uint32_t>(winforeqdto.time);
 
     // delete all entries of dtuGlobalData.warnData[] before filling it with new data
-    for (int i = 0; i < WARN_DATA_MAX_ENTRIES - 1; i++) {
+    for (int i = 0; i < WARN_DATA_MAX_ENTRIES - 1; i++)
+    {
         dtuGlobalData.warnData[i].code = 0;
         dtuGlobalData.warnData[i].message[0] = '\0';
         dtuGlobalData.warnData[i].num = 0;
@@ -1703,20 +1702,27 @@ boolean DTUInterface::readRespCommandGetAlarms(pb_istream_t istream)
     // wcode = 28796 => "history -> Inverter was remote off - period" -> WTime1 = from and WTime2 = to
 
     std::map<int, std::string> warningCodeMap = {
+        {124, "[not approved] ??? shut down by remote control"},
+        {208, "[text not known]"},
         {209, "PV1 no input voltage - active"},
+        {210, "[not approved] PV2 no input voltage - active"},
         {216, "PV1 Undervoltage - active"},
+        {218, "[not approved] PV2 Undervoltage - active"},
         {8316, "Inverter remote off - active"},
         {8402, "PV2 no input voltage"},
         {8410, "PV2 Undervoltage"},
+        {16508, "[text not known] ??? shut down by remote control - period"},
         {16593, "PV1 no input voltage"},
         {16600, "PV1 Undervoltage"},
-        {28796, "Inverter was remote off - period"}
-    };
+        {28796, "Inverter was remote off - period"}};
 
-    for (int i = 0; i < WARN_DATA_MAX_ENTRIES - 1; i++) {
-        if (winforeqdto.mWInfo[i].pv_sn != 0) {
+    uint8_t warningActiveCount = 0;
+    for (int i = 0; i < WARN_DATA_MAX_ENTRIES - 1; i++)
+    {
+        if (winforeqdto.mWInfo[i].pv_sn != 0)
+        {
             int wcode = winforeqdto.mWInfo[i].WCode;
-            String unknownWcode = "Unknown warning code ("+ String(wcode) + ")";
+            String unknownWcode = "Unknown warning code";
             std::string warningMessage = warningCodeMap.count(wcode) ? warningCodeMap[wcode] : unknownWcode.c_str();
             dtuGlobalData.warnData[i].code = winforeqdto.mWInfo[i].WCode;
             strncpy(dtuGlobalData.warnData[i].message, warningMessage.c_str(), sizeof(dtuGlobalData.warnData[i].message) - 1);
@@ -1726,7 +1732,12 @@ boolean DTUInterface::readRespCommandGetAlarms(pb_istream_t istream)
             dtuGlobalData.warnData[i].timestampStop = winforeqdto.mWInfo[i].WTime2;
             dtuGlobalData.warnData[i].data0 = winforeqdto.mWInfo[i].WData1;
             dtuGlobalData.warnData[i].data1 = winforeqdto.mWInfo[i].WData2;
-            if(wcode == 8316) {
+            if (dtuGlobalData.warnData[i].timestampStart != 0 && dtuGlobalData.warnData[i].timestampStop == 0)
+            {
+                warningActiveCount++;
+            }
+            if (wcode == 8316)
+            {
                 dtuGlobalData.inverterControl.stateOn = false; // set to false due to an active warning "Inverter remote off"
                 Serial.printf("\ncommand warn%d - pv_sn: %i", i, winforeqdto.mWInfo[i].pv_sn);
                 Serial.printf("\ncommand warn%d - wcode: %i (%s)", i, wcode, warningMessage.c_str());
@@ -1736,6 +1747,7 @@ boolean DTUInterface::readRespCommandGetAlarms(pb_istream_t istream)
             }
         }
     }
+    dtuGlobalData.warningsActive = warningActiveCount;
 
     return true;
 }

@@ -127,6 +127,7 @@ struct inverterData
   inverterCtrl inverterControl;
   warnDataBlock warnData[WARN_DATA_MAX_ENTRIES];
   uint32_t warnDataLastTimestamp = 0;
+  uint8_t warningsActive = 0;
 };
 
 

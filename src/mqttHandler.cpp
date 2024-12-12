@@ -101,6 +101,15 @@ void MQTTHandler::subscribedMessageArrived(char *topic, byte *payload, unsigned 
             }
             else if (String(topic) == instance->mqttMainTopicPath + "/inverter/dtuConnectState")
                 instance->lastRemoteInverterData.dtuConnectState = incommingMessage.toInt();
+            else if (String(topic) == instance->mqttMainTopicPath + "/inverter/inverterControlStateOn")
+            {
+                if (incommingMessage == "1")
+                    instance->lastRemoteInverterData.inverterControlStateOn = true;
+                else
+                    instance->lastRemoteInverterData.inverterControlStateOn = false;
+            }
+            else if (String(topic) == instance->mqttMainTopicPath + "/inverter/warningsActive")
+                instance->lastRemoteInverterData.warningsActive = incommingMessage.toInt();
             else if (String(topic) == instance->mqttMainTopicPath + "/time/stamp")
             {
                 // incommingMessage = 2024-12-05T15:59:43+01:00 - has to be converted to timestamp
@@ -179,6 +188,8 @@ void MQTTHandler::publishDiscoveryMessage(const char *entity, const char *entity
     String entityType = "sensor";
     if (String(entity).indexOf("PowerLimitSet") > -1)
         entityType = "number";
+    else if (String(deviceClass).indexOf("running") > -1)
+        entityType = "binary_sensor";
     String uniqueID = String(deviceGroupName) + "_" + String(entity);
     String entityGroup = String(entity).substring(0, String(entity).indexOf("_"));
     String entityName = String(entity).substring(String(entity).indexOf("_") + 1);
@@ -212,6 +223,11 @@ void MQTTHandler::publishDiscoveryMessage(const char *entity, const char *entity
         // if (String(deviceClass) == "timestamp")
         //     doc["value_template"] = "{{ as_datetime(value) }}";
     }
+    if (deviceClass == "running")
+    {
+        doc["payload_on"] = "1";
+    }
+    
 
     if (unit != NULL)
         doc["unit_of_measurement"] = unit;
@@ -300,6 +316,9 @@ boolean MQTTHandler::initiateDiscoveryMessages(bool autoDiscoveryRemove)
             publishDiscoveryMessage("inverter_Temp", "Inverter temperature", "°C", autoDiscoveryRemove, NULL, "temperature", true); //"mdi:thermometer"
             publishDiscoveryMessage("inverter_WifiRSSI", "WiFi strength", "%", autoDiscoveryRemove, "mdi:wifi", NULL, true);
 
+            publishDiscoveryMessage("inverter_inverterControlStateOn", "Inverter active status", NULL, autoDiscoveryRemove, "mdi:power", "running", true);
+            publishDiscoveryMessage("inverter_warningsActive", "warnings - active", NULL, autoDiscoveryRemove, "mdi:alarm-light-outline", NULL, true);
+
             publishDiscoveryMessage("time_stamp", "Time stamp", NULL, autoDiscoveryRemove, "mdi:clock-time-eight-outline", "timestamp", true);
             return true;
         }
@@ -366,11 +385,15 @@ void MQTTHandler::reconnect()
                 client.subscribe((mqttMainTopicPath + "/inverter/WifiRSSI").c_str());
                 Serial.println("MQTT:\t\t subscribe to: " + (mqttMainTopicPath + "/inverter/WifiRSSI"));
                 client.subscribe((mqttMainTopicPath + "/inverter/cloudPause").c_str());
-                Serial.println("MQTT:\t\t subscribe to: " + (mqttMainTopicPath + "/inverter/dtuConnectState"));
+                Serial.println("MQTT:\t\t subscribe to: " + (mqttMainTopicPath + "/inverter/cloudPause"));
                 client.subscribe((mqttMainTopicPath + "/inverter/dtuConnectionOnline").c_str());
                 Serial.println("MQTT:\t\t subscribe to: " + (mqttMainTopicPath + "/inverter/dtuConnectionOnline"));
                 client.subscribe((mqttMainTopicPath + "/inverter/dtuConnectState").c_str());
-                Serial.println("MQTT:\t\t subscribe to: " + (mqttMainTopicPath + "/inverter/cloudPause"));
+                Serial.println("MQTT:\t\t subscribe to: " + (mqttMainTopicPath + "/inverter/dtuConnectState"));
+                client.subscribe((mqttMainTopicPath + "/inverter/inverterControlStateOn").c_str());
+                Serial.println("MQTT:\t\t subscribe to: " + (mqttMainTopicPath + "/inverter/inverterControlStateOn"));
+                client.subscribe((mqttMainTopicPath + "/inverter/warningsActive").c_str());
+                Serial.println("MQTT:\t\t subscribe to: " + (mqttMainTopicPath + "/inverter/warningsActive"));
                 client.subscribe((mqttMainTopicPath + "/time/stamp").c_str());
                 Serial.println("MQTT:\t\t subscribe to: " + (mqttMainTopicPath + "/time_stamp"));
             }

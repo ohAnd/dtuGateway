@@ -696,6 +696,8 @@ void updateValuesToMqtt(boolean haAutoDiscovery = false)
   keyValueStore["inverter_cloudPause"] = String(dtuConnection.dtuActiveOffToCloudUpdate).c_str();
   keyValueStore["inverter_dtuConnectionOnline"] = String(dtuConnection.dtuConnectionOnline).c_str();
   keyValueStore["inverter_dtuConnectState"] = String(dtuConnection.dtuConnectState).c_str();
+  keyValueStore["inverter_inverterControlStateOn"] = String(dtuGlobalData.inverterControl.stateOn).c_str();
+  keyValueStore["inverter_warningsActive"] = String(dtuGlobalData.warningsActive).c_str();
   // copy
   for (const auto &pair : keyValueStore)
   {
@@ -1277,6 +1279,8 @@ void loop()
         dtuConnection.dtuConnectionOnline = remoteData.dtuConnectionOnline;
 
         dtuConnection.dtuConnectState = remoteData.dtuConnectState;
+        dtuGlobalData.inverterControl.stateOn = remoteData.inverterControlStateOn;
+        dtuGlobalData.warningsActive = remoteData.warningsActive;
         dtuGlobalData.lastRespTimestamp = remoteData.respTimestamp;
         dtuGlobalData.currentTimestamp = remoteData.respTimestamp; // setting the local counter
         Serial.println("\nMQTT: changed remote inverter data");
@@ -1323,7 +1327,7 @@ void loop()
       if (dtuGlobalData.updateReceived)
       {
         Serial.print(F("---> got update from DTU - APIs will be updated"));
-        Serial.println(" --- wifi rssi: " + String(dtuGlobalData.dtuRssi) + " % (DTU -> cloud) - " + String(dtuGlobalData.wifi_rssi_gateway) + " % (client -> local wifi)");
+        Serial.println(" --- wifi rssi: " + String(dtuGlobalData.wifi_rssi_gateway) + " % (DTU -> cloud) - " + String(dtuGlobalData.dtuRssi) + " % (client -> local wifi)");
         updateDataToApis();
         dtuGlobalData.updateReceived = false;
       }
@@ -1382,6 +1386,17 @@ void loop()
       dtuGlobalData.wifi_rssi_gateway = wifiPercent;
       // Serial.print(" --- RSSI to AP: '" + String(WiFi.SSID()) + "': " + String(dtuGlobalData.wifi_rssi_gateway) + " %");
     }
+    // test data
+    // dtuGlobalData.updateReceived = true;
+    // dtuGlobalData.warnDataLastTimestamp = timeClient.getEpochTime();
+    // dtuGlobalData.warningsActive = 1;
+    // dtuGlobalData.warnData[0].code = 124;
+    // String message = "[not approved] ??? shut down by remote control";
+    // strncpy(dtuGlobalData.warnData[0].message, message.c_str(), sizeof(dtuGlobalData.warnData[0].message) - 1);
+    // dtuGlobalData.warnData[0].timestampStart = timeClient.getEpochTime() - 1000;
+    // dtuGlobalData.warnData[0].timestampStop = 0;
+    // dtuGlobalData.warnData[0].data0 = 0;
+    // dtuGlobalData.warnData[0].data1 = 0;
   }
 
   // mid task

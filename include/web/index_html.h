@@ -1467,7 +1467,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                         <div class="warningMessage">${warning.num}</div>
                     </div>
                     <div class="warningColumn" style="flex: 1; padding: 5px; text-align: left;">
-                        <div class="warningMessage">${warning.message}</div>
+                        <div class="warningMessage">${warning.message} (${warning.code})</div>
                     </div>
                     <div class="warningColumn" style="flex: 1; padding: 5px;">
                 `;
@@ -1494,7 +1494,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             } else {
                 $('#dtuWarningsBadge').html(numOfWarnings);
                 $('#dtuWarningsBadge').css('background-color', 'darkcyan');
-                $('#dtuWarningsBadge').css('color', 'white');
+                $('#dtuWarningsBadge').css('color', 'black');
             }
             $('#warningsLastUpdate').html("(last updated: " + getTime(cacheDtuData.warningsLastUpdate, "date") + " - " + getTime(cacheDtuData.warningsLastUpdate, "time") + ")");
             //console.log("# of warnings: " + numOfWarnings + " - active: " + numOfWarningsActive);
