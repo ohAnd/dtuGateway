@@ -228,6 +228,12 @@ void DTUInterface::dtuLoop()
                 }
             }
         }
+        // if there was a reboot of dtu, but the connection survived the reboot
+        else if (dtuConnection.dtuConnectState == DTU_STATE_DTU_REBOOT && client->connected())
+        {
+            dtuConnection.dtuConnectState = DTU_STATE_CONNECTED;
+            Serial.println("DTUinterface:\t dtuLoop - state was reboot - but connection is still alive -> set state to connected");
+        }
     }
 }
 
@@ -1694,36 +1700,53 @@ boolean DTUInterface::readRespCommandGetAlarms(pb_istream_t istream)
         dtuGlobalData.warnData[i].data1 = 0;
     }
 
-    // wcode = 8316  => "Inverter remote off" -> WTime1 = since
-    // wcode = 8402  => "PV2 no input voltage"
-    // wcode = 8410  => "PV2 Undervoltage" -> data1: "input voltage" - data2: "undervoltage limit" + -> WTime1 = from and WTime2 = to (or to null - then currently given)
-    // wcode = 16593 => "PV1 no input voltage" -> -> WTime1 = from and WTime2 = to
-    // wcode = 16600 => "PV1 Undervoltage" -> data1: "input voltage" - data2: "undervoltage limit" + -> WTime1 = from and WTime2 = to (or to null - then currently given)
-    // wcode = 28796 => "history -> Inverter was remote off - period" -> WTime1 = from and WTime2 = to
+    // std::map<int, std::string> warningCodeMap = {
+    //     {208, "[text not known]"}, // 218 in binary -                                                            1101 0000
+        
+    //     {124, "inverter shut down by remote control - active"}, // 124 in binary -                               0111 1100 (   0, 124)
+    //     {8316, "inverter shut down by remote control - active"}, // 8316 in binary -                   0010 0000 0111 1100 (  32, 124)
+    //     {16508, "inverter shut down by remote control - period"}, // 16508 in binary -                 0100 0000 0111 1100 (  64, 124)
+    //     {20604, "[not approved] inverter shut down by remote control - period"}, // 20604 in binary -  0101 0000 0111 1100 (  80, 124)
+    //     {28796, "inverter shut down by remote control - period"}, // 28796 in binary -                 0111 0000 0111 1100 ( 112, 124)
 
-    std::map<int, std::string> warningCodeMap = {
-        {124, "[not approved] ??? shut down by remote control"},
-        {208, "[text not known]"},
-        {209, "PV1 no input voltage - active"},
-        {210, "[not approved] PV2 no input voltage - active"},
-        {216, "PV1 Undervoltage - active"},
-        {218, "[not approved] PV2 Undervoltage - active"},
-        {8316, "Inverter remote off - active"},
-        {8402, "PV2 no input voltage"},
-        {8410, "PV2 Undervoltage"},
-        {16508, "[text not known] ??? shut down by remote control - period"},
-        {16593, "PV1 no input voltage"},
-        {16600, "PV1 Undervoltage"},
-        {28796, "Inverter was remote off - period"}};
+    //     {209, "PV1 no input voltage - active"}, // 209 in binary -                                               1101 0001 (   0, 209) 
+    //     {16593, "PV1 no input voltage - period"}, // 16593 in binary -                                 0100 0000 1101 0001 (  64, 209) 
+    //     {20689, "PV1 no input voltage - period"}, // 20689 in binary -                                 0101 0000 1101 0001 (  80, 209) 
+
+        
+    //     {216, "PV1 Undervoltage - active"}, // 216 in binary -                                                   1101 1000 (   0, 216)
+    //     {16600, "PV1 Undervoltage - period"}, // 16600 in binary -                                     0100 0000 1101 1000 (  64, 216)
+    //     {20696, "PV1 Undervoltage - period"}, // 20696 in binary -                                     0101 0000 1101 1000 (  80, 216)
+
+    //     {210, "[not approved] PV2 no input voltage - active"}, // 210 in binary -                                1101 0010 (   0, 210)
+    //     {8402, "PV2 no input voltage - period"}, // 8402 in binary -                                   0010 0000 1101 0010 (  32, 210)
+
+    //     {218, "[not approved] PV2 Undervoltage - active"}, // 218 in binary -                                    1101 1010 (   0, 218)
+    //     {8410, "PV2 Undervoltage - period"}, // 8410 in binary -                                       0010 0000 1101 1010 (  32, 218)
+    // };
+
+        std::map<int, std::string> warningCodeMap = {
+        {208, "[text not known]"},                      // 1101 0000
+        {124, "inverter shut down by remote control"},  // 0111 1100
+        {209, "PV0 no input voltage"},                  // 1101 0001
+        {216, "PV0 Undervoltage"},                      // 1101 1000
+        {210, "PV1 no input voltage"},                  // 1101 0010
+        {218, "PV1 Undervoltage"},                      // 1101 1010
+    };
+        
 
     uint8_t warningActiveCount = 0;
     for (int i = 0; i < WARN_DATA_MAX_ENTRIES - 1; i++)
     {
         if (winforeqdto.mWInfo[i].pv_sn != 0)
         {
-            int wcode = winforeqdto.mWInfo[i].WCode;
+            int wcode1 = winforeqdto.mWInfo[i].WCode & 0x000000FF;
+            int wcode2 = (winforeqdto.mWInfo[i].WCode & 0xFFFFFF00) >> 8;
+
             String unknownWcode = "Unknown warning code";
-            std::string warningMessage = warningCodeMap.count(wcode) ? warningCodeMap[wcode] : unknownWcode.c_str();
+            std::string warningMessage = warningCodeMap.count(wcode1) ? warningCodeMap[wcode1] : unknownWcode.c_str();
+            warningMessage = warningMessage + " (" + std::to_string(wcode1) + "," + std::to_string(wcode2) + ")";
+
             dtuGlobalData.warnData[i].code = winforeqdto.mWInfo[i].WCode;
             strncpy(dtuGlobalData.warnData[i].message, warningMessage.c_str(), sizeof(dtuGlobalData.warnData[i].message) - 1);
             dtuGlobalData.warnData[i].message[sizeof(dtuGlobalData.warnData[i].message) - 1] = '\0'; // Ensure null-termination
@@ -1732,18 +1755,22 @@ boolean DTUInterface::readRespCommandGetAlarms(pb_istream_t istream)
             dtuGlobalData.warnData[i].timestampStop = winforeqdto.mWInfo[i].WTime2;
             dtuGlobalData.warnData[i].data0 = winforeqdto.mWInfo[i].WData1;
             dtuGlobalData.warnData[i].data1 = winforeqdto.mWInfo[i].WData2;
+
             if (dtuGlobalData.warnData[i].timestampStart != 0 && dtuGlobalData.warnData[i].timestampStop == 0)
             {
                 warningActiveCount++;
-            }
-            if (wcode == 8316)
-            {
-                dtuGlobalData.inverterControl.stateOn = false; // set to false due to an active warning "Inverter remote off"
-                Serial.printf("\ncommand warn%d - pv_sn: %i", i, winforeqdto.mWInfo[i].pv_sn);
-                Serial.printf("\ncommand warn%d - wcode: %i (%s)", i, wcode, warningMessage.c_str());
-                Serial.printf("\ncommand warn%d - wnum: %i", i, winforeqdto.mWInfo[i].WNum);
-                Serial.printf("\ncommand warn%d - wtime1: %i -> wtime2: %i (%s -> %s)", i, winforeqdto.mWInfo[i].WTime1, winforeqdto.mWInfo[i].WTime2, getTimeStringByTimestamp(winforeqdto.mWInfo[i].WTime1).c_str(), getTimeStringByTimestamp(winforeqdto.mWInfo[i].WTime2).c_str());
-                Serial.printf("\ncommand warn%d - WData1: %i ++ WData2: %i\n", i, winforeqdto.mWInfo[i].WData1, winforeqdto.mWInfo[i].WData2);
+                if (wcode1 == 124)
+                {
+                    dtuGlobalData.inverterControl.stateOn = false; // set to false due to an active warning "Inverter remote off"
+                    dtuGlobalData.powerLimit = 0;
+                    Serial.printf("\ncommand warn%d - pv_sn: %i", i, winforeqdto.mWInfo[i].pv_sn);
+                    Serial.printf("\ncommand warn%d - wcode: %i (%s)", i, wcode1, warningMessage.c_str());
+                    Serial.printf("\ncommand warn%d - wnum: %i", i, winforeqdto.mWInfo[i].WNum);
+                    Serial.printf("\ncommand warn%d - wtime1: %i -> wtime2: %i (%s -> %s)", i, winforeqdto.mWInfo[i].WTime1, winforeqdto.mWInfo[i].WTime2, getTimeStringByTimestamp(winforeqdto.mWInfo[i].WTime1).c_str(), getTimeStringByTimestamp(winforeqdto.mWInfo[i].WTime2).c_str());
+                    Serial.printf("\ncommand warn%d - WData1: %i ++ WData2: %i\n", i, winforeqdto.mWInfo[i].WData1, winforeqdto.mWInfo[i].WData2);
+                } else {
+                    dtuGlobalData.inverterControl.stateOn = false; // set to true due to NO active warning "Inverter remote off"
+                }
             }
         }
     }

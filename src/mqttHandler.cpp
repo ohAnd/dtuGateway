@@ -226,6 +226,7 @@ void MQTTHandler::publishDiscoveryMessage(const char *entity, const char *entity
     if (deviceClass == "running")
     {
         doc["payload_on"] = "1";
+        doc["payload_off"] = "0";
     }
     
 

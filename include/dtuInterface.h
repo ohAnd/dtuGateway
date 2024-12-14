@@ -95,8 +95,8 @@ struct inverterCtrl
 struct warnDataBlock 
 {
   uint16_t num = 0;
-  uint16_t code = 0;
-  char message[64] = "";
+  uint32_t code = 0;
+  char message[96] = "";
   uint32_t timestampStart = 0;
   uint32_t timestampStop = 0;
   uint32_t data0 = 0;

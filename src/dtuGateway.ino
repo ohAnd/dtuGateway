@@ -1389,7 +1389,7 @@ void loop()
     // test data
     // dtuGlobalData.updateReceived = true;
     // dtuGlobalData.warnDataLastTimestamp = timeClient.getEpochTime();
-    // dtuGlobalData.warningsActive = 1;
+    // dtuGlobalData.warningsActive = 2;
     // dtuGlobalData.warnData[0].code = 124;
     // String message = "[not approved] ??? shut down by remote control";
     // strncpy(dtuGlobalData.warnData[0].message, message.c_str(), sizeof(dtuGlobalData.warnData[0].message) - 1);
@@ -1397,6 +1397,10 @@ void loop()
     // dtuGlobalData.warnData[0].timestampStop = 0;
     // dtuGlobalData.warnData[0].data0 = 0;
     // dtuGlobalData.warnData[0].data1 = 0;
+
+    // dtuConnection.dtuConnectionOnline = true;
+    // dtuConnection.dtuConnectState = DTU_STATE_CONNECTED;
+    // dtuGlobalData.inverterControl.stateOn = false;
   }
 
   // mid task

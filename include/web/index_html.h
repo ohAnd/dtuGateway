@@ -1451,14 +1451,17 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             $('#activeWarnings').empty();
             // sort cacheDtuData.warnings by timestampStart - newest first
             cacheDtuData.warnings.sort((a, b) => (a.timestampStart < b.timestampStart) ? 1 : -1);
-
+            var activeWarning = false;
             for (let index = 0; index < cacheDtuData.warnings.length; index++) {
                 let warning = cacheDtuData.warnings[index];
                 if (warning.timestampStop == 0) {
                     numOfWarningsActive++;
+                    activeWarning = true;
+                } else {
+                    activeWarning = false;
                 }
                 let warningRow = `
-                <div class="warningRow" style="display: flex; justify-content: space-between;">
+                <div class="warningRow" style="display: flex; justify-content: space-between; ${!activeWarning ? `color: grey;` : ''}">
                     <div class="warningColumn" style="flex: 0 0 auto; padding: 5px;">
                         <div class="warningTimestamp">${new Date(warning.timestampStart * 1000).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }).replace(',', ' -')}</div>
                         ${warning.timestampStop !== 0 ? `<div class="warningTimestamp">${new Date(warning.timestampStop * 1000).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }).replace(',', ' -')}</div>` : ''}
@@ -1467,7 +1470,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                         <div class="warningMessage">${warning.num}</div>
                     </div>
                     <div class="warningColumn" style="flex: 1; padding: 5px; text-align: left;">
-                        <div class="warningMessage">${warning.message} (${warning.code})</div>
+                        <div class="warningMessage">${warning.message}</div>
                     </div>
                     <div class="warningColumn" style="flex: 1; padding: 5px;">
                 `;
