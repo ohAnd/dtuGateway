@@ -223,7 +223,7 @@ void MQTTHandler::publishDiscoveryMessage(const char *entity, const char *entity
         // if (String(deviceClass) == "timestamp")
         //     doc["value_template"] = "{{ as_datetime(value) }}";
     }
-    if (deviceClass == "running")
+    if (strcmp(deviceClass, "running") == 0)
     {
         doc["payload_on"] = "1";
         doc["payload_off"] = "0";

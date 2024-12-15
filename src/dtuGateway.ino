@@ -487,7 +487,7 @@ boolean scanNetworksResult()
 String getTimeStringByTimestamp(unsigned long timestamp)
 {
   UnixTime stamp(1);
-  char buf[31];
+  char buf[32];
   stamp.getDateTime(timestamp - 3600);
   // should have the format "2023-11-11T18:11:17+00:00"
   snprintf(buf, sizeof(buf), "%04i-%02i-%02iT%02i:%02i:%02i%+03i:00", stamp.year, stamp.month, stamp.day, stamp.hour, stamp.minute, stamp.second, userConfig.timezoneOffest / 3600);

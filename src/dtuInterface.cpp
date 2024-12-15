@@ -1763,7 +1763,7 @@ boolean DTUInterface::readRespCommandGetAlarms(pb_istream_t istream)
                 {
                     dtuGlobalData.inverterControl.stateOn = false; // set to false due to an active warning "Inverter remote off"
                     dtuGlobalData.powerLimit = 0;
-                    Serial.printf("\ncommand warn%d - pv_sn: %i", i, winforeqdto.mWInfo[i].pv_sn);
+                    Serial.print("\ncommand warn" + String(i) + " - pv_sn: " + String(winforeqdto.mWInfo[i].pv_sn));
                     Serial.printf("\ncommand warn%d - wcode: %i (%s)", i, wcode1, warningMessage.c_str());
                     Serial.printf("\ncommand warn%d - wnum: %i", i, winforeqdto.mWInfo[i].WNum);
                     Serial.printf("\ncommand warn%d - wtime1: %i -> wtime2: %i (%s -> %s)", i, winforeqdto.mWInfo[i].WTime1, winforeqdto.mWInfo[i].WTime2, getTimeStringByTimestamp(winforeqdto.mWInfo[i].WTime1).c_str(), getTimeStringByTimestamp(winforeqdto.mWInfo[i].WTime2).c_str());
