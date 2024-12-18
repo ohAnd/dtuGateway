@@ -84,10 +84,8 @@ void Display::drawScreen()
 
         // main screen
 
-        if (dtuConnection.dtuConnectState == DTU_STATE_CONNECTED)
+        if (dtuConnection.dtuConnectState == DTU_STATE_CONNECTED || dtuConnection.dtuConnectState == DTU_STATE_CLOUD_PAUSE)
             drawMainDTUOnline();
-        // else if (dtuConnection.dtuConnectState == DTU_STATE_CLOUD_PAUSE)
-            // drawMainDTUOnline(true);
         else
             drawMainDTUOffline();
 

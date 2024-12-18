@@ -223,13 +223,12 @@ void MQTTHandler::publishDiscoveryMessage(const char *entity, const char *entity
         // if (String(deviceClass) == "timestamp")
         //     doc["value_template"] = "{{ as_datetime(value) }}";
     }
-    if (strcmp(deviceClass, "running") == 0)
+    if (deviceClass == "running")
     {
         doc["payload_on"] = "1";
         doc["payload_off"] = "0";
     }
     
-
     if (unit != NULL)
         doc["unit_of_measurement"] = unit;
 
@@ -310,6 +309,8 @@ boolean MQTTHandler::initiateDiscoveryMessages(bool autoDiscoveryRemove)
             publishDiscoveryMessage("grid_totalEnergy", "Grid yield total", "kWh", autoDiscoveryRemove, NULL, "energy");
             publishDiscoveryMessage("pv0_totalEnergy", "Panel 0 yield total", "kWh", autoDiscoveryRemove, NULL, "energy");
             publishDiscoveryMessage("pv1_totalEnergy", "Panel 1 yield total", "kWh", autoDiscoveryRemove, NULL, "energy"); //"mdi:import"
+
+            publishDiscoveryMessage("grid_Freq", "Grid frequency", "Hz", autoDiscoveryRemove, NULL, "frequency",true);
 
             publishDiscoveryMessage("inverter_PowerLimit", "power limit", "%", autoDiscoveryRemove, NULL, "power_factor"); //"mdi:car-speed-limiter"
             publishDiscoveryMessage("inverter_PowerLimitSet", "power limit set", "%", autoDiscoveryRemove, "mdi:car-speed-limiter", "power_factor");

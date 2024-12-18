@@ -271,23 +271,25 @@ const char INDEX_HTML[] PROGMEM = R"=====(
         </b>
         <hr>
     </div>
-    <div class="popup" id="warningOverview">
-        <h2>current dtu warnings</h2>
-        <h6>Displays the entries in the DTU sorted by the time they occurred <i id="warningsLastUpdate">(last updated: 01.01.2024 - 00:00:00)</i></h6>
+    <div class="popup" id="warningOverview" style="flex-direction: column;">
+        <div>
+            <h2>current dtu warnings</h2>
+            <h6>Displays the entries in the DTU sorted by the time they occurred <i id="warningsLastUpdate">(last
+                    updated: 01.01.2024 - 00:00:00)</i><br><i id="warningDetailsHint">... rotate the screen to see more details at the warning entry ...</i></h6>
+            <hr>
+        </div>
+        <div id="activeWarnings" style="flex-grow: 1;padding-bottom: 10px;text-align: center; overflow-y: auto;">
+        </div>
+        <hr><br>
         <div style="text-align: center;">
             <b onclick="hide('#warningOverview')" class="form-button btn">close</b>
         </div>
-        <hr>
-        <div id="activeWarnings" style="padding-bottom: 10px;text-align: center; max-height: 68%; overflow-y: auto;">
-        </div>
-        <hr>
     </div>
     <div id="frame">
         <div class="header">
             <b id="titleHeader">Hoymiles HMS-800W-2T - Gateway</b>
-            <div id="dtuWarnings">
-                <i class="fa fa-exclamation-triangle" style="color: darkcyan;"
-                    onclick="show('#warningOverview')"></i>
+            <div id="dtuWarnings" style="display: none;">
+                <i class="fa fa-exclamation-triangle" style="color: darkcyan;" onclick="show('#warningOverview')"></i>
                 <span class="numBadge" id="dtuWarningsBadge">20</span>
             </div>
         </div>
@@ -340,7 +342,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                         <small>I</small>
                         <b id="grid_current" class="panelValueSmall valueText">00.0 A</b>
                     </div>
-                    <i id="infoInveterOff" class="fa fa-power-off" style="color: orange;"></i>
+                    <i id="infoInveterOff" class="fa fa-power-off" style="color: orange;display:none;"></i>
                 </div>
             </div>
             <div class="column" id="time">
@@ -441,7 +443,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                     <b id="uptime" style="text-align: right;top: 20px; font-size: 2vmin;">00:00:00</b>
                 </div>
                 <div class="footerButton">
-                    <i class="fa fa-house-signal" alt="wifi DTU"></i>
+                    <i class="fa fa-signal" alt="wifi DTU"></i>
                     <span id="rssitext_dtu" style="text-align: right;top: 20px; font-size: 2vmin;">50 %</span>
                 </div>
                 <div class="footerButton">
@@ -561,6 +563,9 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             if (id == '#updatePowerLimit') {
                 getPowerLimitData();
                 $('#powerLimitSetNew').focus();
+            }
+            if (id == '#warningOverview') {
+                $('#warningOverview').css('display', 'flex');
             }
         }
 
@@ -1460,29 +1465,49 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                 } else {
                     activeWarning = false;
                 }
+                let data0Text = "data0";
+                let data0Value = warning.data0;
+                let data1Text = "data1";
+                let data1Value = warning.data1;
+
+                if (warning.message.toLowerCase().includes('undervoltage')) {
+                    data0Text = "measured voltage";
+                    data0Value = (warning.data0 / 10).toFixed(2) + " V";
+                    data1Text = "minimal voltage";
+                    data1Value = (warning.data1 / 10).toFixed(2) + " V";
+                }
+                else if (warning.message.toLowerCase().includes('frequency above')) {
+                    data0Text = "measured frequency";
+                    data0Value = (warning.data0 / 100).toFixed(2) + " Hz";
+                    data1Text = "maximum frequency";
+                    data1Value = (warning.data1 / 100).toFixed(2) + " Hz";
+                }
+
                 let warningRow = `
                 <div class="warningRow" style="display: flex; justify-content: space-between; ${!activeWarning ? `color: grey;` : ''}">
-                    <div class="warningColumn" style="flex: 0 0 auto; padding: 5px;">
+                    <div class="warningColumnTimeNum">
                         <div class="warningTimestamp">${new Date(warning.timestampStart * 1000).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }).replace(',', ' -')}</div>
                         ${warning.timestampStop !== 0 ? `<div class="warningTimestamp">${new Date(warning.timestampStop * 1000).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }).replace(',', ' -')}</div>` : ''}
                     </div>
-                    <div class="warningColumn" style="flex: 0 0 5em; padding: 5px;">
+                    <div class="warningColumnNum">
                         <div class="warningMessage">${warning.num}</div>
                     </div>
-                    <div class="warningColumn" style="flex: 1; padding: 5px; text-align: left;">
+                    <div class="warningColumnText">
                         <div class="warningMessage">${warning.message}</div>
                     </div>
-                    <div class="warningColumn" style="flex: 1; padding: 5px;">
+                    <div class="warningColumnDetail">
+                    
                 `;
-
-                if (warning.message.toLowerCase().includes('undervoltage')) {
-                    warningRow = warningRow + `<div class="warningData">measured voltage: ${warning.data0/10} V</div>`;
-                    warningRow = warningRow + `<div class="warningData">minimal voltage: ${warning.data1/10} V</div>`;
-                } else {
-                    if (warning.data0 !== 0) warningRow = warningRow + `<div class="warningData">data0: ${warning.data0}</div>`
-                    if (warning.data1 !== 0) warningRow = warningRow + `<div class="warningData">data1: ${warning.data1}</div>`
+                if (warning.data0 !== 0) {
+                    warningRow = warningRow + `<div class="warningData">`;
+                    warningRow = warningRow + `<div class="warningDataText">${data0Text}: </div>`;
+                    warningRow = warningRow + `<div class="warningDataValue">${data0Value}</div>`;
+                    warningRow = warningRow + `</div>`;
+                    warningRow = warningRow + `<div class="warningData">`;
+                    warningRow = warningRow + `<div class="warningDataText">${data1Text}: </div>`;
+                    warningRow = warningRow + `<div class="warningDataValue">${data1Value}</div>`;
+                    warningRow = warningRow + `</div>`;
                 }
-
                 warningRow = warningRow + `</div>
                 </div>
                 <hr style="border-top-color: lightgrey;">`;
@@ -1614,6 +1639,5 @@ const char INDEX_HTML[] PROGMEM = R"=====(
 </body>
 
 </html>
-
 
 )=====";

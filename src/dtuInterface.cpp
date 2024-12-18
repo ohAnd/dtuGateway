@@ -736,6 +736,7 @@ void DTUInterface::readRespRealDataNew(pb_istream_t istream)
         dtuGlobalData.grid.voltage = calcValue(gridData.voltage);
         dtuGlobalData.grid.power = calcValue(gridData.active_power);
         dtuGlobalData.inverterTemp = calcValue(gridData.temperature);
+        dtuGlobalData.gridFreq = calcValue(gridData.frequency, 100);
 
         // Serial.printf("\npvData data count:\t %i\n", realdatanewreqdto.pv_data_count);
         // Serial.printf("\npvData 0 current:\t %f A", calcValue(pvData0.current, 100));
@@ -1701,7 +1702,8 @@ boolean DTUInterface::readRespCommandGetAlarms(pb_istream_t istream)
     }
 
     // std::map<int, std::string> warningCodeMap = {
-    //     {208, "[text not known]"}, // 218 in binary -                                                            1101 0000
+    //     {72,  "Grid frequency above limit"}, // 72 in binary -                                                   0100 1000 (  0,  72)
+    //     {208, "[text not known]"}, // 218 in binary -                                                            1101 0000 (  0, 208)
         
     //     {124, "inverter shut down by remote control - active"}, // 124 in binary -                               0111 1100 (   0, 124)
     //     {8316, "inverter shut down by remote control - active"}, // 8316 in binary -                   0010 0000 0111 1100 (  32, 124)
@@ -1726,6 +1728,7 @@ boolean DTUInterface::readRespCommandGetAlarms(pb_istream_t istream)
     // };
 
         std::map<int, std::string> warningCodeMap = {
+        { 78, "Grid frequency above limit"},            // 1101 0000
         {208, "[text not known]"},                      // 1101 0000
         {124, "inverter shut down by remote control"},  // 0111 1100
         {209, "PV0 no input voltage"},                  // 1101 0001

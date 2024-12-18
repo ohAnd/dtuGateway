@@ -36,9 +36,11 @@ hr {
 .header {
     height: 12%;
     margin-bottom: 1%;
+    /* position: relative; */
 
     display: flex;
     justify-content: center;
+    /* justify-content: space-between; */
     align-items: center;
     text-align: center;
     background-color: #1c1c1c;
@@ -48,6 +50,13 @@ hr {
     border-width: 1px;
     border-color: #2196f3;
     border-style: solid;
+}
+
+#titleHeader {
+    font-size: 4.5vmin;
+    padding-left: 1%;
+    padding-right: 1%;
+    width: 100%;
 }
 
 .row {
@@ -190,8 +199,8 @@ hr {
 
 .numBadge {
     position: relative;
-    top: -3.7em;
-    right: -1.8em;
+    top: -1.2em;
+    right: 0.5em;
     background-color: darkcyan;
     color: white;
     border-radius: 50%;
@@ -206,11 +215,55 @@ hr {
 }
 
 #dtuWarnings {
-    position: absolute;
-    top: 8%;
-    right: 2.2em;
-    font-size: 0.7em;
+    display: flex;
+    align-items: center;
+    margin-left: auto;
+    font-size: 0.8em;
     cursor: pointer;
+}
+#warningDetailsHint {
+    display: none;
+    color: #5f5d5d;
+}
+
+.warningColumnTime {
+    flex: 0 0 auto;
+    padding: 5px;
+}
+
+.warningColumnNum {
+    flex: 0 0 5em;
+    padding: 5px;
+}
+
+.warningColumnText,.warningColumnDetail {
+    flex: 1;
+    padding: 5px;
+    text-align: left;
+}
+
+.warningTimestamp {
+    text-align: center;
+    font-size: smaller;
+}
+
+.warningData {
+    display: flex;
+    flex-direction: row;
+}
+
+.warningDataText {
+    width: 70%;
+    text-align: right;
+    font-style: italic;
+    font-size: 1vw;
+}
+
+.warningDataValue {
+    width: 20%;
+    text-align: right;
+    font-size: smaller;
+    font-size: 1vw;
 }
 
 .badge {
@@ -574,51 +627,6 @@ input:checked+.slider:before {
     transform: translateX(26px);
 }
 
-/* .switch {
-    position: relative;
-    display: inline-block;
-    width: 30px;
-    height: 17px
-}
-
-.switch input {
-    opacity: 0;
-    width: 0;
-    height: 0
-} */
-
-/* .slider {
-    position: absolute;
-    cursor: pointer;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: #ccc;
-    -webkit-transition: .4s;
-    transition: .4s
-}
-
-.slider:before {
-    position: absolute;
-    content: '';
-    height: 13px;
-    width: 13px;
-    left: 2px;
-    bottom: 2px;
-    background-color: #fff;
-    -webkit-transition: .4s;
-    transition: .4s
-}
-
-.slider.round {
-    border-radius: 17px
-}
-
-.slider.round:before {
-    border-radius: 50%
-} */
-
 #debug,
 #tempOut,
 #apiOut {
@@ -738,7 +746,7 @@ input:checked+.slider:before {
     #footer_left {
         /* visibility: hidden; */
         /* display: none; */
-        width: 76%;
+        width: 70%;
         float: left;
     }
 
@@ -749,7 +757,7 @@ input:checked+.slider:before {
     }
 
     #footer_right {
-        width: 20%;
+        width: 30%;
         /* font-size: 10vmin; */
     }
 
@@ -761,10 +769,12 @@ input:checked+.slider:before {
     td {
         float: left;
     }
-    #dtuWarnings {
-        font-size: 0.8em;
-        top: 2.1em;
-        right: 2.3em;
+
+    .warningColumnDetail {
+        display: none;
+    }
+    #warningDetailsHint {
+        display: block;
     }
 }
 

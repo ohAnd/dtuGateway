@@ -689,6 +689,7 @@ void updateValuesToMqtt(boolean haAutoDiscovery = false)
   if (dtuGlobalData.pv0.totalEnergy != 0)
     keyValueStore["pv1_totalEnergy"] = String(dtuGlobalData.pv1.totalEnergy, 3).c_str();
   // inverter
+  keyValueStore["grid_Freq"] = String(dtuGlobalData.gridFreq).c_str();
   keyValueStore["inverter_Temp"] = String(dtuGlobalData.inverterTemp).c_str();
   keyValueStore["inverter_PowerLimit"] = String(dtuGlobalData.powerLimit).c_str();
   keyValueStore["inverter_PowerLimitSet"] = String(dtuGlobalData.powerLimitSet).c_str();
