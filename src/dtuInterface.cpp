@@ -1772,7 +1772,7 @@ boolean DTUInterface::readRespCommandGetAlarms(pb_istream_t istream)
                     Serial.printf("\ncommand warn%d - wtime1: %i -> wtime2: %i (%s -> %s)", i, winforeqdto.mWInfo[i].WTime1, winforeqdto.mWInfo[i].WTime2, getTimeStringByTimestamp(winforeqdto.mWInfo[i].WTime1).c_str(), getTimeStringByTimestamp(winforeqdto.mWInfo[i].WTime2).c_str());
                     Serial.printf("\ncommand warn%d - WData1: %i ++ WData2: %i\n", i, winforeqdto.mWInfo[i].WData1, winforeqdto.mWInfo[i].WData2);
                 } else {
-                    dtuGlobalData.inverterControl.stateOn = false; // set to true due to NO active warning "Inverter remote off"
+                    dtuGlobalData.inverterControl.stateOn = true; // set to true due to NO active warning "Inverter remote off"
                 }
             }
         }
