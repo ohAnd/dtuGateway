@@ -96,7 +96,8 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                     <input type="text" id="mqttIP" class="ipv4Input" name="ipv4" placeholder="xxx.xxx.xxx.xxx">
                 </div>
                 <div>
-                <input type="checkbox" id="mqttUseTLS"> <small>TLS connection (e.g. 123456789.s1.eu.hivemq.cloud:8883) - works only with ESP32</small>
+                    <input type="checkbox" id="mqttUseTLS"> <small>TLS connection (e.g.
+                        123456789.s1.eu.hivemq.cloud:8883) - works only with ESP32</small>
                 </div>
                 <div>
                     <br>specify user on your mqtt broker instance:
@@ -162,7 +163,6 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             </div>
         </div>
     </div>
-    </div>
     <div class="popup" id="updatePowerLimit" style="display: none;">
         <h2>Update power limit</h2>
         <div>
@@ -172,7 +172,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                 </div>
                 <hr>
                 <div> power limit set in %
-                    <input type="number" id="powerLimitSetNew" min="2" max="100" placeholder="">
+                    <input type="number" id="powerLimitSetNew" min="0" max="100" placeholder="">
                 </div>
             </div>
 
@@ -255,7 +255,6 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             <b onclick="hide('#updateMenu')" class="form-button btn">close</b>
         </div>
     </div>
-    </div>
     <div class="popup" id="updateProgress">
         <h2>Update</h2>
         <hr>
@@ -325,6 +324,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                         <small>I</small>
                         <b id="grid_current" class="panelValueSmall valueText">00.0 A</b>
                     </div>
+                    <i id="infoInveterOff" class="fa fa-power-off" style="color: orange;display:none;"></i>
                 </div>
             </div>
             <div class="column" id="time">
@@ -425,7 +425,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                     <b id="uptime" style="text-align: right;top: 20px; font-size: 2vmin;">00:00:00</b>
                 </div>
                 <div class="footerButton">
-                    <i class="fa fa-house-signal" alt="wifi DTU"></i>
+                    <i class="fa fa-signal" alt="wifi DTU"></i>
                     <span id="rssitext_dtu" style="text-align: right;top: 20px; font-size: 2vmin;">50 %</span>
                 </div>
                 <div class="footerButton">
@@ -659,6 +659,13 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                     dtuState = "no info";
             }
             checkValueUpdate('#dtu_error_state', dtuState);
+            
+            if (data.inverter.active == 0) {
+                $('#infoInveterOff').show();
+            } else {
+                $('#infoInveterOff').hide();
+            }
+
             return true;
         }
 

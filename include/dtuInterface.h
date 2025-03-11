@@ -30,6 +30,8 @@
 #define DTU_TIME_OFFSET 28800
 #define DTU_CLOUD_UPLOAD_SECONDS 40
 
+#define DTU_INVERTER_SWITCH_DELAY 60 // seconds to wait after inverter switch on/off
+
 #define DTU_STATE_OFFLINE 0
 #define DTU_STATE_CONNECTED 1
 #define DTU_STATE_CLOUD_PAUSE 2
@@ -50,6 +52,11 @@
 #define DTU_TXRX_STATE_WAIT_GETCONFIG 3
 #define DTU_TXRX_STATE_WAIT_COMMAND 4
 #define DTU_TXRX_STATE_WAIT_RESTARTDEVICE 5
+#define DTU_TXRX_STATE_WAIT_INVERTER_TURN_OFF 6
+#define DTU_TXRX_STATE_WAIT_INVERTER_TURN_ON 7
+#define DTU_TXRX_STATE_WAIT_GET_ALARMS 8
+#define DTU_TXRX_STATE_WAIT_PERFORMANCE_DATA_MODE 9
+#define DTU_TXRX_STATE_WAIT_REQUEST_ALARMS 10
 #define DTU_TXRX_STATE_ERROR 99
 
 
@@ -57,7 +64,7 @@ struct connectionControl
 {
   boolean preventCloudErrors = true;
   boolean dtuActiveOffToCloudUpdate = false;
-  boolean dtuConnectionOnline = true;          // true if connection is online as valued a summary
+  boolean dtuConnectionOnline = false;          // true if connection is online as a valued summary
   uint8_t dtuConnectState = DTU_STATE_OFFLINE;
   uint8_t dtuErrorState = DTU_ERROR_NO_ERROR;
   uint8_t dtuTxRxState = DTU_TXRX_STATE_IDLE;
@@ -75,6 +82,13 @@ struct baseData
   float power = -1;
   float dailyEnergy = 0;
   float totalEnergy = 0;
+};
+
+struct inverterCtrl
+{
+  boolean stateOn = true;
+  uint32_t lastSwitchedToOn = 0;
+  uint32_t lastSwitchedToOff = 0;
 };
 
 struct inverterData
@@ -95,6 +109,8 @@ struct inverterData
   boolean uptodate = false;
   boolean updateReceived = false;
   int dtuResetRequested = 0;
+  char device_serial_number[16] = "";
+  inverterCtrl inverterControl;
 };
 
 
@@ -120,6 +136,7 @@ public:
     void getDataUpdate();
     void setPowerLimit(int limit);
     void requestRestartDevice();
+    void requestInverterTargetState(boolean OnOff);
 
     String getTimeStringByTimestamp(unsigned long timestamp);
     void printDataAsTextToSerial();
@@ -162,12 +179,21 @@ private:
     void writeReqGetConfig();
     void readRespGetConfig(pb_istream_t istream);
     
-    boolean writeReqCommand(uint8_t setPercent);
-    boolean readRespCommand(pb_istream_t istream);
+    boolean writeReqCommandSetPowerlimit(uint8_t setPercent);
+    boolean readRespCommandSetPowerlimit(pb_istream_t istream);
     
-    boolean writeCommandRestartDevice();
+    boolean writeReqCommandRestartDevice();
     boolean readRespCommandRestartDevice(pb_istream_t istream);
     
+    boolean writeReqCommandInverterTurnOff();
+    boolean readRespCommandInverterTurnOff(pb_istream_t istream);
+
+    boolean writeReqCommandInverterTurnOn();
+    boolean readRespCommandInverterTurnOn(pb_istream_t istream);
+
+    boolean writeReqCommandPerformanceDataMode();
+    boolean readRespCommandPerformanceDataMode(pb_istream_t istream);
+
     const char* serverIP;
     uint16_t serverPort;
     AsyncClient* client;

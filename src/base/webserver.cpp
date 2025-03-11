@@ -235,6 +235,7 @@ void DTUwebserver::handleDataJson(AsyncWebServerRequest *request)
     JSON = JSON + "\"pLim\": " + ((dtuGlobalData.powerLimit == 254) ? ("\"--\"") : (String(dtuGlobalData.powerLimit))) + ",";
     JSON = JSON + "\"pLimSet\": " + String(dtuGlobalData.powerLimitSet) + ",";
     JSON = JSON + "\"temp\": " + String(dtuGlobalData.inverterTemp) + ",";
+    JSON = JSON + "\"active\": " + String(dtuGlobalData.inverterControl.stateOn) + ",";
     JSON = JSON + "\"uptodate\": " + String(dtuGlobalData.uptodate);
     JSON = JSON + "},";
 
@@ -250,6 +251,7 @@ void DTUwebserver::handleDataJson(AsyncWebServerRequest *request)
     JSON = JSON + "\"v\": " + String(dtuGlobalData.pv0.voltage) + ",";
     JSON = JSON + "\"c\": " + String(dtuGlobalData.pv0.current) + ",";
     JSON = JSON + "\"p\": " + ((dtuGlobalData.pv0.power == -1) ? ("\"--\"") : (String(dtuGlobalData.pv0.power))) + ",";
+    JSON = JSON + "\"f\": " + String(dtuGlobalData.gridFreq) + ",";
     JSON = JSON + "\"dE\": " + String(dtuGlobalData.pv0.dailyEnergy, 3) + ",";
     JSON = JSON + "\"tE\": " + String(dtuGlobalData.pv0.totalEnergy, 3);
     JSON = JSON + "},";
@@ -409,7 +411,8 @@ void DTUwebserver::handleUpdateDtuSettings(AsyncWebServerRequest *request)
             remoteDisplayActiveBool = true;
         else
             remoteDisplayActiveBool = false;
-        if (remoteDisplayActiveBool != userConfig.remoteDisplayActive) {
+        if (remoteDisplayActiveBool != userConfig.remoteDisplayActive)
+            {
             platformData.rebootRequestedInSec = 3;
             platformData.rebootRequested = true;
         }
@@ -557,10 +560,10 @@ void DTUwebserver::handleUpdatePowerLimit(AsyncWebServerRequest *request)
 
         if (conversionSuccess)
         {
-            if (gotLimit < 2)
-                dtuGlobalData.powerLimitSet = 2;
+            if (gotLimit < 0)
+                dtuGlobalData.powerLimitSet = 0;
             else if (gotLimit > 100)
-                dtuGlobalData.powerLimitSet = 2;
+                dtuGlobalData.powerLimitSet = 100;
             else
                 dtuGlobalData.powerLimitSet = gotLimit;
             dtuGlobalData.powerLimitSetUpdate = true;
