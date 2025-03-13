@@ -131,6 +131,8 @@ void DisplayTFT::drawScreen(String version, String time)
     }
 }
 
+
+
 void DisplayTFT::drawMainDTUOnline(bool pause)
 {
 
@@ -138,9 +140,33 @@ void DisplayTFT::drawMainDTUOnline(bool pause)
     if (pause)
         tft.pushImage(195, 70, cloudWidth, cloudHeight, cloud);
     else
-        tft.fillRect(195, 70, 32, 26, TFT_BLACK); // clear icon
+        tft.fillRect(195, 70, cloudWidth, cloudHeight, TFT_BLACK); // clear icon
+
+
+
+
+
 
     // main screen
+    // clear main space if inverterControl.stateOn changed
+    static bool previousStateOn = dtuGlobalData.inverterControl.stateOn;
+    if (previousStateOn != dtuGlobalData.inverterControl.stateOn)
+    {
+        tft.drawSmoothArc(119, 119, 75, 0, 47, 313, TFT_BLACK, TFT_BLACK);
+        tft.fillRect(64, 140, 109, 169, TFT_BLACK);
+        previousStateOn = dtuGlobalData.inverterControl.stateOn;
+        Serial.println("DisplayTFT:\t >> inverter state changed - clear main screen");
+    }
+
+    if (!dtuGlobalData.inverterControl.stateOn)
+    {
+        // tft.pushImage(70, 60, power_offWidth, power_offHeight, power_off);
+
+        tft.setTextColor(TFT_DARKCYAN, TFT_BLACK);
+        tft.drawCentreString("inverter switched off", 120, 150, 2);
+    }
+    else
+    {
     // --- base window for wattage ----------------------------------
     uint32_t wattRingColor = TFT_CYAN;
     if (lastDisplayData.remoteDisplayActive)
@@ -148,21 +174,18 @@ void DisplayTFT::drawMainDTUOnline(bool pause)
     tft.drawSmoothArc(119, 119, 75, 75 - 1, 47, 313, wattRingColor, TFT_BLACK);
     tft.drawWideLine(64, 169, 64 + 109, 169, 2, wattRingColor, TFT_BLACK);
 
-    // ----------------------------------------------
-    // tft.pushImage(70, 200, 16, 16, wifiIcon);
-    // ----------------------------------------------
+        int padding = tft.textWidth("999.9", 6);
+
     // current power
     tft.setTextColor(TFT_DARKCYAN, TFT_BLACK);
     tft.drawCentreString("W", 120, 57, 4);
 
     tft.setTextColor(TFT_WHITE, TFT_BLACK);
-    // tft.drawCentreString(String(lastDisplayData.totalPower), 120, 84, 6);
 
     tft.setTextDatum(TC_DATUM); // centered datum
-    int padding = tft.textWidth("999.9", 6);
+        
     tft.setTextPadding(padding);
     tft.drawNumber(lastDisplayData.totalPower, 120, 84, 6);
-
     // power limit
     tft.setTextColor(TFT_GREENYELLOW, TFT_BLACK);
 
@@ -177,6 +200,8 @@ void DisplayTFT::drawMainDTUOnline(bool pause)
 
     tft.setTextColor(TFT_DARKCYAN, TFT_BLACK);
     tft.drawCentreString("Power Limit", 120, 150, 2);
+    }
+    
 
     // tft.fillRoundRect(80, 120, 100, 26, 1, TFT_BLACK);
 }
@@ -320,7 +345,7 @@ void DisplayTFT::drawFooter(String time)
         int sec = (time.substring(time.lastIndexOf(":") + 1)).toInt();
         int secpoint = (sec * 6) + 180;
 
-        if(userConfig.displayTFTsecondsRing == false)
+        if (userConfig.displayTFTsecondsRing == false)
             sec = 0;
 
         // black circle

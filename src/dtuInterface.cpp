@@ -925,8 +925,6 @@ void DTUInterface::readRespGetConfig(pb_istream_t istream)
     GetConfigReqDTO getconfigreqdto = GetConfigReqDTO_init_default;
 
     pb_decode(&istream, &GetConfigReqDTO_msg, &getconfigreqdto);
-    // Serial.printf("\nsn: %lld, relative_power: %i, total_energy: %i, daily_energy: %i, warning_number: %i\n", appgethistpowerreqdto.serial_number, appgethistpowerreqdto.relative_power, appgethistpowerreqdto.total_energy, appgethistpowerreqdto.daily_energy,appgethistpowerreqdto.warning_number);
-    // Serial.printf("\ndevice_serial_number: %lld", realdatanewreqdto.device_serial_number);
     // Serial.printf("\n\nwifi_rssi:\t %i %%", getconfigreqdto.wifi_rssi);
     // Serial.printf("\nserver_send_time:\t %i", getconfigreqdto.server_send_time);
     // Serial.printf("\nrequest_time (transl):\t %s", getTimeStringByTimestamp(getconfigreqdto.request_time));
@@ -1074,6 +1072,7 @@ boolean DTUInterface::readRespCommandSetPowerlimit(pb_istream_t istream)
 
     // Serial.print("DTUInterface:\t readRespCommandSetPowerlimit - got remote: " + getTimeStringByTimestamp(commandreqdto.time) + "\n");
     // Serial.printf("\ncommand req S/N: %s", commandreqdto.dtu_sn);
+    // Serial.printf("\ncommand req action: %i", commandreqdto.action);
     // Serial.printf("\ncommand req package now: %i", commandreqdto.package_now);
     // Serial.printf("\ncommand req err_code: %i", commandreqdto.err_code);
     // Serial.printf("\ncommand req: %i\n", int(commandreqdto.tid));

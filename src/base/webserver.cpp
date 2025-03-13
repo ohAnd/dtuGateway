@@ -243,6 +243,7 @@ void DTUwebserver::handleDataJson(AsyncWebServerRequest *request)
     JSON = JSON + "\"v\": " + String(dtuGlobalData.grid.voltage) + ",";
     JSON = JSON + "\"c\": " + String(dtuGlobalData.grid.current) + ",";
     JSON = JSON + "\"p\": " + ((dtuGlobalData.grid.power == -1) ? ("\"--\"") : (String(dtuGlobalData.grid.power))) + ",";
+    JSON = JSON + "\"f\": " + String(dtuGlobalData.gridFreq) + ",";
     JSON = JSON + "\"dE\": " + String(dtuGlobalData.grid.dailyEnergy, 3) + ",";
     JSON = JSON + "\"tE\": " + String(dtuGlobalData.grid.totalEnergy, 3);
     JSON = JSON + "},";

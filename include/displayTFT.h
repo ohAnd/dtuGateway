@@ -1,11 +1,11 @@
 #ifndef DISPLAYTFT_H
 #define DISPLAYTFT_H
 
+#define TOUCH_CS -1 // Define TOUCH_CS to suppress the warning
 #include <SPI.h>
 #include <TFT_eSPI.h>
 
 // TFT display
-
 
 #if defined(ESP8266)
 #define BACKLIIGHT_PIN 12

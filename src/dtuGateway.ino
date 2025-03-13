@@ -666,7 +666,6 @@ void updateValuesToMqtt(boolean haAutoDiscovery = false)
 {
   Serial.println("MQTT:\t\t publish data (HA autoDiscovery = " + String(haAutoDiscovery) + ")");
   std::map<std::string, std::string> keyValueStore;
-  keyValueStore["time_stamp"] = String(dtuGlobalData.currentTimestamp).c_str();
   keyValueStore["time_stamp"] = getTimeStringByTimestamp(platformData.currentNTPtime).c_str();
   // grid
   keyValueStore["grid_U"] = String(dtuGlobalData.grid.voltage).c_str();
@@ -1339,9 +1338,6 @@ void loop()
           dtuConnection.dtuConnectState == DTU_STATE_CONNECTED &&
           !userConfig.remoteDisplayActive)
       {
-        Serial.println("----- ----- set new power limit from " + String(dtuGlobalData.powerLimit) + " % to " + String(dtuGlobalData.powerLimitSet) + " % ----- ----- ");
-        dtuInterface.setPowerLimit(dtuGlobalData.powerLimitSet);
-        // set next normal request in 5 seconds from now on, only if last data updated within last 2 times of user setted update rate
         if (!(dtuGlobalData.powerLimitSet == 1 && dtuGlobalData.inverterControl.stateOn) &&
             ((dtuGlobalData.powerLimitSet != dtuGlobalData.powerLimit && dtuGlobalData.inverterControl.stateOn) ||
              (dtuGlobalData.powerLimitSet == 0 && dtuGlobalData.inverterControl.stateOn) ||
@@ -1384,6 +1380,21 @@ void loop()
       dtuGlobalData.wifi_rssi_gateway = wifiPercent;
       // Serial.print(" --- RSSI to AP: '" + String(WiFi.SSID()) + "': " + String(dtuGlobalData.wifi_rssi_gateway) + " %");
     }
+    // test data
+    // dtuGlobalData.updateReceived = true;
+    // dtuGlobalData.warnDataLastTimestamp = timeClient.getEpochTime();
+    // dtuGlobalData.warningsActive = 2;
+    // dtuGlobalData.warnData[0].code = 124;
+    // String message = "[not approved] ??? shut down by remote control";
+    // strncpy(dtuGlobalData.warnData[0].message, message.c_str(), sizeof(dtuGlobalData.warnData[0].message) - 1);
+    // dtuGlobalData.warnData[0].timestampStart = timeClient.getEpochTime() - 1000;
+    // dtuGlobalData.warnData[0].timestampStop = 0;
+    // dtuGlobalData.warnData[0].data0 = 0;
+    // dtuGlobalData.warnData[0].data1 = 0;
+
+    // dtuConnection.dtuConnectionOnline = true;
+    // dtuConnection.dtuConnectState = DTU_STATE_CONNECTED;
+    // dtuGlobalData.inverterControl.stateOn = false;
   }
 
   // mid task
