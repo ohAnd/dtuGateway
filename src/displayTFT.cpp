@@ -160,7 +160,7 @@ void DisplayTFT::drawMainDTUOnline(bool pause)
 
     if (!dtuGlobalData.inverterControl.stateOn)
     {
-        // tft.pushImage(70, 60, power_offWidth, power_offHeight, power_off);
+        tft.pushImage(70, 60, power_offWidth, power_offHeight, power_off);
 
         tft.setTextColor(TFT_DARKCYAN, TFT_BLACK);
         tft.drawCentreString("inverter switched off", 120, 150, 2);
