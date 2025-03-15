@@ -1,7 +1,7 @@
-# dtu Gateway for Hoymiles HMS-xxxW-2T (2T series)
+# [ESP8266 maintenance only] dtu Gateway for Hoymiles HMS-xxxW-2T (2T series)
 
 ## Contents
-- [dtu Gateway for Hoymiles HMS-xxxW-2T (2T series)](#dtu-gateway-for-hoymiles-hms-xxxw-2t-2t-series)
+- [\[ESP8266 maintenance only\] dtu Gateway for Hoymiles HMS-xxxW-2T (2T series)](#esp8266-maintenance-only-dtu-gateway-for-hoymiles-hms-xxxw-2t-2t-series)
   - [Contents](#contents)
   - [problem](#problem)
   - [goal](#goal)
@@ -26,8 +26,7 @@
       - [return to factory mode](#return-to-factory-mode)
     - [update](#update)
   - [releases](#releases)
-    - [main](#main)
-    - [snapshot](#snapshot)
+    - [ESP8266 maintenance release](#esp8266-maintenance-release)
   - [troubleshooting](#troubleshooting)
   - [experiences with the hoymiles HMS-800W-2T](#experiences-with-the-hoymiles-hms-800w-2t)
     - [set values - frequency](#set-values---frequency)
@@ -37,6 +36,7 @@
     - [platformio](#platformio)
     - [hints for workflow](#hints-for-workflow)
 
+*fork from dtuGateway version 2.0.0013 for ESP8266 maintenance only*
 
 ## problem
 The newer series of Hoymiles inverter with internal wireless access point and wireless client have no direct API to include this endpoint in smarthome installations/ IFTT environments.
@@ -80,11 +80,7 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
 - syncing time of gateway with the local time of the dtu to prevent wrong restart counters
 - configurable 'cloud pause' - see [experiences](#experiences-with-the-hoymiles-HMS-800W-2T) - to prevent missing updates by the dtu to the hoymiles cloud
 - automatic reboot of DTU, if there is an error detected (e.g. inplausible not changed values)
-<!-- - gathering the current dtu warnings and show them in the webfrontend
-  - click on icon in the top right corner - icon will be only shown if warnings were received
-  - a badge will reprting the number of warnings
-    - dark if only old warnings and the number of this old warnings
-    - bright if there are active warnings and only the number of active warnings -->
+
  
 #### connections to the environment
 - serving the read data per /api/data.json
@@ -481,22 +477,14 @@ If you have directly attached a display, then in factory mode the used display i
 Via the web ui you can select the firmware file and start the update process. Please use the right firmware file according to your processor ESP8266 or ESP32.
 
 ## releases
-### main
-latest release - changes will documented by commit messages
-https://github.com/ohAnd/dtuGateway/releases/latest
 
+### ESP8266 maintenance release
 
-![GitHub Downloads (all assets, latest release)](https://img.shields.io/github/downloads/ohand/dtuGateway/latest/total)
-![GitHub (Pre-)Release Date](https://img.shields.io/github/release-date/ohand/dtuGateway)
-![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/ohand/dtuGateway/main_build.yml)
+https://github.com/ohAnd/dtuGateway/releases/tag/v2.0.0050
 
-### snapshot
-snapshot with latest build
-https://github.com/ohAnd/dtuGateway/releases/tag/snapshot
-
-![GitHub Downloads (all assets, specific tag)](https://img.shields.io/github/downloads/ohand/dtuGateway/snapshot/total)
-![GitHub (Pre-)Release Date](https://img.shields.io/github/release-date-pre/ohand/dtuGateway)
-![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/ohand/dtuGateway/dev_build.yml)
+![GitHub Downloads (all assets, specific tag)](https://img.shields.io/github/downloads/ohand/dtuGateway/v2.0.0050/total)
+![GitHub last commit](https://img.shields.io/github/last-commit/ohand/dtuGateway/esp8266_maintenance
+)
 
 ## troubleshooting
 
