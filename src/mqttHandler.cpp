@@ -308,7 +308,7 @@ boolean MQTTHandler::initiateDiscoveryMessages(bool autoDiscoveryRemove)
             publishDiscoveryMessage("pv0_totalEnergy", "Panel 0 yield total", "kWh", autoDiscoveryRemove, NULL, "energy");
             publishDiscoveryMessage("pv1_totalEnergy", "Panel 1 yield total", "kWh", autoDiscoveryRemove, NULL, "energy"); //"mdi:import"
 
-            publishDiscoveryMessage("grid_Freq", "Grid frequency", "Hz", autoDiscoveryRemove, NULL, "frequency",true);
+            publishDiscoveryMessage("grid_Freq", "Grid frequency", "Hz", autoDiscoveryRemove, NULL, "frequency", true);
 
             publishDiscoveryMessage("inverter_PowerLimit", "power limit", "%", autoDiscoveryRemove, NULL, "power_factor"); //"mdi:car-speed-limiter"
             publishDiscoveryMessage("inverter_PowerLimitSet", "power limit set", "%", autoDiscoveryRemove, "mdi:car-speed-limiter", "power_factor");

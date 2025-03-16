@@ -52,6 +52,11 @@ void DTUInterface::connect()
             Serial.println(F("DTUinterface:\t connection attempt failed..."));
         }
     }
+    else if (client->connected() && !dtuConnection.dtuActiveOffToCloudUpdate)
+    {
+        Serial.println(F("DTUinterface:\t client already connected with DTU!"));
+        dtuConnection.dtuConnectState = DTU_STATE_CONNECTED;
+    }
 }
 
 void DTUInterface::disconnect(uint8_t tgtState)
@@ -236,6 +241,7 @@ void DTUInterface::txrxStateObserver()
     {
         Serial.println(F("DTUinterface:\t [[stateObserver]] - timeout - reset txrx state to DTU_TXRX_STATE_IDLE"));
         dtuConnection.dtuTxRxState = DTU_TXRX_STATE_IDLE;
+        dtuInterface.disconnect(DTU_STATE_OFFLINE);
     }
 }
 
@@ -324,8 +330,13 @@ void DTUInterface::flushConnection()
     }
 
     // Reset connection control and global data
+    #if defined(ESP8266)
+    dtuConnection = connectionControl{};
+    dtuGlobalData = inverterData{};
+    #elif defined(ESP32)
     memset(&dtuConnection, 0, sizeof(dtuConnection));
     memset(&dtuGlobalData, 0, sizeof(dtuGlobalData));
+    #endif
     Serial.println(F("DTUinterface:\t Connection control and global data reset."));
 }
 

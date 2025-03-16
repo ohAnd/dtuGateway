@@ -480,9 +480,9 @@ Via the web ui you can select the firmware file and start the update process. Pl
 
 ### ESP8266 maintenance release
 
-https://github.com/ohAnd/dtuGateway/releases/tag/v2.0.0050
+https://github.com/ohAnd/dtuGateway/releases/tag/v2.0.0051
 
-![GitHub Downloads (all assets, specific tag)](https://img.shields.io/github/downloads/ohand/dtuGateway/v2.0.0050/total)
+![GitHub Downloads (all assets, specific tag)](https://img.shields.io/github/downloads/ohand/dtuGateway/v2.0.0051/total)
 ![GitHub last commit](https://img.shields.io/github/last-commit/ohand/dtuGateway/esp8266_maintenance
 )
 
