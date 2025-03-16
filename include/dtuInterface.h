@@ -96,7 +96,7 @@ struct warnDataBlock
 {
   uint16_t num = 0;
   uint32_t code = 0;
-  char message[96] = "";
+  char message[48] = "";
   uint32_t timestampStart = 0;
   uint32_t timestampStop = 0;
   uint32_t data0 = 0;
@@ -129,8 +129,6 @@ struct inverterData
   uint32_t warnDataLastTimestamp = 0;
   uint8_t warningsActive = 0;
 };
-
-
 
 extern inverterData dtuGlobalData;
 extern connectionControl dtuConnection;

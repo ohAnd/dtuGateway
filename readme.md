@@ -5,6 +5,7 @@
   - [Contents](#contents)
   - [problem](#problem)
   - [goal](#goal)
+  - [ESP8286 maintenance path](#esp8286-maintenance-path)
   - [features](#features)
     - [regarding dtu](#regarding-dtu)
       - [dtu connection](#dtu-connection)
@@ -20,7 +21,6 @@
   - [installation](#installation)
     - [hardware](#hardware)
     - [first installation to the ESP device](#first-installation-to-the-esp-device)
-      - [example for ESP8266](#example-for-esp8266)
       - [example for ESP32](#example-for-esp32)
       - [first setup with access point](#first-setup-with-access-point)
       - [return to factory mode](#return-to-factory-mode)
@@ -48,15 +48,23 @@ Data from dtu can be read in a very short time, but it has to be tested how ofte
 
 On a manual way you can be back on track, if you are logging in to the local access point of the dtu and resend your local wifi login data to (it seems) initiate a reboot. With this way you can be back online in ~ 1:30 minutes.
 
-So I decided to put this abstraction in an **ESP8266** to have a stable abstraction to an existing smart home environment.
+So I decided to put this abstraction in an **ESP32** to have a stable abstraction to an existing smart home environment.
 
 > *hint: the whole project could be also implemented on a small server and translated to e.g. python [see here for an example](https://github.com/henkwiedig/Hoymiles-DTU-Proto) and also the sources below*
 
 ## goal
 1. Abstract the interface to the dtu (inverter connection endpoint) with different possibilities to connect to other systems. (push/ pull)
-2. Very stable interface with no dependencies to an environment/ a system with a stand alone application based on an arduino board (ESP8266).
+2. Very stable interface with no dependencies to an environment/ a system with a stand alone application based on an arduino board (ESP32).
 3. TODO: Ability to change running wifi to connect to dtu over local network or direct access point.
-4. Use this need to create a full enivronment for an ESP8266 based project. (see features below)
+4. Use this need to create a full enivronment for an ESP32 based project. (see features below)
+
+## ESP8286 maintenance path
+
+The project was started with an ESP8266. Due to some further implementations the EPS8266 was not capable anymore for the new features - therefore a maintanance branch was forked with the base functionalities until version 2.0.
+
+https://github.com/ohAnd/dtuGateway/tree/esp8266_maintenance
+
+This branch will be maintained with small bugfiex, if needed.
 
 ## features
 
@@ -180,7 +188,7 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
   - advanced web config[^2] for all config parameter (http://IP_domain/config) - expert mode
     - display selection (0 - OLED, 1 - round TFT)
     - timeZone Offset -xxxx sec <-> xxxx sec e.g. 3600 for CET(+1h) /7200 for CEST(+2)/-21600 for CST
-- [2024-06-29 currently open issue during the rafactoring transferring to multi arch ESP8266/ESP32] ~~OTA with direct connection to the github build pipeline - available updates will be checked by web app and device. Notification in web app, if update available and user can decide for direct online update~~
+- ~~OTA with direct connection to the github build pipeline - available updates will be checked by web app and device. Notification in web app, if update available and user can decide for direct online update~~
 - manual OTA/ web Update via web ui (hint: only stable if the wifi connection is above ~ 50%)
 
 [^2]: 'advanced config' aka. 'dtuGateway Configuration Interface' it is something like an expert mode, that means you have to know which parameter you want to change with which effect.
@@ -398,43 +406,26 @@ So I decided to put this abstraction in an **ESP8266** to have a stable abstract
 
 ## installation
 ### hardware
-- ESP8266/ EPS32 based board
+- EPS32 based board
 - optional display SSH1106 OLED 1,3" 128x64 (e.g. [link](https://de.aliexpress.com/item/32881408326.html)):
-  - connect SSH1106 driven OLED display (128x64) with your ESP8266/ ESP32 board (VCC, GND, SCK, SCL)
+  - connect SSH1106 driven OLED display (128x64) with your ESP32 board (VCC, GND, SCK, SCL)
   - pinning for different boards (display connector to ESPxx board pins)
 
     | dev board                                        | ESP family | VCC  | GND |        SCK       |       SDA        | tested |
     |--------------------------------------------------|------------|:----:|:---:|:----------------:|:----------------:|:------:|
-    | AZDelivery D1 Board NodeMCU ESP8266MOD-12F       | ESP8266    | 3.3V | GND | D15/GPIO5/SCL/D3 | D14/GPIO4/SDA/D4 |   OK   |
-    | AZDelivery NodeMCU V2 WiFi Amica ESP8266 ESP-12F | ESP8266    | 3.3V | GND | D1/GPIO5/SCL     | D2/GPIO4/SDA     |   OK   |
-    | AZDelivery D1 Mini NodeMcu mit ESP8266-12F       | ESP8266    | 3V3  |  G  | D1/GPIO5/SCL     | D2/GPIO4/SDA     |   OK   |
     | ESP-WROOM-32 NodeMCU-32S                         | ESP32      | 3.3V | GND | D22/GPIO22/SCL   | D21/GPIO21/SDA   |   OK   |
 
 - optional display GC9A01 round TFT 1,28" 240x240 (e.g. [link](https://de.aliexpress.com/i/1005006190625792.html)):
-  - connect GC9A01 driven round TFT display (240x240) with your ESP8266/ ESP32 board (VCC, GND, SCL, SDA, DC, CS, RST, BLK)
+  - connect GC9A01 driven round TFT display (240x240) with your ESP32 board (VCC, GND, SCL, SDA, DC, CS, RST, BLK)
   - pinning for different boards (display connector to ESPxx board pins)
   - BLK = backlight control - will be served with PWM via GPIO 4
 
     | dev board                                        | ESP family | VCC  | GND |        SCL       |       SDA       |        DC         |       CS            |     RST       |     BKL (opt)  | tested |
     |--------------------------------------------------|------------|:----:|:---:|:----------------:|:---------------:|:-----------------:|:-------------------:|:-------------:|:--------------:|:------:|
-    | AZDelivery D1 Board NodeMCU ESP8266MOD-12F       | ESP8266    | 3.3V | GND |     t.b.d.       |      t.b.d.     |      t.b.d.       |       t.b.d.        |   t.b.d.      |      t.b.d.    | t.b.c. |
-    | AZDelivery NodeMCU V2 WiFi Amica ESP8266 ESP-12F | ESP8266    | 3.3V | GND | D5/GPI14/SCLK    | D7/GPIO13/MOSI  | D3/GPIO0/Flash    |    D8/GPIO15/CS     |   3V3[^1]     |    D6/GPIO12   |   OK   |
-    | AZDelivery D1 Mini NodeMcu mit ESP8266-12F       | ESP8266    | 3V3  |  G  | D5/GPI14/SCLK    | D7/GPIO13/MOSI  | D3/GPIO0/Flash    |    D8/GPIO15/CS     |   3V3[^1]     |      t.b.d.    |   OK   |
     | ESP-WROOM-32 NodeMCU-32S                         | ESP32      | 3.3V | GND | D18/GPIO18/SCK   | D23/GPIO23/MOSI | D2/GPIO2/HSPI_WP0 | D15/GPIO15/HSPI_CS0 |   3V3[^1]     |    D4/GPIO04   |   OK   |
     [^1]: reset pin of display currently not in use therefore directly pulled up to 3,3 V
 
 ### first installation to the ESP device
-#### example for ESP8266
-1. download the preferred release as binary (see below)
-2. [only once] flash the esp8266 board with the [esp download tool](https://www.espressif.com/en/support/download/other-tools)
-   1. choose bin file at address 0x0
-   2. SPI speed 40 MHz
-   3. SPI Mode QIO
-   4. select your COM port and baudrate = 921600
-   5. press start ;-)
-3. all further updates are done by [OTA](###-regarding-base-framework) or [webupdate](###-update)
-
-You can also use the esptool.py as described shortly here https://github.com/ohAnd/dtuGateway/discussions/46#discussion-7106516 by @netzbasteln
 
 #### example for ESP32
 see also https://github.com/ohAnd/dtuGateway/discussions/35#discussioncomment-10519821
@@ -455,6 +446,8 @@ see also https://github.com/ohAnd/dtuGateway/discussions/35#discussioncomment-10
    6. select your COM port and baudrate = 921600
    8. press start ;-)
 3. all further updates are done by [OTA](###-regarding-base-framework) or [webupdate](###-update)
+
+*hint: You can also use the esptool.py as described shortly here https://github.com/ohAnd/dtuGateway/discussions/46#discussion-7106516 by @netzbasteln*
 
 #### first setup with access point
 > prequesite:
@@ -478,7 +471,7 @@ If you have directly attached a display, then in factory mode the used display i
 5. after reboot the device starting again in AP mode for first setup
 
 ### update
-Via the web ui you can select the firmware file and start the update process. Please use the right firmware file according to your processor ESP8266 or ESP32.
+Via the web ui you can select the firmware file and start the update process.
 
 ## releases
 ### main

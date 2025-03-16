@@ -357,8 +357,8 @@ void DTUwebserver::handleDtuInfoJson(AsyncWebServerRequest *request)
         }
     }
     // chop off last comma
-    if (JSON.endsWith(",")) {
-        JSON = JSON.substring(0, JSON.length() - 1);
+    if (JSON.charAt(JSON.length() - 1) == ',') {
+        JSON.remove(JSON.length() - 1);
     }
     JSON = JSON + "]";
     JSON = JSON + "}";

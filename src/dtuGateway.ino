@@ -509,9 +509,8 @@ boolean postMessageToOpenhab(String key, String value)
     http.addHeader("Accept", "application/json");
 
     int httpCode = http.POST(value);
-    // Check for timeout
-    if (httpCode == HTTPC_ERROR_CONNECTION_REFUSED || httpCode == HTTPC_ERROR_SEND_HEADER_FAILED ||
-        httpCode == HTTPC_ERROR_SEND_PAYLOAD_FAILED)
+    // Check for timeout - (avoid unnecessary warnings from 8266 lib: HTTPC_ERROR_CONNECTION_FAILED (ESP8266HTTPClient.h) = HTTPC_ERROR_CONNECTION_REFUSED (HTTPClient.h) = -1)
+    if (httpCode == -1 || httpCode == HTTPC_ERROR_SEND_HEADER_FAILED || httpCode == HTTPC_ERROR_SEND_PAYLOAD_FAILED)
     {
       Serial.println("OpenHAB:\t\t [HTTP] postMessageToOpenhab (" + key + ") Timeout error: " + String(httpCode));
       http.end();
@@ -588,8 +587,12 @@ boolean getPowerSetDataFromOpenHab()
   String openhabMessage = getMessageFromOpenhab(String(userConfig.openItemPrefix) + "_PowerLimitSet");
   if (openhabMessage.length() > 0)
   {
+    int dotIndex = openhabMessage.indexOf('.');
+    if (dotIndex != -1) {
+      openhabMessage = openhabMessage.substring(0, dotIndex);
+    }
     gotLimit = openhabMessage.toInt();
-    // Check if the conversion was successful by comparing the string with its integer representation, to avoid wronmg interpretations of 0 after toInt by a "no number string"
+    // Check if the conversion was successful by comparing the string with its integer representation, to avoid wrong interpretations of 0 after toInt by a "no number string"
     conversionSuccess = (String(gotLimit) == openhabMessage);
   }
 

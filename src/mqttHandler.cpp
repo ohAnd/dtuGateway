@@ -115,17 +115,23 @@ void MQTTHandler::subscribedMessageArrived(char *topic, byte *payload, unsigned 
                 // incommingMessage = 2024-12-05T15:59:43+01:00 - has to be converted to timestamp
                 struct tm tm;
                 char *ret = strptime(incommingMessage.c_str(), "%Y-%m-%dT%H:%M:%S", &tm);
-                if (ret != NULL) {
+                if (ret != NULL)
+                {
                     time_t t = mktime(&tm);
                     int offsetHours = atoi(ret + 1) / 100;
                     int offsetMinutes = atoi(ret + 1) % 100;
-                    if (*ret == '+') {
+                    if (*ret == '+')
+                    {
                         t -= (offsetHours * 3600 + offsetMinutes * 60);
-                    } else if (*ret == '-') {
+                    }
+                    else if (*ret == '-')
+                    {
                         t += (offsetHours * 3600 + offsetMinutes * 60);
                     }
                     instance->lastRemoteInverterData.respTimestamp = t;
-                } else {
+                }
+                else
+                {
                     Serial.println("MQTT: Failed to parse timestamp: " + incommingMessage);
                 }
                 instance->lastRemoteInverterData.updateReceived = true;
@@ -223,12 +229,16 @@ void MQTTHandler::publishDiscoveryMessage(const char *entity, const char *entity
         // if (String(deviceClass) == "timestamp")
         //     doc["value_template"] = "{{ as_datetime(value) }}";
     }
+#if defined(ESP8266)
+    if (strcmp(deviceClass, "running") == 0)
+#elif defined(ESP32)
     if (deviceClass == "running")
+#endif
     {
         doc["payload_on"] = "1";
         doc["payload_off"] = "0";
     }
-    
+
     if (unit != NULL)
         doc["unit_of_measurement"] = unit;
 
@@ -310,7 +320,7 @@ boolean MQTTHandler::initiateDiscoveryMessages(bool autoDiscoveryRemove)
             publishDiscoveryMessage("pv0_totalEnergy", "Panel 0 yield total", "kWh", autoDiscoveryRemove, NULL, "energy");
             publishDiscoveryMessage("pv1_totalEnergy", "Panel 1 yield total", "kWh", autoDiscoveryRemove, NULL, "energy"); //"mdi:import"
 
-            publishDiscoveryMessage("grid_Freq", "Grid frequency", "Hz", autoDiscoveryRemove, NULL, "frequency",true);
+            publishDiscoveryMessage("grid_Freq", "Grid frequency", "Hz", autoDiscoveryRemove, NULL, "frequency", true);
 
             publishDiscoveryMessage("inverter_PowerLimit", "power limit", "%", autoDiscoveryRemove, NULL, "power_factor"); //"mdi:car-speed-limiter"
             publishDiscoveryMessage("inverter_PowerLimitSet", "power limit set", "%", autoDiscoveryRemove, "mdi:car-speed-limiter", "power_factor");

@@ -53,6 +53,11 @@ void DTUInterface::connect()
             Serial.println(F("DTUinterface:\t connection attempt failed..."));
         }
     }
+    else if (client->connected() && !dtuConnection.dtuActiveOffToCloudUpdate)
+    {
+        Serial.println(F("DTUinterface:\t client already connected with DTU!"));
+        dtuConnection.dtuConnectState = DTU_STATE_CONNECTED;
+    }
 }
 
 void DTUInterface::disconnect(uint8_t tgtState)
@@ -250,6 +255,7 @@ void DTUInterface::txrxStateObserver()
     {
         Serial.println(F("DTUinterface:\t [[stateObserver]] - timeout - reset txrx state to DTU_TXRX_STATE_IDLE"));
         dtuConnection.dtuTxRxState = DTU_TXRX_STATE_IDLE;
+        dtuInterface.disconnect(DTU_STATE_OFFLINE);
     }
 }
 
@@ -338,8 +344,14 @@ void DTUInterface::flushConnection()
     }
 
     // Reset connection control and global data
+#if defined(ESP8266)
+    dtuConnection = connectionControl{};
+    dtuGlobalData = inverterData{};
+#elif defined(ESP32)
     memset(&dtuConnection, 0, sizeof(dtuConnection));
     memset(&dtuGlobalData, 0, sizeof(dtuGlobalData));
+#endif
+
     Serial.println(F("DTUinterface:\t Connection control and global data reset."));
 }
 
@@ -1704,18 +1716,17 @@ boolean DTUInterface::readRespCommandGetAlarms(pb_istream_t istream)
     // std::map<int, std::string> warningCodeMap = {
     //     {72,  "Grid frequency above limit"}, // 72 in binary -                                                   0100 1000 (  0,  72)
     //     {208, "[text not known]"}, // 218 in binary -                                                            1101 0000 (  0, 208)
-        
+
     //     {124, "inverter shut down by remote control - active"}, // 124 in binary -                               0111 1100 (   0, 124)
     //     {8316, "inverter shut down by remote control - active"}, // 8316 in binary -                   0010 0000 0111 1100 (  32, 124)
     //     {16508, "inverter shut down by remote control - period"}, // 16508 in binary -                 0100 0000 0111 1100 (  64, 124)
     //     {20604, "[not approved] inverter shut down by remote control - period"}, // 20604 in binary -  0101 0000 0111 1100 (  80, 124)
     //     {28796, "inverter shut down by remote control - period"}, // 28796 in binary -                 0111 0000 0111 1100 ( 112, 124)
 
-    //     {209, "PV1 no input voltage - active"}, // 209 in binary -                                               1101 0001 (   0, 209) 
-    //     {16593, "PV1 no input voltage - period"}, // 16593 in binary -                                 0100 0000 1101 0001 (  64, 209) 
-    //     {20689, "PV1 no input voltage - period"}, // 20689 in binary -                                 0101 0000 1101 0001 (  80, 209) 
+    //     {209, "PV1 no input voltage - active"}, // 209 in binary -                                               1101 0001 (   0, 209)
+    //     {16593, "PV1 no input voltage - period"}, // 16593 in binary -                                 0100 0000 1101 0001 (  64, 209)
+    //     {20689, "PV1 no input voltage - period"}, // 20689 in binary -                                 0101 0000 1101 0001 (  80, 209)
 
-        
     //     {216, "PV1 Undervoltage - active"}, // 216 in binary -                                                   1101 1000 (   0, 216)
     //     {16600, "PV1 Undervoltage - period"}, // 16600 in binary -                                     0100 0000 1101 1000 (  64, 216)
     //     {20696, "PV1 Undervoltage - period"}, // 20696 in binary -                                     0101 0000 1101 1000 (  80, 216)
@@ -1727,16 +1738,19 @@ boolean DTUInterface::readRespCommandGetAlarms(pb_istream_t istream)
     //     {8410, "PV2 Undervoltage - period"}, // 8410 in binary -                                       0010 0000 1101 1010 (  32, 218)
     // };
 
-        std::map<int, std::string> warningCodeMap = {
-        { 78, "Grid frequency above limit"},            // 1101 0000
-        {208, "[text not known]"},                      // 1101 0000
-        {124, "inverter shut down by remote control"},  // 0111 1100
-        {209, "PV0 no input voltage"},                  // 1101 0001
-        {216, "PV0 Undervoltage"},                      // 1101 1000
-        {210, "PV1 no input voltage"},                  // 1101 0010
-        {218, "PV1 Undervoltage"},                      // 1101 1010
+    std::map<int, std::string> warningCodeMap = {
+        {78, "Grid frequency above limit"},            // 1101 0000
+        {143, "[text not known]"},                     // seen 143,112 with data0 64, data1 1840 - during no AC voltage (plugged off)
+        {145, "[text not known]"},                     // seen 145,112 with no data  - during no AC voltage (plugged off)
+        {147, "[text not known]"},                     // seen 147,112 with data0 4, data1 0  - during no AC voltage (plugged off)
+        {148, "[text not known]"},                     // seen 148,32 with data0 3051, data1 0
+        {208, "[text not known]"},                     // 1101 0000
+        {124, "inverter shut down by remote control"}, // 0111 1100
+        {209, "PV0 no input voltage"},                 // 1101 0001
+        {216, "PV0 Undervoltage"},                     // 1101 1000
+        {210, "PV1 no input voltage"},                 // 1101 0010
+        {218, "PV1 Undervoltage"},                     // 1101 1010
     };
-        
 
     uint8_t warningActiveCount = 0;
     for (int i = 0; i < WARN_DATA_MAX_ENTRIES - 1; i++)
@@ -1771,7 +1785,9 @@ boolean DTUInterface::readRespCommandGetAlarms(pb_istream_t istream)
                     Serial.printf("\ncommand warn%d - wnum: %i", i, winforeqdto.mWInfo[i].WNum);
                     Serial.printf("\ncommand warn%d - wtime1: %i -> wtime2: %i (%s -> %s)", i, winforeqdto.mWInfo[i].WTime1, winforeqdto.mWInfo[i].WTime2, getTimeStringByTimestamp(winforeqdto.mWInfo[i].WTime1).c_str(), getTimeStringByTimestamp(winforeqdto.mWInfo[i].WTime2).c_str());
                     Serial.printf("\ncommand warn%d - WData1: %i ++ WData2: %i\n", i, winforeqdto.mWInfo[i].WData1, winforeqdto.mWInfo[i].WData2);
-                } else {
+                }
+                else
+                {
                     dtuGlobalData.inverterControl.stateOn = true; // set to true due to NO active warning "Inverter remote off"
                 }
             }
