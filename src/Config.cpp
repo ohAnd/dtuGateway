@@ -9,7 +9,12 @@ UserConfigManager::UserConfigManager(const char *filePath, const UserConfig &def
 
 bool UserConfigManager::begin()
 {
-    if (!LittleFS.begin())
+    #ifdef ESP32
+    if(!LittleFS.begin(true))
+    #else
+    if(!LittleFS.begin())
+    #endif
+
     {
 
         Serial.println(F("UserConfigManager::begin - An error has occurred while mounting LittleFS"));

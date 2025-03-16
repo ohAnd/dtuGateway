@@ -38,12 +38,35 @@ void DTUwebserver::backgroundTask(DTUwebserver *instance)
 
 void DTUwebserver::start()
 {
+    {
+        File f = LittleFS.open("/index.html", "w");
+        assert(f);
+        f.print(index_html);
+        f.close();
+    }
+    {
+        File f = LittleFS.open("/style.css", "w");
+        assert(f);
+        f.print(style_css);
+        f.close();
+    }
+    // {
+    //     File f = LittleFS.open("/jquery.min.js", "w");
+    //     assert(f);
+    //     f.print(jquery_min_js);
+    //     f.close();
+    // }
+    // asyncDtuWebServer.serveStatic("/jquery.min.js", LittleFS, "/jquery.min.js");
+    asyncDtuWebServer.serveStatic("/index.html", LittleFS, "/index.html");
+    asyncDtuWebServer.serveStatic("/style.css", LittleFS, "/style.css");
+    
+
     // Initialize the web server and define routes as before
     Serial.println(F("WEB:\t\t setup webserver"));
     // base web pages
     asyncDtuWebServer.on("/", HTTP_GET, handleRoot);
-    asyncDtuWebServer.on("/jquery.min.js", HTTP_GET, handleJqueryMinJs);
-    asyncDtuWebServer.on("/style.css", HTTP_GET, handleCSS);
+    // asyncDtuWebServer.on("/jquery.min.js", HTTP_GET, handleJqueryMinJs);
+    // asyncDtuWebServer.on("/style.css", HTTP_GET, handleCSS);
 
     // user config requests
     asyncDtuWebServer.on("/updateWifiSettings", handleUpdateWifiSettings);
@@ -89,16 +112,20 @@ void DTUwebserver::stop()
 // base pages
 void DTUwebserver::handleRoot(AsyncWebServerRequest *request)
 {
-    request->send_P(200, "text/html", INDEX_HTML);
+    Serial.println(F("WEB:\t\t handleRoot"));
+    // request->send(200, "text/html", INDEX_HTML);
+    request->redirect("/index.html");
 }
-void DTUwebserver::handleCSS(AsyncWebServerRequest *request)
-{
-    request->send_P(200, "text/html", STYLE_CSS);
-}
-void DTUwebserver::handleJqueryMinJs(AsyncWebServerRequest *request)
-{
-    request->send_P(200, "text/html", JQUERY_MIN_JS);
-}
+// void DTUwebserver::handleCSS(AsyncWebServerRequest *request)
+// {
+//     Serial.println(F("WEB:\t\t handleCSS"));
+//     request->send(LittleFS, "/style.css", "text/css");
+// }
+// void DTUwebserver::handleJqueryMinJs(AsyncWebServerRequest *request)
+// {
+//     Serial.println(F("WEB:\t\t handleJqueryMinJs"));
+//     request->send(200, "text/html", JQUERY_MIN_JS);
+// }
 
 // ota update
 void DTUwebserver::handleDoUpdate(AsyncWebServerRequest *request, const String &filename, size_t index, uint8_t *data, size_t len, bool final)
@@ -210,7 +237,7 @@ void DTUwebserver::handleConfigPage(AsyncWebServerRequest *request)
     }
 
     String html = configManager.getWebHandler(doc);
-    request->send_P(200, "text/html", html.c_str());
+    request->send(200, "text/html", html.c_str());
     if (gotUserChanges)
     {
         Serial.println(F("WEB:\t\t handleConfigPage - got User Changes - sent back config page ack - and restart ESP in 2 seconds"));

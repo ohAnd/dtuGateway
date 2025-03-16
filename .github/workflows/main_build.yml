@@ -47,7 +47,6 @@ jobs:
         with:
           name: dtuGateway_release_${{ env.CURRENT_VERSIONNUMBER }}
           path: |
-            # .pio/build/esp12e/dtuGateway_ESP8266_release_${{ env.CURRENT_VERSIONNUMBER }}.bin
             .pio/build/esp12e/dtuGateway_ESP32_release_${{ env.CURRENT_VERSIONNUMBER }}.bin
 
       - uses: "marvinpinto/action-automatic-releases@latest"
@@ -58,6 +57,5 @@ jobs:
           prerelease: false
           title: "dtuGateway v${{ env.CURRENT_VERSIONNUMBER }}"
           files: |
-            # .pio/build/esp12e/dtuGateway_ESP8266_release_${{ env.CURRENT_VERSIONNUMBER }}.bin
             .pio/build/esp12e/dtuGateway_ESP32_release_${{ env.CURRENT_VERSIONNUMBER }}.bin
             include/version.json

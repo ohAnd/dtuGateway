@@ -1,4 +1,4 @@
-const char STYLE_CSS[] PROGMEM = R"=====(
+static const char *style_css PROGMEM = R"=====(
 
 * {
     box-sizing: border-box;
