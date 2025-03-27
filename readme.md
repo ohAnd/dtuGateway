@@ -90,7 +90,7 @@ This branch will be maintained with small bugfix, if needed.
 - automatic reboot of DTU, if there is an error detected (e.g. inplausible not changed values)
 - gathering the current dtu warnings and show them in the webfrontend
   - click on icon in the top right corner - icon will be only shown if warnings were received
-  - a badge will reprting the number of warnings
+  - a badge will reporting the number of warnings
     - dark if only old warnings and the number of this old warnings
     - bright if there are active warnings and only the number of active warnings
  
