@@ -1,4 +1,4 @@
-const char INDEX_HTML[] PROGMEM = R"=====(
+static const char *index_html PROGMEM = R"=====(
 
 <html lang="de">
 
@@ -9,7 +9,8 @@ const char INDEX_HTML[] PROGMEM = R"=====(
         content="user-scalable=no, initial-scale=1, maximum-scale=1, minimum-scale=1, width=device-width">
     <link rel="stylesheet" type="text/css" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
-    <script src="jquery.min.js"></script>
+    <!-- <script src="jquery.min.js"></script> -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 </head>
 
 <body>
@@ -96,7 +97,8 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                     <input type="text" id="mqttIP" class="ipv4Input" name="ipv4" placeholder="xxx.xxx.xxx.xxx">
                 </div>
                 <div>
-                <input type="checkbox" id="mqttUseTLS"> <small>TLS connection (e.g. 123456789.s1.eu.hivemq.cloud:8883) - works only with ESP32</small>
+                    <input type="checkbox" id="mqttUseTLS"> <small>TLS connection (e.g.
+                        123456789.s1.eu.hivemq.cloud:8883) - works only with ESP32</small>
                 </div>
                 <div>
                     <br>specify user on your mqtt broker instance:
@@ -162,7 +164,6 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             </div>
         </div>
     </div>
-    </div>
     <div class="popup" id="updatePowerLimit" style="display: none;">
         <h2>Update power limit</h2>
         <div>
@@ -172,7 +173,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                 </div>
                 <hr>
                 <div> power limit set in %
-                    <input type="number" id="powerLimitSetNew" min="2" max="100" placeholder="">
+                    <input type="number" id="powerLimitSetNew" min="0" max="100" placeholder="">
                 </div>
             </div>
 
@@ -255,7 +256,6 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             <b onclick="hide('#updateMenu')" class="form-button btn">close</b>
         </div>
     </div>
-    </div>
     <div class="popup" id="updateProgress">
         <h2>Update</h2>
         <hr>
@@ -272,9 +272,27 @@ const char INDEX_HTML[] PROGMEM = R"=====(
         </b>
         <hr>
     </div>
+    <div class="popup" id="warningOverview" style="flex-direction: column;">
+        <div>
+            <h2>current dtu warnings</h2>
+            <h6>Displays the entries in the DTU sorted by the time they occurred <i id="warningsLastUpdate">(last
+                    updated: 01.01.2024 - 00:00:00)</i><br><i id="warningDetailsHint">... rotate the screen to see more details at the warning entry ...</i></h6>
+            <hr>
+        </div>
+        <div id="activeWarnings" style="flex-grow: 1;padding-bottom: 10px;text-align: center; overflow-y: auto;">
+        </div>
+        <hr><br>
+        <div style="text-align: center;">
+            <b onclick="hide('#warningOverview')" class="form-button btn">close</b>
+        </div>
+    </div>
     <div id="frame">
         <div class="header">
             <b id="titleHeader">Hoymiles HMS-800W-2T - Gateway</b>
+            <div id="dtuWarnings" style="display: none;">
+                <i class="fa fa-exclamation-triangle" style="color: darkcyan;" onclick="show('#warningOverview')"></i>
+                <span class="numBadge" id="dtuWarningsBadge">20</span>
+            </div>
         </div>
         <div class="row">
             <div class="column">
@@ -325,6 +343,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                         <small>I</small>
                         <b id="grid_current" class="panelValueSmall valueText">00.0 A</b>
                     </div>
+                    <i id="infoInveterOff" class="fa fa-power-off" style="color: orange;display:none;"></i>
                 </div>
             </div>
             <div class="column" id="time">
@@ -425,7 +444,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                     <b id="uptime" style="text-align: right;top: 20px; font-size: 2vmin;">00:00:00</b>
                 </div>
                 <div class="footerButton">
-                    <i class="fa fa-house-signal" alt="wifi DTU"></i>
+                    <i class="fa fa-signal" alt="wifi DTU"></i>
                     <span id="rssitext_dtu" style="text-align: right;top: 20px; font-size: 2vmin;">50 %</span>
                 </div>
                 <div class="footerButton">
@@ -460,6 +479,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
         let timerInfoUpdate = 0;
         let cacheInfoData = {};
         let cacheData = {};
+        let cacheDtuData = {};
 
         $(document).ready(function () {
             console.log("document loading done");
@@ -468,6 +488,7 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             getDataValues();
             getInfoValues();
             requestVersionData();
+            getDtuDataValues();
 
             window.setInterval(function () {
                 getDataValues();
@@ -476,6 +497,10 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             timerInfoUpdate = window.setInterval(function () {
                 getInfoValues();
             }, 5000);
+
+            timerDtuDataUpdate = window.setInterval(function () {
+                getDtuDataValues();
+            }, 7500);
 
             // check every minute (62,5s) for an available update
             window.setInterval(function () {
@@ -539,6 +564,9 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             if (id == '#updatePowerLimit') {
                 getPowerLimitData();
                 $('#powerLimitSetNew').focus();
+            }
+            if (id == '#warningOverview') {
+                $('#warningOverview').css('display', 'flex');
             }
         }
 
@@ -659,6 +687,13 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                     dtuState = "no info";
             }
             checkValueUpdate('#dtu_error_state', dtuState);
+
+            if (data.inverter.active == 0) {
+                $('#infoInveterOff').show();
+            } else {
+                $('#infoInveterOff').hide();
+            }
+
             return true;
         }
 
@@ -1413,6 +1448,87 @@ const char INDEX_HTML[] PROGMEM = R"=====(
             }
         }
 
+        function showDtuWarnings() {
+
+            cacheDtuData.warnings.length > 0 ? $('#dtuWarnings').show() : $('#dtuWarnings').hide();
+            numOfWarnings = cacheDtuData.warnings.length;
+            numOfWarningsActive = 0;
+            // clear the list berfore refill
+            $('#activeWarnings').empty();
+            // sort cacheDtuData.warnings by timestampStart - newest first
+            cacheDtuData.warnings.sort((a, b) => (a.timestampStart < b.timestampStart) ? 1 : -1);
+            var activeWarning = false;
+            for (let index = 0; index < cacheDtuData.warnings.length; index++) {
+                let warning = cacheDtuData.warnings[index];
+                if (warning.timestampStop == 0) {
+                    numOfWarningsActive++;
+                    activeWarning = true;
+                } else {
+                    activeWarning = false;
+                }
+                let data0Text = "data0";
+                let data0Value = warning.data0;
+                let data1Text = "data1";
+                let data1Value = warning.data1;
+
+                if (warning.message.toLowerCase().includes('undervoltage')) {
+                    data0Text = "measured voltage";
+                    data0Value = (warning.data0 / 10).toFixed(2) + " V";
+                    data1Text = "minimal voltage";
+                    data1Value = (warning.data1 / 10).toFixed(2) + " V";
+                }
+                else if (warning.message.toLowerCase().includes('frequency above')) {
+                    data0Text = "measured frequency";
+                    data0Value = (warning.data0 / 100).toFixed(2) + " Hz";
+                    data1Text = "maximum frequency";
+                    data1Value = (warning.data1 / 100).toFixed(2) + " Hz";
+                }
+
+                let warningRow = `
+                <div class="warningRow" style="display: flex; justify-content: space-between; ${!activeWarning ? `color: grey;` : ''}">
+                    <div class="warningColumnTimeNum">
+                        <div class="warningTimestamp">${new Date(warning.timestampStart * 1000).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }).replace(',', ' -')}</div>
+                        ${warning.timestampStop !== 0 ? `<div class="warningTimestamp">${new Date(warning.timestampStop * 1000).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }).replace(',', ' -')}</div>` : ''}
+                    </div>
+                    <div class="warningColumnNum">
+                        <div class="warningMessage">${warning.num}</div>
+                    </div>
+                    <div class="warningColumnText">
+                        <div class="warningMessage">${warning.message}</div>
+                    </div>
+                    <div class="warningColumnDetail">
+                    
+                `;
+                if (warning.data0 !== 0) {
+                    warningRow = warningRow + `<div class="warningData">`;
+                    warningRow = warningRow + `<div class="warningDataText">${data0Text}: </div>`;
+                    warningRow = warningRow + `<div class="warningDataValue">${data0Value}</div>`;
+                    warningRow = warningRow + `</div>`;
+                    warningRow = warningRow + `<div class="warningData">`;
+                    warningRow = warningRow + `<div class="warningDataText">${data1Text}: </div>`;
+                    warningRow = warningRow + `<div class="warningDataValue">${data1Value}</div>`;
+                    warningRow = warningRow + `</div>`;
+                }
+                warningRow = warningRow + `</div>
+                </div>
+                <hr style="border-top-color: lightgrey;">`;
+
+
+                $('#activeWarnings').append(warningRow);
+            }
+            if (numOfWarningsActive != 0) {
+                $('#dtuWarningsBadge').html(numOfWarningsActive);
+                $('#dtuWarningsBadge').css('background-color', 'orange');
+                $('#dtuWarningsBadge').css('color', 'black');
+            } else {
+                $('#dtuWarningsBadge').html(numOfWarnings);
+                $('#dtuWarningsBadge').css('background-color', 'darkcyan');
+                $('#dtuWarningsBadge').css('color', 'black');
+            }
+            $('#warningsLastUpdate').html("(last updated: " + getTime(cacheDtuData.warningsLastUpdate, "date") + " - " + getTime(cacheDtuData.warningsLastUpdate, "time") + ")");
+            //console.log("# of warnings: " + numOfWarnings + " - active: " + numOfWarningsActive);
+        }
+
         // alarmState = alert-success, alert-danger, alert-warning
         function showAlert(text, info, alarmState = "") {
             $('#alertBox').attr('class', "alert " + alarmState);
@@ -1497,6 +1613,24 @@ const char INDEX_HTML[] PROGMEM = R"=====(
                 },
                 error: function () {
                     console.log("timeout getting data in local network");
+                }
+            });
+        }
+
+        function getDtuDataValues() {
+            $.ajax({
+                url: 'api/dtuData.json',
+
+                type: 'GET',
+                contentType: false,
+                processData: false,
+                timeout: 2000,
+                success: function (dtuData) {
+                    cacheDtuData = dtuData;
+                    showDtuWarnings();
+                },
+                error: function () {
+                    console.log("timeout getting dtuData in local network");
                 }
             });
         }

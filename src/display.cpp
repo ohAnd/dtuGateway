@@ -84,12 +84,8 @@ void Display::drawScreen()
 
         // main screen
 
-        if (dtuConnection.dtuConnectState == DTU_STATE_CONNECTED)
+        if (dtuConnection.dtuConnectState == DTU_STATE_CONNECTED || dtuConnection.dtuConnectState == DTU_STATE_CLOUD_PAUSE)
             drawMainDTUOnline();
-        else if (dtuConnection.dtuConnectState == DTU_STATE_CLOUD_PAUSE)
-            drawMainDTUOnline(true);
-        // else if (lastDisplayData.remoteDisplayActive)
-        //     drawMainDTUOnline();
         else
             drawMainDTUOffline();
 
@@ -121,50 +117,58 @@ void Display::drawScreen()
 void Display::drawMainDTUOnline(bool pause)
 {
     // main screen
-
-    String wattage = ((dtuGlobalData.grid.power == -1) ? ("--") : String(lastDisplayData.totalPower));
-    String powerLimit = ((dtuGlobalData.powerLimit == 254) ? ("--") : String(lastDisplayData.powerLimit));
-
-    u8g2.setFont(u8g2_font_logisoso28_tf);
-    u8g2_uint_t width = u8g2.getUTF8Width(wattage.c_str());
-    int wattage_xpos = (128 - width) / 2;
-    u8g2.drawStr(wattage_xpos + offset_x, 19 + offset_y, wattage.c_str());
-    if (!pause)
+    if (!dtuGlobalData.inverterControl.stateOn)
     {
-        u8g2.setFont(u8g2_font_logisoso28_tf);
-        u8g2.drawStr(107 + offset_x, 19 + offset_y, "W");
+        u8g2.setFont(u8g2_font_open_iconic_embedded_4x_t);
+        u8g2.drawGlyph(3 + offset_x, 16 + offset_y, 0x004E);
+
+        u8g2.setFont(u8g2_font_7x13B_tr);
+        u8g2.drawStr(3 + 32 + 10 + offset_x, 19 + offset_y, "Inverter");
+        u8g2.drawStr(3 + 32 + 10 + offset_x, 19 + 13 + 3 + offset_y, "switched off");
     }
     else
     {
-        u8g2.setFont(u8g2_font_logisoso16_tf);
-        u8g2.drawStr(107 + offset_x, 19 + offset_y, "W");
-        u8g2.setFont(u8g2_font_unifont_t_emoticons);
-        u8g2.drawGlyph(104 + offset_x, 50 + offset_y, 0x0054);
-    }
+        String wattage = ((dtuGlobalData.grid.power == -1) ? ("--") : String(lastDisplayData.totalPower));
+        String powerLimit = ((dtuGlobalData.powerLimit == 254) ? ("--") : String(lastDisplayData.powerLimit));
 
-    // main screen small left
-    u8g2.drawRFrame(0 + offset_x, 36 + offset_y, 30, 16, 4);
-    u8g2.setFont(u8g2_font_6x10_tf);
+        u8g2.setFont(u8g2_font_logisoso28_tf);
+        u8g2_uint_t width = u8g2.getUTF8Width(wattage.c_str());
+        int wattage_xpos = (128 - width) / 2;
+        u8g2.drawStr(wattage_xpos + offset_x, 19 + offset_y, wattage.c_str());
+        if (!pause)
+        {
+            u8g2.setFont(u8g2_font_logisoso28_tf);
+            u8g2.drawStr(107 + offset_x, 19 + offset_y, "W");
+        }
+        else
+        {
+            u8g2.setFont(u8g2_font_logisoso16_tf);
+            u8g2.drawStr(107 + offset_x, 19 + offset_y, "W");
+            u8g2.setFont(u8g2_font_unifont_t_emoticons);
+            u8g2.drawGlyph(104 + offset_x, 50 + offset_y, 0x0054);
+        }
 
-    width = u8g2.getUTF8Width(powerLimit.c_str());
-    int powerLimit_xpos = (20 - width) / 2;
+        // main screen small left
+        u8g2.drawRFrame(0 + offset_x, 36 + offset_y, 30, 16, 4);
+        u8g2.setFont(u8g2_font_6x10_tf);
 
-    u8g2.drawStr(3 + powerLimit_xpos + offset_x, 40 + offset_y, powerLimit.c_str());
-    u8g2.drawStr(22 + offset_x, 40 + offset_y, "%");
+        width = u8g2.getUTF8Width(powerLimit.c_str());
+        int powerLimit_xpos = (20 - width) / 2;
 
-    // showing that this is a remote display
-    if (lastDisplayData.remoteDisplayActive)
-    {
-        u8g2.setFont(u8g2_font_open_iconic_all_2x_t);
-        u8g2.drawGlyph(7 + offset_x, 19 + offset_y, 0x007D);
+        u8g2.drawStr(3 + powerLimit_xpos + offset_x, 40 + offset_y, powerLimit.c_str());
+        u8g2.drawStr(22 + offset_x, 40 + offset_y, "%");
     }
 }
 
 void Display::drawMainDTUOffline()
 {
     // main screen
-    u8g2.setFont(u8g2_font_logisoso16_tf);
-    u8g2.drawStr(15 + offset_x, 25 + offset_y, "DTU offline");
+    u8g2.setFont(u8g2_font_open_iconic_www_4x_t);
+    u8g2.drawGlyph(3 + offset_x, 16 + offset_y, 0x004a);
+
+    u8g2.setFont(u8g2_font_7x13B_tr);
+    u8g2.drawStr(3 + 32 + 10 + offset_x, 19 + offset_y, "DTU");
+    u8g2.drawStr(3 + 32 + 10 + offset_x, 19 + 13 + 3 + offset_y, "offline");
 }
 
 void Display::drawFactoryMode(String version, String apName, String ip)
@@ -239,11 +243,27 @@ void Display::drawHeader()
         wifi_symbol = 0xE218;
     u8g2.drawGlyph(3 + offset_x, 0 + offset_y, wifi_symbol);
 
-    // header - content right
-    // uint16_t inverterState = 0xE233; // moon
-    // if (lastDisplayData.totalPower > 0)
-    //     inverterState = 0xE234; // sun
-    // u8g2.drawGlyph(113 + offset_x, 0 + offset_y, inverterState);
+    // showing that this is a remote display
+    if (lastDisplayData.remoteDisplayActive)
+    {
+        u8g2.setFont(u8g2_font_open_iconic_www_1x_t);
+        u8g2.drawGlyph(19 + offset_x, 0 + offset_y, 0x004c);
+    }
+
+    // header - content right    
+    // cloud pause active - arrow up
+    if(dtuConnection.dtuConnectState == DTU_STATE_CLOUD_PAUSE)
+    {
+        u8g2.setFont(u8g2_font_open_iconic_arrow_1x_t);
+        u8g2.drawGlyph(100 + offset_x, 0 + offset_y, 0x0047);
+    }
+    // showing that there is a dtu warning
+    else if (dtuGlobalData.warningsActive > 0)
+    {
+        u8g2.setFont(u8g2_font_open_iconic_embedded_1x_t);
+        u8g2.drawGlyph(100 + offset_x, 0 + offset_y, 0x0047);
+    }
+
     u8g2.setFont(u8g2_font_siji_t_6x10);
     // 0xE21F - wifi off
     // 0xE220 - wifi 1
@@ -270,7 +290,7 @@ void Display::drawFooter()
     // footer - content
     u8g2.setFont(u8g2_font_5x7_tf);
 
-    String yieldDay = String(lastDisplayData.totalYieldDay, 3) + " kWh";    
+    String yieldDay = String(lastDisplayData.totalYieldDay, 3) + " kWh";
     u8g2.drawStr(3 + offset_x, 56 + offset_y, String("d:").c_str());
     u8g2.drawStr(14 + offset_x, 56 + offset_y, yieldDay.c_str());
 

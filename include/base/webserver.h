@@ -55,6 +55,7 @@ private:
     
     static void handleDataJson(AsyncWebServerRequest *request);
     static void handleInfojson(AsyncWebServerRequest *request);
+    static void handleDtuInfoJson(AsyncWebServerRequest *request);
 
     static void handleUpdateWifiSettings(AsyncWebServerRequest *request);
     static void handleUpdateDtuSettings(AsyncWebServerRequest *request);

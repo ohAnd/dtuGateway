@@ -51,6 +51,8 @@ struct RemoteInverterData
   uint32_t respTimestamp = 1704063600;     // init with start time stamp > 0
   boolean updateReceived = false;
   boolean remoteDisplayActive = false;
+  boolean inverterControlStateOn = true;
+  uint8_t warningsActive = 0;
 };
 
 class MQTTHandler {

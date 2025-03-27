@@ -38,12 +38,35 @@ void DTUwebserver::backgroundTask(DTUwebserver *instance)
 
 void DTUwebserver::start()
 {
+    {
+        File f = LittleFS.open("/index.html", "w");
+        assert(f);
+        f.print(index_html);
+        f.close();
+    }
+    {
+        File f = LittleFS.open("/style.css", "w");
+        assert(f);
+        f.print(style_css);
+        f.close();
+    }
+    // {
+    //     File f = LittleFS.open("/jquery.min.js", "w");
+    //     assert(f);
+    //     f.print(jquery_min_js);
+    //     f.close();
+    // }
+    // asyncDtuWebServer.serveStatic("/jquery.min.js", LittleFS, "/jquery.min.js");
+    asyncDtuWebServer.serveStatic("/index.html", LittleFS, "/index.html");
+    asyncDtuWebServer.serveStatic("/style.css", LittleFS, "/style.css");
+    
+
     // Initialize the web server and define routes as before
     Serial.println(F("WEB:\t\t setup webserver"));
     // base web pages
     asyncDtuWebServer.on("/", HTTP_GET, handleRoot);
-    asyncDtuWebServer.on("/jquery.min.js", HTTP_GET, handleJqueryMinJs);
-    asyncDtuWebServer.on("/style.css", HTTP_GET, handleCSS);
+    // asyncDtuWebServer.on("/jquery.min.js", HTTP_GET, handleJqueryMinJs);
+    // asyncDtuWebServer.on("/style.css", HTTP_GET, handleCSS);
 
     // user config requests
     asyncDtuWebServer.on("/updateWifiSettings", handleUpdateWifiSettings);
@@ -60,6 +83,7 @@ void DTUwebserver::start()
     // api GETs
     asyncDtuWebServer.on("/api/data.json", handleDataJson);
     asyncDtuWebServer.on("/api/info.json", handleInfojson);
+    asyncDtuWebServer.on("/api/dtuData.json", handleDtuInfoJson);
 
     // OTA direct update
     asyncDtuWebServer.on("/updateOTASettings", handleUpdateOTASettings);
@@ -88,16 +112,20 @@ void DTUwebserver::stop()
 // base pages
 void DTUwebserver::handleRoot(AsyncWebServerRequest *request)
 {
-    request->send_P(200, "text/html", INDEX_HTML);
+    Serial.println(F("WEB:\t\t handleRoot"));
+    // request->send(200, "text/html", INDEX_HTML);
+    request->redirect("/index.html");
 }
-void DTUwebserver::handleCSS(AsyncWebServerRequest *request)
-{
-    request->send_P(200, "text/html", STYLE_CSS);
-}
-void DTUwebserver::handleJqueryMinJs(AsyncWebServerRequest *request)
-{
-    request->send_P(200, "text/html", JQUERY_MIN_JS);
-}
+// void DTUwebserver::handleCSS(AsyncWebServerRequest *request)
+// {
+//     Serial.println(F("WEB:\t\t handleCSS"));
+//     request->send(LittleFS, "/style.css", "text/css");
+// }
+// void DTUwebserver::handleJqueryMinJs(AsyncWebServerRequest *request)
+// {
+//     Serial.println(F("WEB:\t\t handleJqueryMinJs"));
+//     request->send(200, "text/html", JQUERY_MIN_JS);
+// }
 
 // ota update
 void DTUwebserver::handleDoUpdate(AsyncWebServerRequest *request, const String &filename, size_t index, uint8_t *data, size_t len, bool final)
@@ -209,7 +237,7 @@ void DTUwebserver::handleConfigPage(AsyncWebServerRequest *request)
     }
 
     String html = configManager.getWebHandler(doc);
-    request->send_P(200, "text/html", html.c_str());
+    request->send(200, "text/html", html.c_str());
     if (gotUserChanges)
     {
         Serial.println(F("WEB:\t\t handleConfigPage - got User Changes - sent back config page ack - and restart ESP in 2 seconds"));
@@ -235,6 +263,7 @@ void DTUwebserver::handleDataJson(AsyncWebServerRequest *request)
     JSON = JSON + "\"pLim\": " + ((dtuGlobalData.powerLimit == 254) ? ("\"--\"") : (String(dtuGlobalData.powerLimit))) + ",";
     JSON = JSON + "\"pLimSet\": " + String(dtuGlobalData.powerLimitSet) + ",";
     JSON = JSON + "\"temp\": " + String(dtuGlobalData.inverterTemp) + ",";
+    JSON = JSON + "\"active\": " + String(dtuGlobalData.inverterControl.stateOn) + ",";
     JSON = JSON + "\"uptodate\": " + String(dtuGlobalData.uptodate);
     JSON = JSON + "},";
 
@@ -242,6 +271,7 @@ void DTUwebserver::handleDataJson(AsyncWebServerRequest *request)
     JSON = JSON + "\"v\": " + String(dtuGlobalData.grid.voltage) + ",";
     JSON = JSON + "\"c\": " + String(dtuGlobalData.grid.current) + ",";
     JSON = JSON + "\"p\": " + ((dtuGlobalData.grid.power == -1) ? ("\"--\"") : (String(dtuGlobalData.grid.power))) + ",";
+    JSON = JSON + "\"f\": " + String(dtuGlobalData.gridFreq) + ",";
     JSON = JSON + "\"dE\": " + String(dtuGlobalData.grid.dailyEnergy, 3) + ",";
     JSON = JSON + "\"tE\": " + String(dtuGlobalData.grid.totalEnergy, 3);
     JSON = JSON + "},";
@@ -321,6 +351,43 @@ void DTUwebserver::handleInfojson(AsyncWebServerRequest *request)
     JSON = JSON + "\"foundNetworks\":" + platformData.wifiFoundNetworks;
     JSON = JSON + "}";
 
+    JSON = JSON + "}";
+
+    request->send(200, "application/json; charset=utf-8", JSON);
+}
+
+void DTUwebserver::handleDtuInfoJson(AsyncWebServerRequest *request)
+{
+    String JSON = "{";
+    JSON = JSON + "\"localtime\": " + String(dtuGlobalData.currentTimestamp) + ",";
+    JSON = JSON + "\"ntpStamp\": " + String(platformData.currentNTPtime - userConfig.timezoneOffest) + ",";
+
+    JSON = JSON + "\"warningsLastUpdate\": " + String(dtuGlobalData.warnDataLastTimestamp) + ",";
+    JSON = JSON + "\"warnings\": ";
+    JSON = JSON + "[";
+    for (int i = 0; i < WARN_DATA_MAX_ENTRIES - 1; i++)
+    {
+        {
+            if (dtuGlobalData.warnData[i].code != 0)
+            {
+                JSON = JSON + "{";
+                JSON = JSON + "\"code\": " + String(dtuGlobalData.warnData[i].code) + ",";
+                JSON = JSON + "\"message\": \"" + String(dtuGlobalData.warnData[i].message) + "\",";
+                JSON = JSON + "\"num\": " + String(dtuGlobalData.warnData[i].num) + ",";
+                JSON = JSON + "\"timestampStart\": " + String(dtuGlobalData.warnData[i].timestampStart) + ",";
+                JSON = JSON + "\"timestampStop\": " + String(dtuGlobalData.warnData[i].timestampStop) + ",";
+                JSON = JSON + "\"data0\": " + String(dtuGlobalData.warnData[i].data0) + ",";
+                JSON = JSON + "\"data1\": " + String(dtuGlobalData.warnData[i].data1);
+                JSON = JSON + "}";
+                JSON = JSON + ",";
+            }
+        }
+    }
+    // chop off last comma
+    if (JSON.charAt(JSON.length() - 1) == ',') {
+        JSON.remove(JSON.length() - 1);
+    }
+    JSON = JSON + "]";
     JSON = JSON + "}";
 
     request->send(200, "application/json; charset=utf-8", JSON);
@@ -409,7 +476,8 @@ void DTUwebserver::handleUpdateDtuSettings(AsyncWebServerRequest *request)
             remoteDisplayActiveBool = true;
         else
             remoteDisplayActiveBool = false;
-        if (remoteDisplayActiveBool != userConfig.remoteDisplayActive) {
+        if (remoteDisplayActiveBool != userConfig.remoteDisplayActive)
+        {
             platformData.rebootRequestedInSec = 3;
             platformData.rebootRequested = true;
         }
@@ -501,7 +569,7 @@ void DTUwebserver::handleUpdateBindingsSettings(AsyncWebServerRequest *request)
         {
             // changing to given mqtt setting - inlcuding reset the connection
             // mqttHandler.setConfiguration(userConfig.mqttBrokerIpDomain, userConfig.mqttBrokerPort, userConfig.mqttBrokerUser, userConfig.mqttBrokerPassword, userConfig.mqttUseTLS, (platformData.espUniqueName).c_str(), userConfig.mqttBrokerMainTopic, userConfig.mqttHAautoDiscoveryON, ((platformData.dtuGatewayIP).toString()).c_str());
-            
+
             mqttHandler.setAutoDiscovery(userConfig.mqttHAautoDiscoveryON);
             Serial.println("WEB:\t\t handleUpdateBindingsSettings - HAautoDiscovery new state: " + String(userConfig.mqttHAautoDiscoveryON));
             // mqttHAautoDiscoveryON going from on to off - send one time the delete messages
@@ -557,10 +625,10 @@ void DTUwebserver::handleUpdatePowerLimit(AsyncWebServerRequest *request)
 
         if (conversionSuccess)
         {
-            if (gotLimit < 2)
-                dtuGlobalData.powerLimitSet = 2;
+            if (gotLimit < 0)
+                dtuGlobalData.powerLimitSet = 0;
             else if (gotLimit > 100)
-                dtuGlobalData.powerLimitSet = 2;
+                dtuGlobalData.powerLimitSet = 100;
             else
                 dtuGlobalData.powerLimitSet = gotLimit;
             dtuGlobalData.powerLimitSetUpdate = true;

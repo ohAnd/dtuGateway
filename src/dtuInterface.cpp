@@ -1,5 +1,6 @@
 #include "dtuInterface.h"
 #include <Arduino.h>
+#include <map>
 
 struct connectionControl dtuConnection;
 struct inverterData dtuGlobalData;
@@ -52,6 +53,11 @@ void DTUInterface::connect()
             Serial.println(F("DTUinterface:\t connection attempt failed..."));
         }
     }
+    else if (client->connected() && !dtuConnection.dtuActiveOffToCloudUpdate)
+    {
+        Serial.println(F("DTUinterface:\t client already connected with DTU!"));
+        dtuConnection.dtuConnectState = DTU_STATE_CONNECTED;
+    }
 }
 
 void DTUInterface::disconnect(uint8_t tgtState)
@@ -102,7 +108,7 @@ void DTUInterface::setPowerLimit(int limit)
     if (client->connected())
     {
         Serial.println("DTUinterface:\t try to set setPowerLimit: " + String(limit) + " %");
-        writeReqCommand(limit);
+        writeReqCommandSetPowerlimit(limit);
     }
     else
     {
@@ -115,11 +121,57 @@ void DTUInterface::requestRestartDevice()
     if (client->connected())
     {
         Serial.println(F("DTUinterface:\t requestRestartDevice - send command to DTU ..."));
-        writeCommandRestartDevice();
+        writeReqCommandRestartDevice();
     }
     else
     {
         Serial.println(F("DTUinterface:\t requestRestartDevice - client not connected."));
+    }
+}
+
+void DTUInterface::requestInverterTargetState(boolean OnOff)
+{
+    if (client->connected())
+    {
+        if (OnOff && !dtuGlobalData.inverterControl.stateOn)
+        {
+            if (dtuGlobalData.currentTimestamp - dtuGlobalData.inverterControl.lastSwitchedToOn > DTU_INVERTER_SWITCH_DELAY)
+            {
+                writeReqCommandInverterTurnOn();
+            }
+            else
+            {
+                Serial.println("DTUinterface:\t requestInverterState - inverter switch on reqested - delay (" + String(DTU_INVERTER_SWITCH_DELAY) + " s) not reached. (current " + String(dtuGlobalData.currentTimestamp - dtuGlobalData.inverterControl.lastSwitchedToOn) + " s)");
+            }
+        }
+        else if (!OnOff && dtuGlobalData.inverterControl.stateOn)
+        {
+            if (dtuGlobalData.currentTimestamp - dtuGlobalData.inverterControl.lastSwitchedToOff > DTU_INVERTER_SWITCH_DELAY)
+            {
+                writeReqCommandInverterTurnOff();
+            }
+            else
+            {
+                Serial.println("DTUinterface:\t requestInverterState - inverter switch off reqested - delay (" + String(DTU_INVERTER_SWITCH_DELAY) + " s) not reached. (current " + String(dtuGlobalData.currentTimestamp - dtuGlobalData.inverterControl.lastSwitchedToOff) + " s)");
+            }
+        }
+    }
+    else
+    {
+        Serial.println(F("DTUinterface:\t requestInverterState - client not connected."));
+    }
+}
+
+void DTUInterface::requestAlarms()
+{
+    if (client->connected())
+    {
+        Serial.println(F("DTUinterface:\t requestAlarms - send command to DTU ..."));
+        writeReqCommandRequestAlarms();
+    }
+    else
+    {
+        Serial.println(F("DTUinterface:\t requestAlarms - client not connected."));
     }
 }
 
@@ -181,6 +233,12 @@ void DTUInterface::dtuLoop()
                 }
             }
         }
+        // if there was a reboot of dtu, but the connection survived the reboot
+        else if (dtuConnection.dtuConnectState == DTU_STATE_DTU_REBOOT && client->connected())
+        {
+            dtuConnection.dtuConnectState = DTU_STATE_CONNECTED;
+            Serial.println("DTUinterface:\t dtuLoop - state was reboot - but connection is still alive -> set state to connected");
+        }
     }
 }
 
@@ -189,14 +247,15 @@ void DTUInterface::txrxStateObserver()
     // check current txrx state and set seen at time and check for timeout
     if (dtuConnection.dtuTxRxState != dtuConnection.dtuTxRxStateLast)
     {
-        Serial.println("DTUinterface:\t stateObserver - change from " + String(dtuConnection.dtuTxRxStateLast) + " to " + String(dtuConnection.dtuTxRxState) + " - difference: " + String(millis() - dtuConnection.dtuTxRxStateLastChange) + " ms");
+        Serial.println("DTUinterface:\t [[stateObserver]] - change from " + String(dtuConnection.dtuTxRxStateLast) + " to " + String(dtuConnection.dtuTxRxState) + " - difference: " + String(millis() - dtuConnection.dtuTxRxStateLastChange) + " ms");
         dtuConnection.dtuTxRxStateLast = dtuConnection.dtuTxRxState;
         dtuConnection.dtuTxRxStateLastChange = millis();
     }
     else if (millis() - dtuConnection.dtuTxRxStateLastChange > 15000 && dtuConnection.dtuTxRxState != DTU_TXRX_STATE_IDLE)
     {
-        Serial.println(F("DTUinterface:\t stateObserver - timeout - reset txrx state to DTU_TXRX_STATE_IDLE"));
+        Serial.println(F("DTUinterface:\t [[stateObserver]] - timeout - reset txrx state to DTU_TXRX_STATE_IDLE"));
         dtuConnection.dtuTxRxState = DTU_TXRX_STATE_IDLE;
+        dtuInterface.disconnect(DTU_STATE_OFFLINE);
     }
 }
 
@@ -227,7 +286,7 @@ void DTUInterface::dtuConnectionObserver()
     else if (millis() - lastOnlineOfflineChange > 90000 && currentOnlineOfflineState == false)
     {
         Serial.print(F("DTUinterface:\t setOverallOnlineOfflineState - timeout - reset online offline state"));
-        Serial.println(" - difference: " + String((millis() - lastOnlineOfflineChange)/1000,3) + " ms - current conn state: " + String(dtuConnection.dtuConnectState));
+        Serial.println(" - difference: " + String((millis() - lastOnlineOfflineChange) / 1000, 3) + " ms - current conn state: " + String(dtuConnection.dtuConnectState));
         dtuConnection.dtuConnectionOnline = false;
     }
 }
@@ -285,8 +344,14 @@ void DTUInterface::flushConnection()
     }
 
     // Reset connection control and global data
+#if defined(ESP8266)
+    dtuConnection = connectionControl{};
+    dtuGlobalData = inverterData{};
+#elif defined(ESP32)
     memset(&dtuConnection, 0, sizeof(dtuConnection));
     memset(&dtuGlobalData, 0, sizeof(dtuGlobalData));
+#endif
+
     Serial.println(F("DTUinterface:\t Connection control and global data reset."));
 }
 
@@ -338,7 +403,7 @@ void DTUInterface::handleError(uint8_t errorState)
         dtuConnection.dtuConnectState = DTU_STATE_DTU_REBOOT;
         Serial.print(F("DTUinterface:\t DTU Connection --- ERROR - try with reboot of DTU - error state: "));
         Serial.println(errorState);
-        writeCommandRestartDevice();
+        writeReqCommandRestartDevice();
         dtuGlobalData.dtuResetRequested = dtuGlobalData.dtuResetRequested + 1;
         // disconnect(dtuConnection.dtuConnectState);
     }
@@ -364,14 +429,33 @@ void DTUInterface::onDataReceived(void *arg, AsyncClient *client, void *data, si
         break;
     case DTU_TXRX_STATE_WAIT_GETCONFIG:
         dtuInterface->readRespGetConfig(istream);
+        // with every config response, get a the current warn data
+        dtuInterface->writeReqCommandRequestAlarms();
         break;
     case DTU_TXRX_STATE_WAIT_COMMAND:
-        dtuInterface->readRespCommand(istream);
+        dtuInterface->readRespCommandSetPowerlimit(istream);
         // get updated power setting
         dtuInterface->writeReqGetConfig();
         break;
     case DTU_TXRX_STATE_WAIT_RESTARTDEVICE:
         dtuInterface->readRespCommandRestartDevice(istream);
+        break;
+    case DTU_TXRX_STATE_WAIT_INVERTER_TURN_ON:
+        dtuInterface->readRespCommandInverterTurnOn(istream);
+        break;
+    case DTU_TXRX_STATE_WAIT_INVERTER_TURN_OFF:
+        dtuInterface->readRespCommandInverterTurnOff(istream);
+        break;
+    case DTU_TXRX_STATE_WAIT_GET_ALARMS:
+        dtuInterface->readRespCommandGetAlarms(istream);
+        break;
+    case DTU_TXRX_STATE_WAIT_PERFORMANCE_DATA_MODE:
+        dtuInterface->readRespCommandPerformanceDataMode(istream);
+        break;
+    case DTU_TXRX_STATE_WAIT_REQUEST_ALARMS:
+        dtuInterface->readRespCommandRequestAlarms(istream);
+        // after request cmd get alarms list
+        dtuInterface->writeReqCommandGetAlarms();
         break;
     default:
         Serial.println(F("DTUinterface:\t onDataReceived - no valid or known state"));
@@ -383,8 +467,8 @@ void DTUInterface::onDataReceived(void *arg, AsyncClient *client, void *data, si
 
 void DTUInterface::printDataAsTextToSerial()
 {
-    Serial.print("power limit (set): " + String(dtuGlobalData.powerLimit) + " % (" + String(dtuGlobalData.powerLimitSet) + " %) --- ");
-    Serial.print("inverter temp: " + String(dtuGlobalData.inverterTemp) + " °C \n");
+    Serial.print("power limit (set): " + String(dtuGlobalData.powerLimit) + " % (" + String(dtuGlobalData.powerLimitSet) + " %) --- inverter mode: " + String(dtuGlobalData.inverterControl.stateOn ? "On" : "Off") + " --- ");
+    Serial.print("inverter temp: " + String(dtuGlobalData.inverterTemp) + " °C - serial number: " + dtuGlobalData.device_serial_number + "\n");
 
     Serial.print(F(" \t |_____current____|_____voltage___|_____power_____|________daily______|_____total_____|\n"));
     // 12341234 |1234 current  |1234 voltage  |1234 power1234|12341234daily 1234|12341234total 1234|
@@ -586,8 +670,8 @@ void DTUInterface::writeReqRealDataNew()
     uint8_t header[10];
     header[0] = 0x48;
     header[1] = 0x4d;
-    header[2] = 0xa3;
-    header[3] = 0x11; // RealDataNew = 0x11
+    header[2] = 0xa3; // 0xa3 - CMD_REAL_RES_DTO = 0xa3 0x11
+    header[3] = 0x11; // 0x11
     header[4] = 0x00;
     header[5] = 0x01;
     header[6] = (crc.calc() >> 8) & 0xFF;
@@ -630,18 +714,18 @@ void DTUInterface::readRespRealDataNew(pb_istream_t istream)
     PvMO pvData1 = PvMO_init_zero;
 
     pb_decode(&istream, &RealDataNewReqDTO_msg, &realdatanewreqdto);
-    Serial.println("DTUinterface:\t RealDataNew  - got remote (" + String(realdatanewreqdto.timestamp) + "):\t" + getTimeStringByTimestamp(realdatanewreqdto.timestamp));
+    Serial.println("DTUinterface:\t readRespRealDataNew - got response -> (" + String(realdatanewreqdto.timestamp) + "):\t" + getTimeStringByTimestamp(realdatanewreqdto.timestamp));
     if (realdatanewreqdto.timestamp != 0)
     {
         dtuGlobalData.respTimestamp = uint32_t(realdatanewreqdto.timestamp);
         // dtuGlobalData.updateReceived = true; // not needed here - everytime both request (realData and getConfig) will be set
         dtuConnection.dtuErrorState = DTU_ERROR_NO_ERROR;
+        strncpy(dtuGlobalData.device_serial_number, realdatanewreqdto.device_serial_number, sizeof(dtuGlobalData.device_serial_number) - 1);
+        dtuGlobalData.device_serial_number[sizeof(dtuGlobalData.device_serial_number) - 1] = '\0'; // Ensure null-termination
+        // Serial.printf("\nDTU Serial-Number orig : >> %s <<", realdatanewreqdto.device_serial_number);
+        // Serial.printf("\nMAIN dtu_power: \t\t%i\n", realdatanewreqdto.dtu_power);
 
-        // Serial.printf("\nactive-power: %i", realdatanewreqdto.active_power);
-        // Serial.printf("\ncumulative power: %i", realdatanewreqdto.cumulative_power);
-        // Serial.printf("\nfirmware_version: %i", realdatanewreqdto.firmware_version);
-        // Serial.printf("\ndtu_power: %i", realdatanewreqdto.dtu_power);
-        // Serial.printf("\ndtu_daily_energy: %i\n", realdatanewreqdto.dtu_daily_energy);
+        // Serial.printf("\ndtu_daily_energy: \t%i\n", realdatanewreqdto.dtu_daily_energy);
 
         gridData = realdatanewreqdto.sgs_data[0];
         pvData0 = realdatanewreqdto.pv_data[0];
@@ -654,16 +738,17 @@ void DTUInterface::readRespRealDataNew(pb_istream_t istream)
         // Serial.printf("\ngridData voltage:\t %f V", calcValue(gridData.voltage));
         // Serial.printf("\ngridData current:\t %f A", calcValue(gridData.current, 100));
         // Serial.printf("\ngridData frequency:\t %f Hz", calcValue(gridData.frequency, 100));
-        // Serial.printf("\ngridData link_status:\t %i", gridData.link_status);
-        // Serial.printf("\ngridData power_factor:\t %f", calcValue(gridData.power_factor));
-        // Serial.printf("\ngridData power_limit:\t %i %%", gridData.power_limit);
+        // Serial.printf("\nDTUinterface:\t readRespRealDataNew  - gridData link_status:\t %i", gridData.link_status);
+        // Serial.printf("\ngridData power_factor:\t %f\n", calcValue(gridData.power_factor));
+        // Serial.printf("\nDTUinterface:\t readRespRealDataNew  - gridData power_limit:\t %i %%", gridData.power_limit);
         // Serial.printf("\ngridData temperature:\t %f C", calcValue(gridData.temperature));
-        // Serial.printf("\ngridData warning_number:\t %i\n", gridData.warning_number);
+        // Serial.printf("\nDTUinterface:\t readRespRealDataNew  - gridData warning_number:\t %i\n", gridData.warning_number);
 
         dtuGlobalData.grid.current = calcValue(gridData.current, 100);
         dtuGlobalData.grid.voltage = calcValue(gridData.voltage);
         dtuGlobalData.grid.power = calcValue(gridData.active_power);
         dtuGlobalData.inverterTemp = calcValue(gridData.temperature);
+        dtuGlobalData.gridFreq = calcValue(gridData.frequency, 100);
 
         // Serial.printf("\npvData data count:\t %i\n", realdatanewreqdto.pv_data_count);
         // Serial.printf("\npvData 0 current:\t %f A", calcValue(pvData0.current, 100));
@@ -778,6 +863,8 @@ void DTUInterface::readRespAppGetHistPower(pb_istream_t istream)
 
     pb_decode(&istream, &AppGetHistPowerReqDTO_msg, &appgethistpowerreqdto);
 
+    Serial.println("DTUinterface:\t readRespAppGetHistPower - got response -> warning number: " + String(appgethistpowerreqdto.warning_number));
+
     dtuGlobalData.grid.dailyEnergy = calcValue(appgethistpowerreqdto.daily_energy, 1000);
     dtuGlobalData.grid.totalEnergy = calcValue(appgethistpowerreqdto.total_energy, 1000);
 
@@ -877,14 +964,17 @@ void DTUInterface::readRespGetConfig(pb_istream_t istream)
     GetConfigReqDTO getconfigreqdto = GetConfigReqDTO_init_default;
 
     pb_decode(&istream, &GetConfigReqDTO_msg, &getconfigreqdto);
-    // Serial.printf("\nsn: %lld, relative_power: %i, total_energy: %i, daily_energy: %i, warning_number: %i\n", appgethistpowerreqdto.serial_number, appgethistpowerreqdto.relative_power, appgethistpowerreqdto.total_energy, appgethistpowerreqdto.daily_energy,appgethistpowerreqdto.warning_number);
-    // Serial.printf("\ndevice_serial_number: %lld", realdatanewreqdto.device_serial_number);
     // Serial.printf("\n\nwifi_rssi:\t %i %%", getconfigreqdto.wifi_rssi);
     // Serial.printf("\nserver_send_time:\t %i", getconfigreqdto.server_send_time);
     // Serial.printf("\nrequest_time (transl):\t %s", getTimeStringByTimestamp(getconfigreqdto.request_time));
-    // Serial.printf("DTUinterface:\t limit_power_mypower:\t %f %%\n", calcValue(getconfigreqdto.limit_power_mypower));
+    Serial.println("DTUinterface:\t readRespGetConfig - got response -> limit_power_mypower: " + String(calcValue(getconfigreqdto.limit_power_mypower), 0) + " %");
 
-    Serial.println("DTUinterface:\t GetConfig    - got remote (" + String(getconfigreqdto.request_time) + "):\t" + getTimeStringByTimestamp(getconfigreqdto.request_time));
+    // Serial.println("DTUinterface:\t GetConfig    - got remote (" + String(getconfigreqdto.request_time) + "):\t" + getTimeStringByTimestamp(getconfigreqdto.request_time));
+    // Serial.println("\nGetConfig - inverter type: \t" + String(getconfigreqdto.inv_type));
+    // Serial.println("GetConfig - dtu sn: \t\t>> " + String(getconfigreqdto.dtu_sn) + " <<");
+    // Serial.println("GetConfig - wifi name: \t\t>> " + String(getconfigreqdto.wifi_ssid) + " <<");
+    // Serial.println("GetConfig - wifi pass: \t\t>> " + String(getconfigreqdto.wifi_password) + " <<");
+    // Serial.println("");
 
     if (getconfigreqdto.request_time != 0 && dtuConnection.dtuErrorState == DTU_ERROR_NO_TIME)
     {
@@ -895,26 +985,40 @@ void DTUInterface::readRespGetConfig(pb_istream_t istream)
     int powerLimit = int(calcValue(getconfigreqdto.limit_power_mypower));
 
     dtuGlobalData.powerLimit = ((powerLimit != 0) ? powerLimit : dtuGlobalData.powerLimit);
+    // last seen power limit from inverter not needed if inverter is off
+    if (!dtuGlobalData.inverterControl.stateOn)
+        dtuGlobalData.powerLimit = 0;
     dtuGlobalData.dtuRssi = getconfigreqdto.wifi_rssi;
     // no update if still init value
     if (dtuGlobalData.powerLimit != 254)
         dtuGlobalData.updateReceived = true;
 }
 
-boolean DTUInterface::writeReqCommand(uint8_t setPercent)
+boolean DTUInterface::writeReqCommandSetPowerlimit(uint8_t setPercent)
 {
     if (!client->connected())
         return false;
     // prepare powerLimit
     // uint8_t setPercent = dtuGlobalData.powerLimitSet;
     uint16_t limitLevel = setPercent * 10;
+    // reducing to 0 % -> 100%
     if (limitLevel > 1000)
-    { // reducing to 2 % -> 100%
         limitLevel = 1000;
-    }
-    if (limitLevel < 20)
-    {
+    else if (limitLevel < 20 && limitLevel != 0)
         limitLevel = 20;
+    else if (limitLevel == 0)
+    {
+        // turn inverter off
+        Serial.println("DTUinterface:\t writeReqCommandSetPowerlimit - turn inverter OFF due to limitLevel == 0");
+        requestInverterTargetState(false);
+        return true;
+    }
+    // check if inverter is off and limitLevel > 0 -> turn inverter on
+    if (dtuGlobalData.inverterControl.stateOn == false && limitLevel > 0)
+    {
+        Serial.println("DTUinterface:\t writeReqCommandSetPowerlimit - turn inverter ON due to limitLevel > 0 and inverter is OFF");
+        requestInverterTargetState(true);
+        return true;
     }
 
     // request message
@@ -938,7 +1042,7 @@ boolean DTUInterface::writeReqCommand(uint8_t setPercent)
 
     if (!status)
     {
-        Serial.println(F("DTUinterface:\t writeReqCommand - failed to encode"));
+        Serial.println(F("DTUinterface:\t writeReqCommandSetPowerlimit - failed to encode"));
         return false;
     }
 
@@ -952,7 +1056,7 @@ boolean DTUInterface::writeReqCommand(uint8_t setPercent)
     uint8_t header[10];
     header[0] = 0x48;
     header[1] = 0x4d;
-    header[2] = 0xa3;
+    header[2] = 0xa3; // Command = 0xa3
     header[3] = 0x05; // Command = 0x05
     header[4] = 0x00;
     header[5] = 0x01;
@@ -980,36 +1084,58 @@ boolean DTUInterface::writeReqCommand(uint8_t setPercent)
     // Serial.println("");
 
     //     dtuClient.write(message, 10 + stream.bytes_written);
-    Serial.println(F("DTUinterface:\t writeReqCommand --- send request to DTU ..."));
+    Serial.println("DTUinterface:\t writeReqCommandSetPowerlimit (" + String(limitLevel) + " /10 %) --- send request to DTU ...");
     dtuConnection.dtuTxRxState = DTU_TXRX_STATE_WAIT_COMMAND;
     client->write((const char *)message, 10 + stream.bytes_written);
-    //     if (!readRespCommand())
+    //     if (!readRespCommandSetPowerlimit())
     //         return false;
     return true;
 }
 
-boolean DTUInterface::readRespCommand(pb_istream_t istream)
+boolean DTUInterface::readRespCommandSetPowerlimit(pb_istream_t istream)
 {
     dtuConnection.dtuTxRxState = DTU_TXRX_STATE_IDLE;
-    // CommandReqDTO commandreqdto = CommandReqDTO_init_default;
+    CommandReqDTO commandreqdto = CommandReqDTO_init_default;
 
-    // pb_decode(&istream, &GetConfigReqDTO_msg, &commandreqdto);
+    pb_decode(&istream, &CommandReqDTO_msg, &commandreqdto);
+    Serial.print("DTUinterface:\t readRespCommandSetPowerlimit - got response -> ");
 
-    // Serial.print(" --> DTUInterface::readRespCommand - got remote: " + getTimeStringByTimestamp(commandreqdto.time));
+    // message CommandReqDTO {
+    // string dtu_sn = 1 [(nanopb).max_length = 60];
+    // int32 time = 2;
+    // int32 action = 3;
+    // int32 package_now = 4;
+    // int32 err_code = 5;
+    // int64 tid = 6;
+    // }
+
+    // Serial.print("DTUInterface:\t readRespCommandSetPowerlimit - got remote: " + getTimeStringByTimestamp(commandreqdto.time) + "\n");
+    // Serial.printf("\ncommand req S/N: %s", commandreqdto.dtu_sn);
     // Serial.printf("\ncommand req action: %i", commandreqdto.action);
-    // Serial.printf("\ncommand req: %s", commandreqdto.dtu_sn);
-    // Serial.printf("\ncommand req: %i", commandreqdto.err_code);
-    // Serial.printf("\ncommand req: %i", commandreqdto.package_now);
-    // Serial.printf("\ncommand req: %i", int(commandreqdto.tid));
-    // Serial.printf("\ncommand req time: %i", commandreqdto.time);
+    // Serial.printf("\ncommand req package now: %i", commandreqdto.package_now);
+    // Serial.printf("\ncommand req err_code: %i", commandreqdto.err_code);
+    // Serial.printf("\ncommand req: %i\n", int(commandreqdto.tid));
+    if (commandreqdto.err_code == 0)
+    {
+        // take over the set power limit to the current power limit to avoid additonal requests until it's seen by config response
+        dtuGlobalData.powerLimit = dtuGlobalData.powerLimitSet;
+        Serial.println("setting power limit - successfull");
+        return true;
+    }
+    else
+    {
+        Serial.println("setting power limit - FAILED");
+        return false;
+    }
+
     return true;
 }
 
-boolean DTUInterface::writeCommandRestartDevice()
+boolean DTUInterface::writeReqCommandRestartDevice()
 {
     if (!client->connected())
     {
-        Serial.println(F("DTUinterface:\t writeCommandRestartDevice - not possible - currently not connect"));
+        Serial.println(F("DTUinterface:\t writeReqCommandRestartDevice - not possible - currently not connect"));
         return false;
     }
 
@@ -1028,7 +1154,200 @@ boolean DTUInterface::writeCommandRestartDevice()
 
     if (!status)
     {
-        Serial.println(F("DTUinterface:\t writeCommandRestartDevice - failed to encode"));
+        Serial.println(F("DTUinterface:\t writeReqCommandRestartDevice - failed to encode"));
+        return false;
+    }
+
+    // Serial.print(F("\nencoded: "));
+    for (unsigned int i = 0; i < stream.bytes_written; i++)
+    {
+        // Serial.printf("%02X", buffer[i]);
+        crc.add(buffer[i]);
+    }
+
+    uint8_t header[10];
+    header[0] = 0x48;
+    header[1] = 0x4d;
+    header[2] = 0x23; // Command = 0x23 - CMD_CLOUD_COMMAND_RES_DTO = b"\x23\x05"
+    header[3] = 0x05; // Command = 0x05
+    header[4] = 0x00;
+    header[5] = 0x01;
+    header[6] = (crc.calc() >> 8) & 0xFF;
+    header[7] = (crc.calc()) & 0xFF;
+    header[8] = ((stream.bytes_written + 10) >> 8) & 0xFF; // suggest parentheses around '+' inside '>>' [-Wparentheses]
+    header[9] = (stream.bytes_written + 10) & 0xFF;        // warning: suggest parentheses around '+' in operand of '&' [-Wparentheses]
+    crc.restart();
+
+    uint8_t message[10 + stream.bytes_written];
+    for (int i = 0; i < 10; i++)
+    {
+        message[i] = header[i];
+    }
+    for (unsigned int i = 0; i < stream.bytes_written; i++)
+    {
+        message[i + 10] = buffer[i];
+    }
+
+    // Serial.print(F("\nRequest: "));
+    // for (int i = 0; i < 10 + stream.bytes_written; i++)
+    // {
+    //   Serial.print(message[i]);
+    // }
+    // Serial.println("");
+
+    Serial.println(F("DTUinterface:\t writeReqCommandRestartDevice --- send request to DTU ..."));
+    dtuConnection.dtuTxRxState = DTU_TXRX_STATE_WAIT_RESTARTDEVICE;
+    client->write((const char *)message, 10 + stream.bytes_written);
+    return true;
+}
+
+boolean DTUInterface::readRespCommandRestartDevice(pb_istream_t istream)
+{
+    dtuConnection.dtuTxRxState = DTU_TXRX_STATE_IDLE;
+    CommandReqDTO commandreqdto = CommandReqDTO_init_default;
+
+    Serial.print("DTUinterface:\t readRespCommandRestartDevice - got response -> timestamp: " + getTimeStringByTimestamp(commandreqdto.time));
+
+    pb_decode(&istream, &GetConfigReqDTO_msg, &commandreqdto);
+    Serial.printf("\ncommand req action: %i", commandreqdto.action);
+    Serial.printf("\ncommand req: %s", commandreqdto.dtu_sn);
+    Serial.printf("\ncommand req: %i", commandreqdto.err_code);
+    Serial.printf("\ncommand req: %i", commandreqdto.package_now);
+    Serial.printf("\ncommand req: %i", int(commandreqdto.tid));
+    Serial.printf("\ncommand req time: %i", commandreqdto.time);
+    return true;
+}
+
+boolean DTUInterface::writeReqCommandInverterTurnOn()
+{
+    if (!client->connected())
+    {
+        Serial.println(F("DTUinterface:\t writeReqCommandInverterTurnOn - not possible - currently not connect"));
+        return false;
+    }
+
+    // request message
+    uint8_t buffer[200];
+    pb_ostream_t stream = pb_ostream_from_buffer(buffer, sizeof(buffer));
+
+    CommandResDTO commandresdto = CommandResDTO_init_default;
+    // commandresdto.time = int32_t(locTimeSec);
+
+    commandresdto.action = CMD_ACTION_MI_START;
+    commandresdto.package_nub = 1;
+    commandresdto.dev_kind = DEV_DTU;
+    commandresdto.tid = int32_t(dtuGlobalData.currentTimestamp);
+    // commandresdto.mi_to_sn = 0;
+
+    bool status = pb_encode(&stream, CommandResDTO_fields, &commandresdto);
+
+    if (!status)
+    {
+        Serial.println(F("DTUinterface:\t writeReqCommandInverterTurnOn - failed to encode"));
+        return false;
+    }
+
+    // Serial.print(F("\nencoded: "));
+    for (unsigned int i = 0; i < stream.bytes_written; i++)
+    {
+        // Serial.printf("%02X", buffer[i]);
+        crc.add(buffer[i]);
+    }
+
+    uint8_t header[10];
+    header[0] = 0x48;
+    header[1] = 0x4d;
+    header[2] = 0x23; // Command = 0x03 - CMD_CLOUD_COMMAND_RES_DTO = b"\x23\x05"
+    header[3] = 0x05; // Command = 0x05
+    header[4] = 0x00;
+    header[5] = 0x01;
+    header[6] = (crc.calc() >> 8) & 0xFF;
+    header[7] = (crc.calc()) & 0xFF;
+    header[8] = ((stream.bytes_written + 10) >> 8) & 0xFF; // suggest parentheses around '+' inside '>>' [-Wparentheses]
+    header[9] = (stream.bytes_written + 10) & 0xFF;        // warning: suggest parentheses around '+' in operand of '&' [-Wparentheses]
+    crc.restart();
+
+    uint8_t message[10 + stream.bytes_written];
+    for (int i = 0; i < 10; i++)
+    {
+        message[i] = header[i];
+    }
+    for (unsigned int i = 0; i < stream.bytes_written; i++)
+    {
+        message[i + 10] = buffer[i];
+    }
+
+    // Serial.print(F("\nRequest: "));
+    // for (int i = 0; i < 10 + stream.bytes_written; i++)
+    // {
+    //   Serial.print(message[i]);
+    // }
+    // Serial.println("");
+
+    Serial.println(F("DTUinterface:\t writeReqCommandInverterTurnOn --- send request to DTU ..."));
+    dtuConnection.dtuTxRxState = DTU_TXRX_STATE_WAIT_INVERTER_TURN_ON;
+    client->write((const char *)message, 10 + stream.bytes_written);
+    // set global inverter state to on -  - will be checked by warnings update
+    dtuGlobalData.inverterControl.stateOn = true;
+    dtuGlobalData.inverterControl.lastSwitchedToOn = dtuGlobalData.currentTimestamp;
+    // set next normal request in 5 seconds from now on, only if last data updated within last 2 times of user setted update rate
+    if (dtuGlobalData.currentTimestamp - dtuGlobalData.lastRespTimestamp < (userConfig.dtuUpdateTime * 2))
+        platformData.dtuNextUpdateCounterSeconds = dtuGlobalData.currentTimestamp - userConfig.dtuUpdateTime + 5;
+    return true;
+}
+
+boolean DTUInterface::readRespCommandInverterTurnOn(pb_istream_t istream)
+{
+    dtuConnection.dtuTxRxState = DTU_TXRX_STATE_IDLE;
+    CommandReqDTO commandreqdto = CommandReqDTO_init_default;
+
+    pb_decode(&istream, &CommandReqDTO_msg, &commandreqdto);
+
+    // message CommandReqDTO {
+    // string dtu_sn = 1 [(nanopb).max_length = 60];
+    // int32 time = 2;
+    // int32 action = 3;
+    // int32 package_now = 4;
+    // int32 err_code = 5;
+    // int64 tid = 6;
+    // }
+
+    Serial.print("DTUInterface:\t readRespCommandInverterTurnOn - got response -> timestamp: " + getTimeStringByTimestamp(commandreqdto.time) + "\n");
+    Serial.printf("\ncommand req S/N: %s", commandreqdto.dtu_sn);
+    Serial.printf("\ncommand req action: %i", commandreqdto.action);
+    Serial.printf("\ncommand req package now: %i", commandreqdto.package_now);
+    Serial.printf("\ncommand req err_code: %i", commandreqdto.err_code);
+    Serial.printf("\ncommand req: %i\n", int(commandreqdto.tid));
+
+    return true;
+}
+
+boolean DTUInterface::writeReqCommandInverterTurnOff()
+{
+    if (!client->connected())
+    {
+        Serial.println(F("DTUinterface:\t writeReqCommandInverterTurnOff - not possible - currently not connect"));
+        return false;
+    }
+
+    // request message
+    uint8_t buffer[200];
+    pb_ostream_t stream = pb_ostream_from_buffer(buffer, sizeof(buffer));
+
+    CommandResDTO commandresdto = CommandResDTO_init_default;
+    // commandresdto.time = int32_t(locTimeSec);
+
+    commandresdto.action = CMD_ACTION_MI_SHUTDOWN;
+    commandresdto.package_nub = 1;
+    commandresdto.dev_kind = DEV_DTU;
+    commandresdto.tid = int32_t(dtuGlobalData.currentTimestamp);
+    // commandresdto.mi_to_sn = 0;
+
+    bool status = pb_encode(&stream, CommandResDTO_fields, &commandresdto);
+
+    if (!status)
+    {
+        Serial.println(F("DTUinterface:\t writeReqCommandInverterTurnOff - failed to encode"));
         return false;
     }
 
@@ -1069,26 +1388,413 @@ boolean DTUInterface::writeCommandRestartDevice()
     // }
     // Serial.println("");
 
-    Serial.println(F("DTUinterface:\t writeCommandRestartDevice --- send request to DTU ..."));
-    dtuConnection.dtuTxRxState = DTU_TXRX_STATE_WAIT_RESTARTDEVICE;
+    Serial.println(F("DTUinterface:\t writeReqCommandInverterTurnOff --- send request to DTU ..."));
+    dtuConnection.dtuTxRxState = DTU_TXRX_STATE_WAIT_INVERTER_TURN_OFF;
     client->write((const char *)message, 10 + stream.bytes_written);
+    // set global inverter state to off - will be checked by warnings update
+    dtuGlobalData.inverterControl.stateOn = false;
+    dtuGlobalData.inverterControl.lastSwitchedToOff = dtuGlobalData.currentTimestamp;
+    // set next normal request in 5 seconds from now on, only if last data updated within last 2 times of user setted update rate
+    if (dtuGlobalData.currentTimestamp - dtuGlobalData.lastRespTimestamp < (userConfig.dtuUpdateTime * 2))
+        platformData.dtuNextUpdateCounterSeconds = dtuGlobalData.currentTimestamp - userConfig.dtuUpdateTime + 5;
     return true;
 }
 
-boolean DTUInterface::readRespCommandRestartDevice(pb_istream_t istream)
+boolean DTUInterface::readRespCommandInverterTurnOff(pb_istream_t istream)
 {
     dtuConnection.dtuTxRxState = DTU_TXRX_STATE_IDLE;
     CommandReqDTO commandreqdto = CommandReqDTO_init_default;
 
-    Serial.print("DTUinterface:\t -readRespCommandRestartDevice - got remote: " + getTimeStringByTimestamp(commandreqdto.time));
+    pb_decode(&istream, &CommandReqDTO_msg, &commandreqdto);
 
-    pb_decode(&istream, &GetConfigReqDTO_msg, &commandreqdto);
+    // message CommandReqDTO {
+    // string dtu_sn = 1 [(nanopb).max_length = 60];
+    // int32 time = 2;
+    // int32 action = 3;
+    // int32 package_now = 4;
+    // int32 err_code = 5;
+    // int64 tid = 6;
+    // }
+
+    Serial.print("DTUInterface:\t readRespCommandInverterTurnOff - got response -> timestamp: " + getTimeStringByTimestamp(commandreqdto.time) + "\n");
+    Serial.printf("\ncommand req S/N: %s", commandreqdto.dtu_sn);
     Serial.printf("\ncommand req action: %i", commandreqdto.action);
-    Serial.printf("\ncommand req: %s", commandreqdto.dtu_sn);
-    Serial.printf("\ncommand req: %i", commandreqdto.err_code);
-    Serial.printf("\ncommand req: %i", commandreqdto.package_now);
-    Serial.printf("\ncommand req: %i", int(commandreqdto.tid));
-    Serial.printf("\ncommand req time: %i", commandreqdto.time);
+    Serial.printf("\ncommand req package now: %i", commandreqdto.package_now);
+    Serial.printf("\ncommand req err_code: %i", commandreqdto.err_code);
+    Serial.printf("\ncommand req: %i\n", int(commandreqdto.tid));
+    return true;
+}
+
+boolean DTUInterface::writeReqCommandPerformanceDataMode()
+{
+    if (!client->connected())
+    {
+        Serial.println(F("DTUinterface:\t writeReqCommandPerformanceDataMode - not possible - currently not connect"));
+        return false;
+    }
+
+    // request message
+    uint8_t buffer[200];
+    pb_ostream_t stream = pb_ostream_from_buffer(buffer, sizeof(buffer));
+
+    CommandResDTO commandresdto = CommandResDTO_init_default;
+    // commandresdto.time = int32_t(locTimeSec);
+
+    commandresdto.action = CMD_ACTION_PERFORMANCE_DATA_MODE;
+    commandresdto.package_nub = 1;
+    // commandresdto.dev_kind = DEV_DTU;
+    commandresdto.tid = int32_t(dtuGlobalData.currentTimestamp);
+    // commandresdto.mi_to_sn = 0;
+
+    bool status = pb_encode(&stream, CommandResDTO_fields, &commandresdto);
+
+    if (!status)
+    {
+        Serial.println(F("DTUinterface:\t writeReqCommandPerformanceDataMode - failed to encode"));
+        return false;
+    }
+
+    // Serial.print(F("\nencoded: "));
+    for (unsigned int i = 0; i < stream.bytes_written; i++)
+    {
+        // Serial.printf("%02X", buffer[i]);
+        crc.add(buffer[i]);
+    }
+
+    uint8_t header[10];
+    header[0] = 0x48;
+    header[1] = 0x4d;
+    header[2] = 0x23; // Command = 0x03 - CMD_CLOUD_COMMAND_RES_DTO = b"\x23\x05"   => 0x23
+    header[3] = 0x05; // Command = 0x05                                             => 0x05
+    header[4] = 0x00;
+    header[5] = 0x01;
+    header[6] = (crc.calc() >> 8) & 0xFF;
+    header[7] = (crc.calc()) & 0xFF;
+    header[8] = ((stream.bytes_written + 10) >> 8) & 0xFF; // suggest parentheses around '+' inside '>>' [-Wparentheses]
+    header[9] = (stream.bytes_written + 10) & 0xFF;        // warning: suggest parentheses around '+' in operand of '&' [-Wparentheses]
+    crc.restart();
+
+    uint8_t message[10 + stream.bytes_written];
+    for (int i = 0; i < 10; i++)
+    {
+        message[i] = header[i];
+    }
+    for (unsigned int i = 0; i < stream.bytes_written; i++)
+    {
+        message[i + 10] = buffer[i];
+    }
+
+    // Serial.print(F("\nRequest: "));
+    // for (int i = 0; i < 10 + stream.bytes_written; i++)
+    // {
+    //   Serial.print(message[i]);
+    // }
+    // Serial.println("");
+
+    Serial.println(F("DTUinterface:\t writeReqCommandPerformanceDataMode --- send request to DTU ..."));
+    dtuConnection.dtuTxRxState = DTU_TXRX_STATE_WAIT_PERFORMANCE_DATA_MODE;
+    client->write((const char *)message, 10 + stream.bytes_written);
+    dtuGlobalData.inverterControl.lastSwitchedToOff = dtuGlobalData.currentTimestamp;
+    // set next normal request in 5 seconds from now on, only if last data updated within last 2 times of user setted update rate
+    if (dtuGlobalData.currentTimestamp - dtuGlobalData.lastRespTimestamp < (userConfig.dtuUpdateTime * 2))
+        platformData.dtuNextUpdateCounterSeconds = dtuGlobalData.currentTimestamp - userConfig.dtuUpdateTime + 5;
+    return true;
+}
+
+boolean DTUInterface::readRespCommandPerformanceDataMode(pb_istream_t istream)
+{
+    dtuConnection.dtuTxRxState = DTU_TXRX_STATE_IDLE;
+    CommandReqDTO commandreqdto = CommandReqDTO_init_default;
+
+    pb_decode(&istream, &CommandReqDTO_msg, &commandreqdto);
+
+    // message CommandReqDTO {
+    // string dtu_sn = 1 [(nanopb).max_length = 60];
+    // int32 time = 2;
+    // int32 action = 3;
+    // int32 package_now = 4;
+    // int32 err_code = 5;
+    // int64 tid = 6;
+    // }
+
+    Serial.print("DTUInterface:\t readRespCommandPerformanceDataMode - got response -> timestamp: " + getTimeStringByTimestamp(commandreqdto.time) + "\n");
+    Serial.printf("\ncommand req S/N: %s", commandreqdto.dtu_sn);
+    Serial.printf("\ncommand req action: %i", commandreqdto.action);
+    Serial.printf("\ncommand req package now: %i", commandreqdto.package_now);
+    Serial.printf("\ncommand req err_code: %i", commandreqdto.err_code);
+    Serial.printf("\ncommand req: %i\n", int(commandreqdto.tid));
+    return true;
+}
+
+// get alarms - first request per cmd and then request the list
+boolean DTUInterface::writeReqCommandRequestAlarms()
+{
+    if (!client->connected())
+    {
+        Serial.println(F("DTUinterface:\t writeReqCommandReqAlarms - not possible - currently not connect"));
+        return false;
+    }
+
+    // request message
+    uint8_t buffer[200];
+    pb_ostream_t stream = pb_ostream_from_buffer(buffer, sizeof(buffer));
+
+    CommandResDTO commandresdto = CommandResDTO_init_default;
+    // commandresdto.time = int32_t(locTimeSec);
+
+    commandresdto.action = CMD_ACTION_ALARM_LIST;
+    commandresdto.package_nub = 1;
+    commandresdto.dev_kind = 0;
+    commandresdto.tid = int32_t(dtuGlobalData.currentTimestamp);
+
+    bool status = pb_encode(&stream, CommandResDTO_fields, &commandresdto);
+
+    if (!status)
+    {
+        Serial.println(F("DTUinterface:\t writeReqCommandReqAlarms - failed to encode"));
+        return false;
+    }
+
+    // Serial.print(F("\nencoded: "));
+    for (unsigned int i = 0; i < stream.bytes_written; i++)
+    {
+        // Serial.printf("%02X", buffer[i]);
+        crc.add(buffer[i]);
+    }
+
+    uint8_t header[10];
+    header[0] = 0x48;
+    header[1] = 0x4d;
+    header[2] = CMD_COMMAND_RES_DTO[0]; // Command = 0xa3
+    header[3] = CMD_COMMAND_RES_DTO[1]; // Command = 0x05
+    header[4] = 0x00;
+    header[5] = 0x01;
+    header[6] = (crc.calc() >> 8) & 0xFF;
+    header[7] = (crc.calc()) & 0xFF;
+    header[8] = ((stream.bytes_written + 10) >> 8) & 0xFF; // suggest parentheses around '+' inside '>>' [-Wparentheses]
+    header[9] = (stream.bytes_written + 10) & 0xFF;        // warning: suggest parentheses around '+' in operand of '&' [-Wparentheses]
+    crc.restart();
+
+    // Serial.println("requesting with command: 0x" + String(header[2], HEX) + " / 0x" + String(header[3], HEX));
+
+    uint8_t message[10 + stream.bytes_written];
+    for (int i = 0; i < 10; i++)
+    {
+        message[i] = header[i];
+    }
+    for (unsigned int i = 0; i < stream.bytes_written; i++)
+    {
+        message[i + 10] = buffer[i];
+    }
+
+    // Serial.print(F("\nRequest: "));
+    // for (int i = 0; i < 10 + stream.bytes_written; i++)
+    // {
+    //   Serial.print(message[i]);
+    // }
+    // Serial.println("");
+
+    Serial.println(F("DTUinterface:\t writeReqCommandReqAlarms --- send request to DTU ..."));
+    dtuConnection.dtuTxRxState = DTU_TXRX_STATE_WAIT_REQUEST_ALARMS;
+    client->write((const char *)message, 10 + stream.bytes_written);
+    return true;
+}
+
+boolean DTUInterface::readRespCommandRequestAlarms(pb_istream_t istream)
+{
+    dtuConnection.dtuTxRxState = DTU_TXRX_STATE_IDLE;
+    CommandReqDTO commandreqdto = CommandReqDTO_init_default;
+
+    pb_decode(&istream, &CommandReqDTO_msg, &commandreqdto);
+    Serial.println("DTUinterface:\t readRespCommandReqAlarms - got response -> timestamp: " + getTimeStringByTimestamp(commandreqdto.time));
+    // Serial.printf("\ncommand req action: %i", commandreqdto.action);
+    // Serial.printf("\ncommand req dtu sn: %s", commandreqdto.dtu_sn);
+    // Serial.printf("\ncommand req err code: %i", commandreqdto.err_code);
+    // Serial.printf("\ncommand req package now: %i", commandreqdto.package_now);
+    // Serial.printf("\ncommand req tid: %i", int(commandreqdto.tid));
+    // Serial.printf("\ncommand req time: %i\n", commandreqdto.time);
+    return true;
+}
+
+boolean DTUInterface::writeReqCommandGetAlarms()
+{
+    if (!client->connected())
+        return false;
+
+    uint8_t buffer[200];
+    pb_ostream_t stream = pb_ostream_from_buffer(buffer, sizeof(buffer));
+
+    WInfoResDTO winforesdto = WInfoResDTO_init_default;
+    // winforesdto.time_ymd_hms = ...
+    winforesdto.offset = DTU_TIME_OFFSET;
+    winforesdto.time = int32_t(dtuGlobalData.currentTimestamp);
+    bool status = pb_encode(&stream, WInfoResDTO_fields, &winforesdto);
+
+    if (!status)
+    {
+        Serial.println(F("DTUinterface:\t writeReqCommandGetAlarms - failed to encode"));
+        return false;
+    }
+
+    // Serial.print(F("\nencoded: "));
+    for (unsigned int i = 0; i < stream.bytes_written; i++)
+    {
+        // Serial.printf("%02X", buffer[i]);
+        crc.add(buffer[i]);
+    }
+
+    uint8_t header[10];
+    header[0] = 0x48;
+    header[1] = 0x4d;
+    header[2] = CMD_W_INFO_RES_DTO[0]; // Command = 0xa3
+    header[3] = CMD_W_INFO_RES_DTO[1]; // Command = 0x04
+    header[4] = 0x00;
+    header[5] = 0x01;
+    header[6] = (crc.calc() >> 8) & 0xFF;
+    header[7] = (crc.calc()) & 0xFF;
+    header[8] = ((stream.bytes_written + 10) >> 8) & 0xFF; // suggest parentheses around '+' inside '>>' [-Wparentheses]
+    header[9] = (stream.bytes_written + 10) & 0xFF;        // warning: suggest parentheses around '+' in operand of '&' [-Wparentheses]
+    crc.restart();
+
+    // Serial.println("requesting with command: 0x" + String(header[2], HEX) + " / 0x" + String(header[3], HEX));
+
+    uint8_t message[10 + stream.bytes_written];
+    for (int i = 0; i < 10; i++)
+    {
+        message[i] = header[i];
+    }
+    for (unsigned int i = 0; i < stream.bytes_written; i++)
+    {
+        message[i + 10] = buffer[i];
+    }
+
+    // Serial.print(F("\nRequest: "));
+    // for (int i = 0; i < 10 + stream.bytes_written; i++)
+    // {
+    //   Serial.print(message[i]);
+    // }
+    // Serial.println("");
+
+    //     dtuClient.write(message, 10 + stream.bytes_written);
+    Serial.println("DTUinterface:\t writeReqCommandGetAlarms --- send request to DTU ...");
+    dtuConnection.dtuTxRxState = DTU_TXRX_STATE_WAIT_GET_ALARMS;
+    client->write((const char *)message, 10 + stream.bytes_written);
+    return true;
+}
+
+boolean DTUInterface::readRespCommandGetAlarms(pb_istream_t istream)
+{
+    dtuConnection.dtuTxRxState = DTU_TXRX_STATE_IDLE;
+    WInfoReqDTO winforeqdto = WInfoReqDTO_init_default;
+
+    pb_decode(&istream, &WInfoReqDTO_msg, &winforeqdto);
+    Serial.println("DTUInterface:\t readRespCommandGetAlarms - got response -> timestamp: " + getTimeStringByTimestamp(winforeqdto.time) + " - command req package count: " + String(winforeqdto.package_count));
+    // Serial.printf("\ncommand req dtu-sn: %s", winforeqdto.dtu_sn);
+    // Serial.printf("\ncommand req package count: %i\n", winforeqdto.package_count);
+    // Serial.printf("\ncommand req package idx: %i", winforeqdto.package_idx);
+    // Serial.printf("\ncommand req warn device: %i\n", winforeqdto.warn_device);
+
+    if (winforeqdto.package_count == 0)
+    {
+        Serial.println("DTUInterface:\t readRespCommandGetAlarms - request for alarms failed or no alarms available");
+        return false;
+    }
+    dtuGlobalData.warnDataLastTimestamp = static_cast<uint32_t>(winforeqdto.time);
+
+    // delete all entries of dtuGlobalData.warnData[] before filling it with new data
+    for (int i = 0; i < WARN_DATA_MAX_ENTRIES - 1; i++)
+    {
+        dtuGlobalData.warnData[i].code = 0;
+        dtuGlobalData.warnData[i].message[0] = '\0';
+        dtuGlobalData.warnData[i].num = 0;
+        dtuGlobalData.warnData[i].timestampStart = 0;
+        dtuGlobalData.warnData[i].timestampStop = 0;
+        dtuGlobalData.warnData[i].data0 = 0;
+        dtuGlobalData.warnData[i].data1 = 0;
+    }
+
+    // std::map<int, std::string> warningCodeMap = {
+    //     {72,  "Grid frequency above limit"}, // 72 in binary -                                                   0100 1000 (  0,  72)
+    //     {208, "[text not known]"}, // 218 in binary -                                                            1101 0000 (  0, 208)
+
+    //     {124, "inverter shut down by remote control - active"}, // 124 in binary -                               0111 1100 (   0, 124)
+    //     {8316, "inverter shut down by remote control - active"}, // 8316 in binary -                   0010 0000 0111 1100 (  32, 124)
+    //     {16508, "inverter shut down by remote control - period"}, // 16508 in binary -                 0100 0000 0111 1100 (  64, 124)
+    //     {20604, "[not approved] inverter shut down by remote control - period"}, // 20604 in binary -  0101 0000 0111 1100 (  80, 124)
+    //     {28796, "inverter shut down by remote control - period"}, // 28796 in binary -                 0111 0000 0111 1100 ( 112, 124)
+
+    //     {209, "PV1 no input voltage - active"}, // 209 in binary -                                               1101 0001 (   0, 209)
+    //     {16593, "PV1 no input voltage - period"}, // 16593 in binary -                                 0100 0000 1101 0001 (  64, 209)
+    //     {20689, "PV1 no input voltage - period"}, // 20689 in binary -                                 0101 0000 1101 0001 (  80, 209)
+
+    //     {216, "PV1 Undervoltage - active"}, // 216 in binary -                                                   1101 1000 (   0, 216)
+    //     {16600, "PV1 Undervoltage - period"}, // 16600 in binary -                                     0100 0000 1101 1000 (  64, 216)
+    //     {20696, "PV1 Undervoltage - period"}, // 20696 in binary -                                     0101 0000 1101 1000 (  80, 216)
+
+    //     {210, "[not approved] PV2 no input voltage - active"}, // 210 in binary -                                1101 0010 (   0, 210)
+    //     {8402, "PV2 no input voltage - period"}, // 8402 in binary -                                   0010 0000 1101 0010 (  32, 210)
+
+    //     {218, "[not approved] PV2 Undervoltage - active"}, // 218 in binary -                                    1101 1010 (   0, 218)
+    //     {8410, "PV2 Undervoltage - period"}, // 8410 in binary -                                       0010 0000 1101 1010 (  32, 218)
+    // };
+
+    std::map<int, std::string> warningCodeMap = {
+        {78, "Grid frequency above limit"},            // 1101 0000
+        {143, "[text not known]"},                     // seen 143,112 with data0 64, data1 1840 - during no AC voltage (plugged off)
+        {145, "[text not known]"},                     // seen 145,112 with no data  - during no AC voltage (plugged off)
+        {147, "[text not known]"},                     // seen 147,112 with data0 4, data1 0  - during no AC voltage (plugged off)
+        {148, "[text not known]"},                     // seen 148,32 with data0 3051, data1 0
+        {208, "[text not known]"},                     // 1101 0000
+        {124, "inverter shut down by remote control"}, // 0111 1100
+        {209, "PV0 no input voltage"},                 // 1101 0001
+        {216, "PV0 Undervoltage"},                     // 1101 1000
+        {210, "PV1 no input voltage"},                 // 1101 0010
+        {218, "PV1 Undervoltage"},                     // 1101 1010
+    };
+
+    uint8_t warningActiveCount = 0;
+    for (int i = 0; i < WARN_DATA_MAX_ENTRIES - 1; i++)
+    {
+        if (winforeqdto.mWInfo[i].pv_sn != 0)
+        {
+            int wcode1 = winforeqdto.mWInfo[i].WCode & 0x000000FF;
+            int wcode2 = (winforeqdto.mWInfo[i].WCode & 0xFFFFFF00) >> 8;
+
+            String unknownWcode = "Unknown warning code";
+            std::string warningMessage = warningCodeMap.count(wcode1) ? warningCodeMap[wcode1] : unknownWcode.c_str();
+            warningMessage = warningMessage + " (" + std::to_string(wcode1) + "," + std::to_string(wcode2) + ")";
+
+            dtuGlobalData.warnData[i].code = winforeqdto.mWInfo[i].WCode;
+            strncpy(dtuGlobalData.warnData[i].message, warningMessage.c_str(), sizeof(dtuGlobalData.warnData[i].message) - 1);
+            dtuGlobalData.warnData[i].message[sizeof(dtuGlobalData.warnData[i].message) - 1] = '\0'; // Ensure null-termination
+            dtuGlobalData.warnData[i].num = winforeqdto.mWInfo[i].WNum;
+            dtuGlobalData.warnData[i].timestampStart = winforeqdto.mWInfo[i].WTime1;
+            dtuGlobalData.warnData[i].timestampStop = winforeqdto.mWInfo[i].WTime2;
+            dtuGlobalData.warnData[i].data0 = winforeqdto.mWInfo[i].WData1;
+            dtuGlobalData.warnData[i].data1 = winforeqdto.mWInfo[i].WData2;
+
+            if (dtuGlobalData.warnData[i].timestampStart != 0 && dtuGlobalData.warnData[i].timestampStop == 0)
+            {
+                warningActiveCount++;
+                if (wcode1 == 124)
+                {
+                    dtuGlobalData.inverterControl.stateOn = false; // set to false due to an active warning "Inverter remote off"
+                    dtuGlobalData.powerLimit = 0;
+                    Serial.print("\ncommand warn" + String(i) + " - pv_sn: " + String(winforeqdto.mWInfo[i].pv_sn));
+                    Serial.printf("\ncommand warn%d - wcode: %i (%s)", i, wcode1, warningMessage.c_str());
+                    Serial.printf("\ncommand warn%d - wnum: %i", i, winforeqdto.mWInfo[i].WNum);
+                    Serial.printf("\ncommand warn%d - wtime1: %i -> wtime2: %i (%s -> %s)", i, winforeqdto.mWInfo[i].WTime1, winforeqdto.mWInfo[i].WTime2, getTimeStringByTimestamp(winforeqdto.mWInfo[i].WTime1).c_str(), getTimeStringByTimestamp(winforeqdto.mWInfo[i].WTime2).c_str());
+                    Serial.printf("\ncommand warn%d - WData1: %i ++ WData2: %i\n", i, winforeqdto.mWInfo[i].WData1, winforeqdto.mWInfo[i].WData2);
+                }
+                else
+                {
+                    dtuGlobalData.inverterControl.stateOn = true; // set to true due to NO active warning "Inverter remote off"
+                }
+            }
+        }
+    }
+    dtuGlobalData.warningsActive = warningActiveCount;
+
     return true;
 }
 
@@ -1103,18 +1809,18 @@ boolean DTUInterface::cloudPauseActiveControl()
 
     if (sec >= 40 && (min == 59 || min == 14 || min == 29 || min == 44) && !dtuConnection.dtuActiveOffToCloudUpdate)
     {
-        Serial.printf("\n\n<<< dtuCloudPauseActiveControl >>> --- ");
+        Serial.printf("\n<<< dtuCloudPauseActiveControl >>> --- ");
         Serial.printf("local time: %02i.%02i. - %02i:%02i:%02i ", stamp.day, stamp.month, stamp.hour, stamp.minute, stamp.second);
         Serial.print(F("----> switch ''OFF'' DTU server connection to upload data from DTU to Cloud\n\n"));
         lastSwOff = dtuGlobalData.currentTimestamp;
         dtuConnection.dtuActiveOffToCloudUpdate = true;
         dtuGlobalData.updateReceived = true; // update at start of pause
     }
-    else if (dtuGlobalData.currentTimestamp > lastSwOff + DTU_CLOUD_UPLOAD_SECONDS && dtuConnection.dtuActiveOffToCloudUpdate)
+    else if (dtuGlobalData.currentTimestamp > lastSwOff + userConfig.dtuCloudPauseTime && dtuConnection.dtuActiveOffToCloudUpdate)
     {
-        Serial.printf("\n\n<<< dtuCloudPauseActiveControl >>> --- ");
+        Serial.printf("\n<<< dtuCloudPauseActiveControl >>> --- ");
         Serial.printf("local time: %02i.%02i. - %02i:%02i:%02i ", stamp.day, stamp.month, stamp.hour, stamp.minute, stamp.second);
-        Serial.print(F("----> switch ''ON'' DTU server connection after upload data from DTU to Cloud\n\n"));
+        Serial.print(F("----> switch ''ON'' DTU server connection to upload data from DTU to Cloud\n\n"));
         // // reset request timer - starting 10s (give some time to get a connection (~3 s needed)) after prevention with a new request
         // platformData.dtuNextUpdateCounterSeconds = dtuGlobalData.currentTimestamp - 5;
         dtuConnection.dtuActiveOffToCloudUpdate = false;

@@ -39,15 +39,13 @@ jobs:
             VERSIONNUMBER=$(python ${{ github.workspace }}/version_inc.py getversion 2>&1)
             echo "got versionnumber: " $VERSIONNUMBER
             echo "CURRENT_VERSIONNUMBER=$VERSIONNUMBER" >> $GITHUB_ENV
-            mv .pio/build/esp12e/firmware.bin .pio/build/esp12e/dtuGateway_ESP8266_release_$VERSIONNUMBER.bin
-            mv .pio/build/esp32/firmware.bin .pio/build/esp12e/dtuGateway_ESP32_release_$VERSIONNUMBER.bin
+            mv .pio/build/esp32/firmware.bin .pio/build/esp32/dtuGateway_ESP32_release_$VERSIONNUMBER.bin
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: dtuGateway_release_${{ env.CURRENT_VERSIONNUMBER }}
           path: |
-            .pio/build/esp12e/dtuGateway_ESP8266_release_${{ env.CURRENT_VERSIONNUMBER }}.bin
             .pio/build/esp12e/dtuGateway_ESP32_release_${{ env.CURRENT_VERSIONNUMBER }}.bin
 
       - uses: "marvinpinto/action-automatic-releases@latest"
@@ -58,6 +56,5 @@ jobs:
           prerelease: false
           title: "dtuGateway v${{ env.CURRENT_VERSIONNUMBER }}"
           files: |
-            .pio/build/esp12e/dtuGateway_ESP8266_release_${{ env.CURRENT_VERSIONNUMBER }}.bin
-            .pio/build/esp12e/dtuGateway_ESP32_release_${{ env.CURRENT_VERSIONNUMBER }}.bin
+            .pio/build/esp32/dtuGateway_ESP32_release_${{ env.CURRENT_VERSIONNUMBER }}.bin
             include/version.json

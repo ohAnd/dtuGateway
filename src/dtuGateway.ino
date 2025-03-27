@@ -84,7 +84,6 @@ int wifiTimeoutLong = WIFI_RETRY_TIME_SECONDS;
 #warning "Compiling for ESP32"
 #endif
 
-
 #define BLINK_NORMAL_CONNECTION 0    // 1 Hz blip - normal connection and running
 #define BLINK_WAITING_NEXT_TRY_DTU 1 // 1 Hz - waiting for next try to connect to DTU
 #define BLINK_WIFI_OFF 2             // 2 Hz - wifi off
@@ -485,6 +484,15 @@ boolean scanNetworksResult()
 // }
 
 // APIs (non REST)
+String getTimeStringByTimestamp(unsigned long timestamp)
+{
+  UnixTime stamp(1);
+  char buf[32];
+  stamp.getDateTime(timestamp - 3600);
+  // should have the format "2023-11-11T18:11:17+00:00"
+  snprintf(buf, sizeof(buf), "%04i-%02i-%02iT%02i:%02i:%02i%+03i:00", stamp.year, stamp.month, stamp.day, stamp.hour, stamp.minute, stamp.second, userConfig.timezoneOffest / 3600);
+  return String(buf);
+}
 
 // openhab
 // send item to openhab
@@ -501,9 +509,8 @@ boolean postMessageToOpenhab(String key, String value)
     http.addHeader("Accept", "application/json");
 
     int httpCode = http.POST(value);
-    // Check for timeout
-    if (httpCode == HTTPC_ERROR_CONNECTION_REFUSED || httpCode == HTTPC_ERROR_SEND_HEADER_FAILED ||
-        httpCode == HTTPC_ERROR_SEND_PAYLOAD_FAILED)
+    // Check for timeout - (avoid unnecessary warnings from 8266 lib: HTTPC_ERROR_CONNECTION_FAILED (ESP8266HTTPClient.h) = HTTPC_ERROR_CONNECTION_REFUSED (HTTPClient.h) = -1)
+    if (httpCode == -1 || httpCode == HTTPC_ERROR_SEND_HEADER_FAILED || httpCode == HTTPC_ERROR_SEND_PAYLOAD_FAILED)
     {
       Serial.println("OpenHAB:\t\t [HTTP] postMessageToOpenhab (" + key + ") Timeout error: " + String(httpCode));
       http.end();
@@ -527,22 +534,39 @@ String getMessageFromOpenhab(String key)
   HTTPClient http;
   if (WiFi.status() == WL_CONNECTED)
   {
-    String openhabHost = "http://" + String(userConfig.openhabHostIpDomain) + ":8080/rest/items/";
+    String openhabItemsUrl = "http://" + String(userConfig.openhabHostIpDomain) + ":8080/rest/items/" + key;
     http.setTimeout(2000); // prevent blocking of progam
-    if (http.begin(client, openhabHost + key + "/state"))
+    // if (http.begin(client, openhabHost + key + "/state"))
+    if (http.begin(client, openhabItemsUrl))
     {
       String payload = "";
       int httpCode = http.GET();
       if (httpCode == HTTP_CODE_OK)
       {
         payload = http.getString();
+        // Serial.println("OpenHAB:\t\t [HTTP] getMessageFromOpenhab (" + openhabItemsUrl + ") - got: " + payload);
+        http.end();
+        JsonDocument doc;
+        DeserializationError error = deserializeJson(doc, payload);
+        if (error)
+        {
+          Serial.println("deserializeJson() failed: " + String(error.c_str()));
+          return "error";
+        }
+        return doc["state"].as<String>();
+      }
+      else
+      {
+        Serial.println("OpenHAB:\t\t [HTTP] getMessageFromOpenhab (" + openhabItemsUrl + ") - ERROR: got httpCode: " + String(httpCode));
+        http.end();
+        return "httpError";
       }
       http.end();
-      return payload;
+      // return payload;
     }
     else
     {
-      Serial.println("OpenHAB:\t\t [HTTP] getMessageFromOpenhab Unable to connect " + openhabHost);
+      Serial.println("OpenHAB:\t\t [HTTP] getMessageFromOpenhab Unable to connect " + openhabItemsUrl);
       return "connectError";
     }
   }
@@ -563,17 +587,21 @@ boolean getPowerSetDataFromOpenHab()
   String openhabMessage = getMessageFromOpenhab(String(userConfig.openItemPrefix) + "_PowerLimitSet");
   if (openhabMessage.length() > 0)
   {
+    int dotIndex = openhabMessage.indexOf('.');
+    if (dotIndex != -1) {
+      openhabMessage = openhabMessage.substring(0, dotIndex);
+    }
     gotLimit = openhabMessage.toInt();
-    // Check if the conversion was successful by comparing the string with its integer representation, to avoid wronmg interpretations of 0 after toInt by a "no number string"
+    // Check if the conversion was successful by comparing the string with its integer representation, to avoid wrong interpretations of 0 after toInt by a "no number string"
     conversionSuccess = (String(gotLimit) == openhabMessage);
   }
 
   if (conversionSuccess)
   {
-    if (gotLimit < 2)
-      newLimit = 2;
+    if (gotLimit < 0)
+      newLimit = 0;
     else if (gotLimit > 100)
-      newLimit = 2;
+      newLimit = 100;
     else
       newLimit = gotLimit;
     // Serial.println("getMessageFromOpenhab - got SetLimit: " + String(newLimit) + " %");// + " - last OH limit: " + String(lastOpenhabLimit) + " %");
@@ -583,7 +611,7 @@ boolean getPowerSetDataFromOpenHab()
     Serial.println("OPENHAB:\t\t got wrong data for SetLimit: " + openhabMessage);
     return false;
   }
-  if (dtuGlobalData.powerLimitSet != newLimit)// && lastOpenhabLimit != 255)
+  if (dtuGlobalData.powerLimitSet != newLimit) // && lastOpenhabLimit != 255)
   {
     // Serial.println("OPENHAB:\t\t got new OH Limit: " + String(dtuGlobalData.powerLimitSet) + " - last OH limit: " + String(lastOpenhabLimit) + " %");
     Serial.print("OPENHAB:\t\t last OH limit: " + String(dtuGlobalData.powerLimitSet) + " %");
@@ -641,7 +669,7 @@ void updateValuesToMqtt(boolean haAutoDiscovery = false)
 {
   Serial.println("MQTT:\t\t publish data (HA autoDiscovery = " + String(haAutoDiscovery) + ")");
   std::map<std::string, std::string> keyValueStore;
-  keyValueStore["time_stamp"] = String(dtuGlobalData.currentTimestamp).c_str();
+  keyValueStore["time_stamp"] = getTimeStringByTimestamp(platformData.currentNTPtime).c_str();
   // grid
   keyValueStore["grid_U"] = String(dtuGlobalData.grid.voltage).c_str();
   keyValueStore["grid_I"] = String(dtuGlobalData.grid.current).c_str();
@@ -664,6 +692,7 @@ void updateValuesToMqtt(boolean haAutoDiscovery = false)
   if (dtuGlobalData.pv0.totalEnergy != 0)
     keyValueStore["pv1_totalEnergy"] = String(dtuGlobalData.pv1.totalEnergy, 3).c_str();
   // inverter
+  keyValueStore["grid_Freq"] = String(dtuGlobalData.gridFreq).c_str();
   keyValueStore["inverter_Temp"] = String(dtuGlobalData.inverterTemp).c_str();
   keyValueStore["inverter_PowerLimit"] = String(dtuGlobalData.powerLimit).c_str();
   keyValueStore["inverter_PowerLimitSet"] = String(dtuGlobalData.powerLimitSet).c_str();
@@ -671,6 +700,8 @@ void updateValuesToMqtt(boolean haAutoDiscovery = false)
   keyValueStore["inverter_cloudPause"] = String(dtuConnection.dtuActiveOffToCloudUpdate).c_str();
   keyValueStore["inverter_dtuConnectionOnline"] = String(dtuConnection.dtuConnectionOnline).c_str();
   keyValueStore["inverter_dtuConnectState"] = String(dtuConnection.dtuConnectState).c_str();
+  keyValueStore["inverter_inverterControlStateOn"] = String(dtuGlobalData.inverterControl.stateOn).c_str();
+  keyValueStore["inverter_warningsActive"] = String(dtuGlobalData.warningsActive).c_str();
   // copy
   for (const auto &pair : keyValueStore)
   {
@@ -1055,7 +1086,7 @@ void getSerialCommand(String cmd, String value)
       ESP.restart();
     }
   }
-  else if (cmd == "rebootDTU")
+  else if (cmd == "rebootDTU") // cmd: 'rebootDTU 1'
   {
     Serial.print(F(" rebootDTU "));
     if (val == 1)
@@ -1063,6 +1094,30 @@ void getSerialCommand(String cmd, String value)
       Serial.println(F(" request DTU reboot at DTUinterface ... "));
       dtuInterface.requestRestartDevice();
     }
+  }
+  else if (cmd == "dtuInverter") // cmd: 'dtuInverter 1' or 'dtuInverter 0'
+  {
+    Serial.print(F(" dtu inverter "));
+    if (val == 1)
+    {
+      Serial.println(F(" request DTU inverter ON ... "));
+      dtuInterface.requestInverterTargetState(true);
+    }
+    else if (val == 0)
+    {
+      Serial.println(F(" request DTU inverter OFF ... "));
+      dtuInterface.requestInverterTargetState(false);
+    }
+    else
+    {
+      Serial.println(F(" request DTU inverter state ... <<<< TODO >>>"));
+      // dtuInterface.requestInverterTargetState(false);
+    }
+  }
+  else if (cmd == "getDtuAlarms") // cmd: 'getDtuAlarms 1'
+  {
+    Serial.println(F(" request DTU alarms "));
+    dtuInterface.requestAlarms();
   }
   else if (cmd == "selectDisplay")
   {
@@ -1190,14 +1245,15 @@ void loop()
       {
         dtuGlobalData.powerLimitSet = lastSetting.setValue;
         dtuGlobalData.powerLimitSetUpdate = true;
-        Serial.println("\nMQTT: changed powerset value to '" + String(dtuGlobalData.powerLimitSet) + "'");
+        Serial.println("\nMQTT:\t changed powerset value to '" + String(dtuGlobalData.powerLimitSet) + "'");
       }
-      if(dtuGlobalData.powerLimitSetUpdate) {
+      if (dtuGlobalData.powerLimitSetUpdate)
+      {
         mqttHandler.publishStandardData("inverter_PowerLimitSet", String(dtuGlobalData.powerLimitSet));
         // postMessageToOpenhab(String(userConfig.openItemPrefix) + "_PowerLimitSet", (String)dtuGlobalData.powerLimit);
         dtuGlobalData.powerLimitSetUpdate = false;
       }
-    
+
       RemoteInverterData remoteData = mqttHandler.getRemoteInverterData();
       if (remoteData.updateReceived == true)
       {
@@ -1227,6 +1283,8 @@ void loop()
         dtuConnection.dtuConnectionOnline = remoteData.dtuConnectionOnline;
 
         dtuConnection.dtuConnectState = remoteData.dtuConnectState;
+        dtuGlobalData.inverterControl.stateOn = remoteData.inverterControlStateOn;
+        dtuGlobalData.warningsActive = remoteData.warningsActive;
         dtuGlobalData.lastRespTimestamp = remoteData.respTimestamp;
         dtuGlobalData.currentTimestamp = remoteData.respTimestamp; // setting the local counter
         Serial.println("\nMQTT: changed remote inverter data");
@@ -1273,7 +1331,7 @@ void loop()
       if (dtuGlobalData.updateReceived)
       {
         Serial.print(F("---> got update from DTU - APIs will be updated"));
-        Serial.println(" --- wifi rssi: " + String(dtuGlobalData.dtuRssi) + " % (DTU -> cloud) - " + String(dtuGlobalData.wifi_rssi_gateway) + " % (client -> local wifi)");
+        Serial.println(" --- wifi rssi: " + String(dtuGlobalData.wifi_rssi_gateway) + " % (DTU -> cloud) - " + String(dtuGlobalData.dtuRssi) + " % (client -> local wifi)");
         updateDataToApis();
         dtuGlobalData.updateReceived = false;
       }
@@ -1285,17 +1343,22 @@ void loop()
         getPowerSetDataFromOpenHab();
 
       // direct request of new powerLimit
-      if (dtuGlobalData.powerLimitSet != dtuGlobalData.powerLimit &&
-          dtuGlobalData.powerLimitSet != 101 &&
+      if (dtuGlobalData.powerLimitSet != 101 &&
           dtuGlobalData.uptodate &&
           dtuConnection.dtuConnectState == DTU_STATE_CONNECTED &&
           !userConfig.remoteDisplayActive)
       {
-        Serial.println("----- ----- set new power limit from " + String(dtuGlobalData.powerLimit) + " % to " + String(dtuGlobalData.powerLimitSet) + " % ----- ----- ");
-        dtuInterface.setPowerLimit(dtuGlobalData.powerLimitSet);
-        // set next normal request in 5 seconds from now on, only if last data updated within last 2 times of user setted update rate
-        if (dtuGlobalData.currentTimestamp - dtuGlobalData.lastRespTimestamp < (userConfig.dtuUpdateTime * 2))
-          platformData.dtuNextUpdateCounterSeconds = dtuGlobalData.currentTimestamp - userConfig.dtuUpdateTime + 5;
+        if (!(dtuGlobalData.powerLimitSet == 1 && dtuGlobalData.inverterControl.stateOn) &&
+            ((dtuGlobalData.powerLimitSet != dtuGlobalData.powerLimit && dtuGlobalData.inverterControl.stateOn) ||
+             (dtuGlobalData.powerLimitSet == 0 && dtuGlobalData.inverterControl.stateOn) ||
+             (dtuGlobalData.powerLimitSet > 0 && !dtuGlobalData.inverterControl.stateOn)))
+        {
+          Serial.println("----- ----- set new power limit from " + String(dtuGlobalData.powerLimit) + " % to " + String(dtuGlobalData.powerLimitSet) + " % ----- ----- ");
+          dtuInterface.setPowerLimit(dtuGlobalData.powerLimitSet);
+          // set next normal request in 5 seconds from now on, only if last data updated within last 2 times of user setted update rate
+          if (dtuGlobalData.currentTimestamp - dtuGlobalData.lastRespTimestamp < (userConfig.dtuUpdateTime * 2))
+            platformData.dtuNextUpdateCounterSeconds = dtuGlobalData.currentTimestamp - userConfig.dtuUpdateTime + 5;
+        }
       }
     }
 
@@ -1327,6 +1390,21 @@ void loop()
       dtuGlobalData.wifi_rssi_gateway = wifiPercent;
       // Serial.print(" --- RSSI to AP: '" + String(WiFi.SSID()) + "': " + String(dtuGlobalData.wifi_rssi_gateway) + " %");
     }
+    // test data
+    // dtuGlobalData.updateReceived = true;
+    // dtuGlobalData.warnDataLastTimestamp = timeClient.getEpochTime();
+    // dtuGlobalData.warningsActive = 2;
+    // dtuGlobalData.warnData[0].code = 124;
+    // String message = "[not approved] ??? shut down by remote control";
+    // strncpy(dtuGlobalData.warnData[0].message, message.c_str(), sizeof(dtuGlobalData.warnData[0].message) - 1);
+    // dtuGlobalData.warnData[0].timestampStart = timeClient.getEpochTime() - 1000;
+    // dtuGlobalData.warnData[0].timestampStop = 0;
+    // dtuGlobalData.warnData[0].data0 = 0;
+    // dtuGlobalData.warnData[0].data1 = 0;
+
+    // dtuConnection.dtuConnectionOnline = true;
+    // dtuConnection.dtuConnectState = DTU_STATE_CONNECTED;
+    // dtuGlobalData.inverterControl.stateOn = false;
   }
 
   // mid task
