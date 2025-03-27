@@ -104,7 +104,7 @@ message RealDataNewReqDTO {
     string device_serial_number = 1[(nanopb).max_length = 16];       // Serial number of the device
     int32 timestamp = 2;                   // Timestamp of the data
     int32 ap = 3;                          // Number of packages
-    int32 cp = 4;                          // Current pacakge
+    int32 cp = 4;                          // Current package
     int32 firmware_version = 5;            // Firmware version
     repeated MeterMO meter_data = 6;       // Meter data array
     repeated RpMO rp_data = 7;             // RpMO data array

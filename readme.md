@@ -5,7 +5,7 @@
   - [Contents](#contents)
   - [problem](#problem)
   - [goal](#goal)
-  - [ESP8286 maintenance path](#esp8286-maintenance-path)
+  - [ESP8266 maintenance path](#esp8266-maintenance-path)
   - [features](#features)
     - [regarding dtu](#regarding-dtu)
       - [dtu connection](#dtu-connection)
@@ -58,13 +58,13 @@ So I decided to put this abstraction in an **ESP32** to have a stable abstractio
 3. TODO: Ability to change running wifi to connect to dtu over local network or direct access point.
 4. Use this need to create a full enivronment for an ESP32 based project. (see features below)
 
-## ESP8286 maintenance path
+## ESP8266 maintenance path
 
-The project was started with an ESP8266. Due to some further implementations the EPS8266 was not capable anymore for the new features - therefore a maintanance branch was forked with the base functionalities until version 2.0.
+The project was started with an ESP8266. Due to some further implementations the ESP8266 was not capable anymore for the new features - therefore a maintenance branch was forked with the base functionalities until version 2.0.
 
 https://github.com/ohAnd/dtuGateway/tree/esp8266_maintenance
 
-This branch will be maintained with small bugfiex, if needed.
+This branch will be maintained with small bugfix, if needed.
 
 ## features
 
