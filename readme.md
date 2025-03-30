@@ -43,10 +43,10 @@ The newer series of Hoymiles inverter with internal wireless access point and wi
 
 Usually there should be no need for an extra device to "translate" the connection to common APIs or bindings. Unfortunately the interface on the dtu is unlikely unstable/ or not really stable.
 
-E.g. there is a treshhold of ~ 31 seconds before you can send new data to the dtu (e.g. new power limit), otherwise the connection hangs and an internal restart/ reboot (???) leads to an offline time of ~ 30 minutes. 
+E.g. there is a threshold of ~ 31 seconds before you can send new data to the dtu (e.g. new power limit), otherwise the connection hangs and an internal restart/ reboot (???) leads to an offline time of ~ 30 minutes. 
 Data from dtu can be read in a very short time, but it has to be tested how often a request leads to the problem before.
 
-On a manual way you can be back on track, if you are logging in to the local access point of the dtu and resend your local wifi login data to (it seems) initiate a reboot. With this way you can be back online in ~ 1:30 minutes.
+On a manual way you can be back on track, if you are logging in to the local access point of the dtu and resend your local Wi-Fi login data to (it seems) initiate a reboot. With this way you can be back online in ~ 1:30 minutes.
 
 So I decided to put this abstraction in an **ESP32** to have a stable abstraction to an existing smart home environment.
 
@@ -54,9 +54,9 @@ So I decided to put this abstraction in an **ESP32** to have a stable abstractio
 
 ## goal
 1. Abstract the interface to the dtu (inverter connection endpoint) with different possibilities to connect to other systems. (push/ pull)
-2. Very stable interface with no dependencies to an environment/ a system with a stand alone application based on an arduino board (ESP32).
-3. TODO: Ability to change running wifi to connect to dtu over local network or direct access point.
-4. Use this need to create a full enivronment for an ESP32 based project. (see features below)
+2. Very stable interface with no dependencies to an environment/ a system with a standalone application based on an Arduino board (ESP32).
+3. TODO: Ability to change running Wi-Fi to connect to dtu over local network or direct access point.
+4. Use this need to create a full environment for an ESP32 based project. (see features below)
 
 ## ESP8266 maintenance path
 
@@ -64,7 +64,7 @@ The project was started with an ESP8266. Due to some further implementations the
 
 https://github.com/ohAnd/dtuGateway/tree/esp8266_maintenance
 
-This branch will be maintained with small bugfix, if needed.
+This branch will be maintained with small bug fix, if needed.
 
 ## features
 
@@ -74,7 +74,7 @@ This branch will be maintained with small bugfix, if needed.
 - base connection to retrieve data from inverter e.g.
   - power (Watts), voltage (V), current (A) for the PV input data (PV0,PV1) and the grid
   - energy counter (kWh) for all 3 sources (day and total)
-  - temperature and wifi rssi of the dtu
+  - temperature and Wi-Fi RSSI of the dtu
 - setting the target inverter power limit dynamically (currently update rate up to 1 second implemented)
   - via website (see [#33](https://github.com/ohAnd/dtuGateway/issues/33) - thanks to [@hirbelo](https://github.com/hirbelo))
   - via openhab item (see below)
@@ -83,11 +83,11 @@ This branch will be maintained with small bugfix, if needed.
     - value 1 will be ignored due to the inverter capabilities
     - value = 0 switching the inverter off - dtu is still alive and measuring input values
     - if in state 'inverter off' any value > 0 will be switching the inverter on again (1 will be interpreted as 2)
-    - hint: it seems there is no state reported regarding inverter on or off - but the inverter off state will be shown as a warning "Inverter remote off" - this will be used to recheck the state with every cyclic refresh of dtu warnings
+    - hint: it seems there is no state reported regarding inverter on or off - but the inverter-off state will be shown as a warning "Inverter remote off" - this will be used to recheck the state with every cyclic refresh of dtu warnings
 - for testing purposes the time between each request is adjustable (default 31 seconds) 
 - syncing time of gateway with the local time of the dtu to prevent wrong restart counters
 - configurable 'cloud pause' - see [experiences](#experiences-with-the-hoymiles-HMS-800W-2T) - to prevent missing updates by the dtu to the hoymiles cloud
-- automatic reboot of DTU, if there is an error detected (e.g. inplausible not changed values)
+- automatic reboot of DTU, if there is an error detected (e.g. implausible unchanged values)
 - gathering the current dtu warnings and show them in the webfrontend
   - click on icon in the top right corner - icon will be only shown if warnings were received
   - a badge will reporting the number of warnings
@@ -96,18 +96,18 @@ This branch will be maintained with small bugfix, if needed.
  
 #### connections to the environment
 - serving the read data per /api/data.json
-- configuration of bindings with seperate activation and login data setting
+- configuration of bindings with separate activation and login data setting
 - binding: updating openHab instance with read data and pulling power set data from the instance
-- binding: updating to a MQTT broker with read data incl. subscribing to the Set PowerLimit over MQTT
-  - 2 ways to configure - simple mqtt publishing with base topic or together with HA MQTT AutoDiscovery based
+- binding: updating to a MQTT broker with read data including subscribing to the Set PowerLimit over MQTT
+  - 2 ways to configure - simple MQTT publishing with base topic or together with HA MQTT AutoDiscovery based
   - for all publishing retain flag is set (keeping last seen data in broker)
-  - TLS connection to mqtt broker  e.g. for hivemq.cloud - ! only possible for ESP32 setup
+  - TLS connection to MQTT broker  e.g. for hivemq.cloud - ! only possible for ESP32 setup
 - can act as a remote display for another dtuGateway
   - data will be received by MQTT
   - webUI shows the same data as the host
   - OLED/ TFT will show the host data
     - OLED - a small cloud symbol will identify as a remote display
-    - TFT - a green inner ring and the name 'dutMonitor' will identify as a remote display
+    - TFT - a green inner ring and the name 'dtuMonitor' will identify as a remote display
 
 #### display support
 - common
@@ -124,7 +124,7 @@ This branch will be maintained with small bugfix, if needed.
       - off (with backlight control)/ blank (without backlight control) or
       - show the current time and power (if greater than 0) in a reduced scope
     - adjustable via web config[^2]
-      - brightness day [0...255] - will also be used without night mode enabled for standard brightness (falling back to this after power value changed)
+      - brightness day [0...255] - will also be used without night mode enabled for standard brightness (falling back to this after the power value changes)
       - brightness night [0...255] - note: 0 = backlight off
       - (to disable PWM control for TFT without backlight control set both brightness values to zero)
       - night clock - on/off - if enabled the clock will be shown at night, otherwise blank or dark screen at night
@@ -133,7 +133,7 @@ This branch will be maintained with small bugfix, if needed.
       - night mode start in minutes to start of the day - e.g. 1320 for 22:00
       - night mode stop in minutes to start of the day - e.g. 360 for 6:00
       - night clock enabled on/ off - on = clock will be displayed instead of dark screen
-      - TFT display only: enable/ disable the seconds ring (red) - if diabled only the static ring is visible and in nightmode there is no ring displayed
+      - TFT display only: enable/ disable the seconds ring (red) - if disabled only the static ring is visible and in nightmode there is no ring displayed
       - example settings:
 
         | setting                 | value | comment |
@@ -146,7 +146,20 @@ This branch will be maintained with small bugfix, if needed.
         | nightmodeStart          | 1320  | night time will start at 22 o'clock
         | nightmodeEnd            | 390   | night time will end at 6:30 
         | displayTFTsecondsRing   | true  | seconds ring in TFT display is enabled
+- special feature for TFT display "remote summary display" aka Solar Monitor
+  - why: needed something where I can see the current overall PV power due to sveral sources (micro inverter, main PV system, ...)
+  - clean PV wattage gauge and value display
+  - showing the current yield of the day and a clock with HH:MM (blinking colon every second to show activity)
+  
+    <img src="doc/images/dtuGateway_solarMonitor_1.jpg" alt="solar monitor example 1" width="180"/>
+    <img src="doc/images/dtuGateway_solarMonitor_2.jpg" alt="solar monitor example 2" width="180"/>
 
+  - needs only a MQTT broker with a source of your PV power and yield of the day (could be also another dtuGateway)
+  - config in settings
+    - go to "dtu" - check "run as a remote summary display" - other entries on this menu will disappear
+    - go to "bindings" - only mqtt part is visible and has to be set
+    - to retrieve the right data for your PV wattage and the yield of the current day you have to set the right "MQTT main topic for the solar monitor data"
+    - below this path the PV power will be expected with <yourpath>/PV_Power_Sum/state and for the yield of the day <yourpath>/PV_Energy_Sum_Day/state
 
 - display hardware types
   - display SSH1106 OLED 1,3" 128x64 (other sizes with same driver (SSH1106) and resolution should also directly work)
@@ -156,18 +169,18 @@ This branch will be maintained with small bugfix, if needed.
 
     - segmented in 3 parts
       - header:
-        - left: wifi quality dtuGateway to local wifi
+        - left: Wi-Fi quality dtuGateway to local Wi-Fi
         - mid: current time of dtuGateway
-        - right: wifi quality of dtu connection to local wifi
+        - right: Wi-Fi quality of dtu connection to local Wi-Fi
       - main:
         - small left: current power limit of inverter
         - big mid/ right: current power of inverter
       - footer:
         - left: current daily yield
         - right: current total yield
-    - additonal features
+    - additional features
       - small screensaver to prevent burn-in effect with steady components on the screen (shifting the whole screen every minute with 1 pixel in a 4 step rotation)
-      - smooth brightness control for changed main value - increase to max after change and then dimmming smooth back to the default level
+      - smooth brightness control for changed main value - increase to max after change and then dimming smooth back to the default level
     
   - display GC9A01 round TFT 1,28" 240x240 with or without backlight control
 
@@ -181,15 +194,15 @@ This branch will be maintained with small bugfix, if needed.
 - serving own access point in factory mode for first setup
 - web application will be directly served by the system
 - settings of needed user data over the web app (stored in a json-file in local flash file system - extensions of user setup will not lead to breakable changes)
-  - select found local wifi (additional issue [#20](https://github.com/ohAnd/dtuGateway/issues/20)) and enter/ save the needed wifi password
+  - select found local Wi-Fi (additional issue [#20](https://github.com/ohAnd/dtuGateway/issues/20)) and enter/ save the needed Wi-Fi password
   - change dtu connection data (e.g. host IP in local network, wireless user/ pass for dtu access point)
   - configurable data for openhab item settings
-  - configurable data for MQTT settings incl. HomeAssistant AutoDiscovery
-  - advanced web config[^2] for all config parameter (http://IP_domain/config) - expert mode
+  - configurable data for MQTT settings including HomeAssistant AutoDiscovery
+  - advanced web config[^2] for all configuration parameters (http://IP_domain/config) - expert mode
     - display selection (0 - OLED, 1 - round TFT)
     - timeZone Offset -xxxx sec <-> xxxx sec e.g. 3600 for CET(+1h) /7200 for CEST(+2)/-21600 for CST
 - ~~OTA with direct connection to the github build pipeline - available updates will be checked by web app and device. Notification in web app, if update available and user can decide for direct online update~~
-- manual OTA/ web Update via web ui (hint: only stable if the wifi connection is above ~ 50%)
+- manual OTA/ web Update via web ui (hint: only stable if the Wi-Fi connection is above ~ 50%)
 
 [^2]: 'advanced config' aka. 'dtuGateway Configuration Interface' it is something like an expert mode, that means you have to know which parameter you want to change with which effect.
 
@@ -349,8 +362,8 @@ This branch will be maintained with small bugfix, if needed.
 
 - set the IP to your MQTT broker
 - set the MQTT user and MQTT password
-- set the main topic e.g. 'dtuGateway_12345678' for the pubished data (default: is `dtuGateway_<ESP chip id>` and has to be unique in your environment)
-- choosing unsecure or TLS based connection to your MQTT broker (only ESP32)
+- set the main topic e.g. 'dtuGateway_12345678' for the published data (default: is `dtuGateway_<ESP chip id>` and has to be unique in your environment)
+- choosing insecure or TLS based connection to your MQTT broker (only ESP32)
 - to set the Power Limit from your environment
   - you have to publish to `<main topic>/inverter/PowerLimitSet` a value between 2...100 (possible range at DTU)
   - the incoming value will be checked for this interval and locally corrected to 2 or 100 if exceeds
@@ -450,17 +463,17 @@ see also https://github.com/ohAnd/dtuGateway/discussions/35#discussioncomment-10
 *hint: You can also use the esptool.py as described shortly here https://github.com/ohAnd/dtuGateway/discussions/46#discussion-7106516 by @netzbasteln*
 
 #### first setup with access point
-> prequesite:
-If you have directly attached a display, then in factory mode the used display is unknown. Default is OLED Display. To get the TFT running in factory mode, a change with each reboot is implemented. Means if you are powering on the first time the OLED will be choosen internally. The next power up the TFT will be chosen. And so on. So the 'first start' screen will be shown until the wifi settings will be changed over the webinterface.
+> prerequisite:
+If you have directly attached a display, then in factory mode the used display is unknown. Default is OLED Display. To get the TFT running in factory mode, a change with each reboot is implemented. Means if you are powering on the first time the OLED will be chosen internally. The next power up the TFT will be chosen. And so on. So the 'first start' screen will be shown until the Wi-Fi settings will be changed over the webinterface.
 
 1. connect with the AP dtuGateway_<chipID> (on smartphone sometimes you have to accept the connection explicitly with the knowledge there is no internet connectivity)
 2. open the website http://192.168.4.1 (or http://dtuGateway.local) for the first configuration
-3. choose your wifi
-4. type in the wifi password - save
-5. in webfrontend setting your DTU IP adress within your local network (currently the user and password for dtu are not needed, for later integration relevant for a direct connection to the dtu over their access point)
+3. choose your Wi-Fi
+4. type in the Wi-Fi password - save
+5. in webfrontend setting your DTU IP address within your local network (currently the user and password for dtu are not needed, for later integration relevant for a direct connection to the dtu over their access point)
 6. then you can configure your needed binding
    1. openhab -> set the IP of your openhab instance and the prefix for the dtu items according to your configured item file in openhab
-   2. mqtt -> set the IP and port (e.g. 192.178.0.42:1883) of your mqtt broker and the user and passwort that your hacve for this instance
+   2. MQTT -> set the IP and port (e.g. 192.178.0.42:1883) of your MQTT broker and the user and password that your hacve for this instance
 7. after this one time configuration, the connection to the dtu should be established and the data displayed in the webfrontend and (if connected on the display) according to your setup transmitted to the target instance
 
 #### return to factory mode
@@ -503,7 +516,7 @@ https://github.com/ohAnd/dtuGateway/releases/tag/snapshot
 
 If there to much requests of setting the power limit minutes later the connection is broken and cannot be directly established again - with current experience the dtu resets itself after ~ 30 min and is accessable again.
 
-With the manual login to dtu access point and forcing the storing of local wifi connect data again, then dtu is back online and accessable in your local network. (This is a possible feature that can be implemented in future - needed protocol sequence has to be investigated)
+With the manual login to dtu access point and forcing the storing of local Wi-Fi connect data again, then dtu is back online and accessable in your local network. (This is a possible feature that can be implemented in future - needed protocol sequence has to be investigated)
 
 [2024-03-24] 
 - lot of single updates for power setting within few seconds (< 2-3) without any reading of values (e.g. realdata) -> it seems this creating no problems
@@ -513,8 +526,8 @@ With the manual login to dtu access point and forcing the storing of local wifi 
 
 
 ### hoymiles cloud update
-- everey 15 min (0,15,30,45) -> timestamp update
-- after 7 min 40 s update of graph data (if wifi not reachable, also reset of wifi AP)
+- every 15 min (0,15,30,45) -> timestamp update
+- after 7 min 40 s update of graph data (if Wi-Fi not reachable, also reset of Wi-Fi AP)
 - if there is at these points an active connection to the dtu and current data will be requested, the update to the cloud will be interrupted and no current data for this point in time will be stored in the cloud
 
 ### sources

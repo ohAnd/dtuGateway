@@ -51,6 +51,7 @@ struct RemoteInverterData
   uint32_t respTimestamp = 1704063600;     // init with start time stamp > 0
   boolean updateReceived = false;
   boolean remoteDisplayActive = false;
+  boolean remoteSummaryDisplayActive = false;
   boolean inverterControlStateOn = true;
   uint8_t warningsActive = 0;
 };
@@ -73,7 +74,7 @@ public:
     void setConfiguration(const char *broker, int port, const char *user, const char *password, bool useTLS, const char *sensorUniqueName, const char *mainTopicPath, bool autoDiscovery, const char * ipAddress);
     void setMainTopic(String mainTopicPath);
 
-    void setRemoteDisplayData(boolean remoteDisplayActive);
+    void setRemoteDisplayData(boolean remoteDisplayActive, boolean remoteSummaryDisplayActive);
 
     void requestMQTTconnectionReset(boolean autoDiscoveryRemoveRequested);
 

@@ -30,11 +30,12 @@ struct UserConfig
     boolean mqttUseTLS            = false;
     char mqttBrokerUser[64]       = "dtuuser";
     char mqttBrokerPassword[64]   = "dtupass";
-    char mqttBrokerMainTopic[32]  = "dtu_12345678";
+    char mqttBrokerMainTopic[64]  = "dtu_12345678";
     boolean mqttHAautoDiscoveryON = false;
     boolean mqttActive            = false;
 
     boolean remoteDisplayActive   = false;  // remote display to get data from mqtt
+    boolean remoteSummaryDisplayActive   = false;  // remote summary display to get data from mqtt
     
     uint8_t displayConnected      = 0;      // OLED default
     uint16_t displayOrientation   = 0;      // OLED 0,180 degrees - TFT 0,90,180,270 degrees

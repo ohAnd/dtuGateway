@@ -9,7 +9,7 @@
 #define BRIGHTNESS_MAX 250
 
 struct DisplayData {
-    int16_t totalPower=0;      // indicate current power (W)
+    uint16_t totalPower=0;      // indicate current power (W)
     float totalYieldDay=0.0f;   // indicate day yield (Wh)
     float totalYieldTotal=0.0f; // indicate total yield (kWh)
     const char *formattedTime=nullptr;

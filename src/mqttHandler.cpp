@@ -136,6 +136,17 @@ void MQTTHandler::subscribedMessageArrived(char *topic, byte *payload, unsigned 
                 }
                 instance->lastRemoteInverterData.updateReceived = true;
             }
+            // summery display data
+            else if (String(topic) == instance->mqttMainTopicPath + "/PV_Power_Sum/state" && instance->lastRemoteInverterData.remoteSummaryDisplayActive) {
+                instance->lastRemoteInverterData.grid.power = incommingMessage.toFloat();
+                Serial.println("MQTT: received message for Summary Power: " + String(instance->lastRemoteInverterData.grid.power));
+                instance->lastRemoteInverterData.updateReceived = true;
+            }
+            else if (String(topic) == instance->mqttMainTopicPath + "/PV_Energy_Sum_Day/state" && instance->lastRemoteInverterData.remoteSummaryDisplayActive) {
+                instance->lastRemoteInverterData.grid.dailyEnergy = incommingMessage.toFloat();
+                Serial.println("MQTT: received message for Summary day energy: " + String(instance->lastRemoteInverterData.grid.dailyEnergy));
+                instance->lastRemoteInverterData.updateReceived = true;
+            }
             else
             {
                 Serial.println("MQTT: received message for unknown topic: " + String(topic));
@@ -355,7 +366,14 @@ void MQTTHandler::reconnect()
         if (client.connect(deviceGroupName, mqtt_user, mqtt_password))
         {
             Serial.println("\nMQTT:\t\t Attempting connection is now connected");
-            if (lastRemoteInverterData.remoteDisplayActive)
+            if (lastRemoteInverterData.remoteSummaryDisplayActive)
+            {
+                client.subscribe((mqttMainTopicPath + "/PV_Power_Sum/state").c_str());
+                Serial.println("MQTT:\t\t subscribe to: " + (mqttMainTopicPath + "/PV_Power_Sum/state"));
+                client.subscribe((mqttMainTopicPath + "/PV_Energy_Sum_Day/state").c_str());
+                Serial.println("MQTT:\t\t subscribe to: " + (mqttMainTopicPath + "/PV_Energy_Sum_Day/state"));
+            }
+            else if (lastRemoteInverterData.remoteDisplayActive)
             {
                 client.subscribe((mqttMainTopicPath + "/grid/P").c_str());
                 Serial.println("MQTT:\t\t subscribe to: " + (mqttMainTopicPath + "/grid/P"));
@@ -505,11 +523,13 @@ void MQTTHandler::setMainTopic(String mainTopicPath)
     mqttMainTopicPath = mainTopicPath;
 }
 
-void MQTTHandler::setRemoteDisplayData(boolean remoteDisplayActive)
+void MQTTHandler::setRemoteDisplayData(boolean remoteDisplayActive, boolean remoteSummaryDisplayActive)
 {
     Serial.println("MQTT:\t\t ... set remote display data to: " + String(remoteDisplayActive));
+    Serial.println("MQTT:\t\t ... set summary remote display data to: " + String(remoteSummaryDisplayActive));
     stopConnection();
     instance->lastRemoteInverterData.remoteDisplayActive = remoteDisplayActive;
+    instance->lastRemoteInverterData.remoteSummaryDisplayActive = remoteSummaryDisplayActive;
 }
 
 // Setter method to combine all settings

@@ -785,7 +785,7 @@ void setup()
   else if (userConfig.displayConnected == 1)
   {
     displayTFT.setup();
-    displayTFT.setRemoteDisplayMode(userConfig.remoteDisplayActive);
+    displayTFT.setRemoteDisplayMode(userConfig.remoteDisplayActive, userConfig.remoteSummaryDisplayActive);
   }
 
   if (userConfig.wifiAPstart)
@@ -870,12 +870,12 @@ void startServices()
 
     dtuWebServer.start();
 
-    if (!userConfig.remoteDisplayActive)
+    if (!userConfig.remoteDisplayActive && !userConfig.remoteSummaryDisplayActive)
       dtuInterface.setup(userConfig.dtuHostIpDomain);
 
     mqttHandler.setConfiguration(userConfig.mqttBrokerIpDomain, userConfig.mqttBrokerPort, userConfig.mqttBrokerUser, userConfig.mqttBrokerPassword, userConfig.mqttUseTLS, (platformData.espUniqueName).c_str(), userConfig.mqttBrokerMainTopic, userConfig.mqttHAautoDiscoveryON, ((platformData.dtuGatewayIP).toString()).c_str());
     mqttHandler.setup();
-    mqttHandler.setRemoteDisplayData(userConfig.remoteDisplayActive);
+    mqttHandler.setRemoteDisplayData(userConfig.remoteDisplayActive, userConfig.remoteSummaryDisplayActive);
   }
   else
   {
@@ -1339,14 +1339,14 @@ void loop()
       if (dtuConnection.dtuActiveOffToCloudUpdate)
         blinkCode = BLINK_PAUSE_CLOUD_UPDATE;
 
-      if (userConfig.openhabActive && !userConfig.remoteDisplayActive)
+      if (userConfig.openhabActive && !userConfig.remoteDisplayActive && !userConfig.remoteSummaryDisplayActive)
         getPowerSetDataFromOpenHab();
 
       // direct request of new powerLimit
       if (dtuGlobalData.powerLimitSet != 101 &&
           dtuGlobalData.uptodate &&
           dtuConnection.dtuConnectState == DTU_STATE_CONNECTED &&
-          !userConfig.remoteDisplayActive)
+          !userConfig.remoteDisplayActive && !userConfig.remoteSummaryDisplayActive)
       {
         if (!(dtuGlobalData.powerLimitSet == 1 && dtuGlobalData.inverterControl.stateOn) &&
             ((dtuGlobalData.powerLimitSet != dtuGlobalData.powerLimit && dtuGlobalData.inverterControl.stateOn) ||
@@ -1418,7 +1418,7 @@ void loop()
     // -------->
 
     // requesting data from DTU
-    if (WiFi.status() == WL_CONNECTED && !userConfig.remoteDisplayActive)
+    if (WiFi.status() == WL_CONNECTED && !userConfig.remoteDisplayActive && !userConfig.remoteSummaryDisplayActive)
       dtuInterface.getDataUpdate();
   }
 

@@ -161,6 +161,9 @@ void UserConfigManager::printConfigdata()
     Serial.print(F("\nremoteDisplay: \t\t\t"));
     Serial.println(userConfig.remoteDisplayActive);
 
+    Serial.print(F("\nremoteSummaryDisplay: \t\t"));
+    Serial.println(userConfig.remoteSummaryDisplayActive);
+
     Serial.println(F("\ndisplay"));
     Serial.print(F("connected type: \t\t\t"));
     Serial.println(userConfig.displayConnected);
@@ -222,6 +225,7 @@ JsonDocument UserConfigManager::mappingStructToJson(const UserConfig &config)
     doc["mqtt"]["HAautoDiscoveryON"] = config.mqttHAautoDiscoveryON;
 
     doc["remoteDisplay"]["Active"] = config.remoteDisplayActive;
+    doc["remoteSummaryDisplay"]["Active"] = config.remoteSummaryDisplayActive;
 
     doc["display"]["type"] = config.displayConnected;
     doc["display"]["orientation"] = config.displayOrientation;
@@ -267,6 +271,7 @@ void UserConfigManager::mappingJsonToStruct(JsonDocument doc)
     userConfig.mqttHAautoDiscoveryON = doc["mqtt"]["HAautoDiscoveryON"].as<bool>();
 
     userConfig.remoteDisplayActive = doc["remoteDisplay"]["Active"].as<bool>();
+    userConfig.remoteSummaryDisplayActive = doc["remoteSummaryDisplay"]["Active"].as<bool>();
 
     userConfig.displayConnected = doc["display"]["type"];
     userConfig.displayOrientation = doc["display"]["orientation"];

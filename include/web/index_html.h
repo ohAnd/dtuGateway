@@ -112,12 +112,12 @@ static const char *index_html PROGMEM = R"=====(
                 <div>
                     <input type="password" id="mqttPassword" value="admin12345" required maxlength="64">
                 </div>
-                <div>
-                    MQTT main topic for this dtu (e.g. dtu_12345678 will appear as 'dtu_12345678/grid/U' in the broker -
-                    has to be unique in your setup):
+                <div id="mqttMainTopicComment">
+                    MQTT main topic for this dtu: <br><small>(e.g. dtu_12345678 will appear as 'dtu_12345678/grid/U' in the broker -
+                    has to be unique in your setup)</small>
                 </div>
                 <div>
-                    <input type="text" id="mqttMainTopic" maxlength="32">
+                    <input type="text" id="mqttMainTopic" maxlength="64">
                 </div>
                 <div id="mqttHAautoDiscovery">
                     <input type="checkbox" id="mqttHAautoDiscoveryON"> HomeAssistant Auto Discovery <br><small>(On =
@@ -132,10 +132,14 @@ static const char *index_html PROGMEM = R"=====(
             </div>
         </div>
         <div class="popupContent" id="dtu">
-            <div>
+            <div id="remoteDisplaySettings">
                 <input type="checkbox" id="remoteDisplayActive"> run as a remote display<br>
                 <small>option to use this device as an remote display for a different dtu gateway and get current data
                     from a given MQTT broker</small>
+            </div>
+            <div id="remoteSummaryDisplaySettings">
+                <input type="checkbox" id="remoteSummaryDisplayActive"> run as a remote summary display (Solar Monitor)<br>
+                <small>option to use this device as an remote display based on current data from a given MQTT broker to show PV power and yield of current day</small>
             </div>
             <hr>
             <div id="dtuSettings">
@@ -284,6 +288,25 @@ static const char *index_html PROGMEM = R"=====(
         <hr><br>
         <div style="text-align: center;">
             <b onclick="hide('#warningOverview')" class="form-button btn">close</b>
+        </div>
+    </div>
+    <div class="popup" id="summaryDisplay" style="flex-direction: column; width: 95%; left: 2.5%; height: 85%; top: 2.5%; background-color: #1c1c1c; border-radius: 10px; border-width: 1px; border-color: #2196f3; border-style: solid; box-shadow: 0px 0px 19px 11px rgb(255 165 0); z-index: 19;">
+        <div>
+            <h2>remote summary display</h2>
+            <h6>this dtuGateway is configured as a remote summary display</h6>
+            <i style="font-size: x-small;float:right;">change this in <a href="/config" target=_blank>advanced config</a></i>
+            <br>
+            <hr>
+        </div>
+            <div>
+                solar monitor
+            </div>
+            <div class="panelValueBox">
+                <p>current PV power</p><br>
+                <b id="grid_power2" class="panelValue valueText">--.- W</b><br><br>
+                <small class="panelHead">solar yield today</small><br><br>
+                <b id="grid_daily_energy2" class="panelValueSmall valueText">00.0 </b>kWh<br>
+            </div>
         </div>
     </div>
     <div id="frame">
@@ -527,7 +550,7 @@ static const char *index_html PROGMEM = R"=====(
 
         // grey'ing the bindings sections according to activation
         $("input[type='checkbox']").change(function () {
-            if ($(this).closest('div').get(0).id != '') {
+            if ($(this).closest('div').get(0).id != '' && !$(this).closest('div').get(0).id.startsWith('remote')) {
                 if (this.checked) {
                     $(this).closest('div').css('color', '');
                 } else {
@@ -543,13 +566,40 @@ static const char *index_html PROGMEM = R"=====(
                 $("#openhabSection").hide();
                 $("#mqttSelect").hide();
                 $("#mqttSectionComment").text("remote display active - getting all data from a specific MQTT broker");
+                $("#mqttMainTopicComment").html("MQTT main topic of the source dtuGatway: <br><small>(remote dtuGateway subribes to source dtuGateway topics)</small>");
                 $("#mqttHAautoDiscovery").hide();
+                $("#remoteSummaryDisplaySettings").hide();
+                $("remoteSummaryDisplayActive").prop("checked", false);
             } else {
                 $("#dtuSettings").show();
                 $("#openhabSection").show();
                 $("#mqttSelect").show();
                 $("#mqttSectionComment").text("publish all data to a specific MQTT broker and subscribing to the requested powersetting");
+                $("#mqttMainTopicComment").html("MQTT main topic for this dtu: <br><small>(e.g. dtu_12345678 will appear as 'dtu_12345678/grid/U' in the broker - has to be unique in your setup)</small>");
                 $("#mqttHAautoDiscovery").show();
+                $("#remoteSummaryDisplaySettings").show();
+            }
+        });
+
+        // grey'ing the dtu settings if remote display is active
+        $("input[type='checkbox'][id='remoteSummaryDisplayActive']").change(function () {
+            if (this.checked) {
+                $("#dtuSettings").hide();
+                $("#openhabSection").hide();
+                $("#mqttSelect").hide();
+                $("#mqttSectionComment").text("remote summary display (Solar Monitor) active - getting the data from a specific MQTT broker and topic path");
+                $("#mqttMainTopicComment").html("MQTT main topic for the solar monitor data: <br><small>(main pv power and yield of the day - needed specific topics in this path see readme)</small>");
+                $("#mqttHAautoDiscovery").hide();
+                $("#remoteDisplaySettings").hide();
+                $("remoteDisplayActive").prop("checked", false);
+            } else {
+                $("#dtuSettings").show();
+                $("#openhabSection").show();
+                $("#mqttSelect").show();
+                $("#mqttSectionComment").text("publish all data to a specific MQTT broker and subscribing to the requested powersetting");
+                $("#mqttMainTopicComment").html("MQTT main topic for this dtu: <br><small>(e.g. dtu_12345678 will appear as 'dtu_12345678/grid/U' in the broker - has to be unique in your setup)</small>");
+                $("#mqttHAautoDiscovery").show();
+                $("#remoteDisplaySettings").show();
             }
         });
 
@@ -567,6 +617,9 @@ static const char *index_html PROGMEM = R"=====(
             }
             if (id == '#warningOverview') {
                 $('#warningOverview').css('display', 'flex');
+            }
+            if (id == '#summaryDisplay') {
+                $('#summaryDisplay').css('display', 'flex');
             }
         }
 
@@ -624,13 +677,13 @@ static const char *index_html PROGMEM = R"=====(
             checkValueUpdate('#pv0_total_energy', (data.pv0.tE).toFixed(3));
 
 
-            checkValueUpdate('#pv1_power', ((isNaN(data.pv0.p)) ? "--.-" : (data.pv1.p).toFixed(1)), "W");
+            checkValueUpdate('#pv1_power', ((isNaN(data.pv1.p)) ? "--.-" : (data.pv1.p).toFixed(1)), "W");
             checkValueUpdate('#pv1_voltage', (data.pv1.v).toFixed(1), " V");
             checkValueUpdate('#pv1_current', (data.pv1.c).toFixed(1), "A");
             checkValueUpdate('#pv1_daily_energy', (data.pv1.dE).toFixed(3));
             checkValueUpdate('#pv1_total_energy', (data.pv1.tE).toFixed(3));
 
-            checkValueUpdate('#grid_power', ((isNaN(data.pv0.p)) ? "--.-" : (data.grid.p).toFixed(1)), "W");
+            checkValueUpdate('#grid_power', ((isNaN(data.grid.p)) ? "--.-" : (data.grid.p).toFixed(1)), "W");
             checkValueUpdate('#grid_voltage', (data.grid.v).toFixed(1) + "V");
             checkValueUpdate('#grid_current', (data.grid.c).toFixed(1) + "A");
             checkValueUpdate('#grid_daily_energy', (data.grid.dE).toFixed(3));
@@ -641,6 +694,9 @@ static const char *index_html PROGMEM = R"=====(
             checkValueUpdate('#powerLimitNow', data.inverter.pLim);
 
             checkValueUpdate('#inverterTemp', (data.inverter.temp).toFixed(1), "'C");
+
+            checkValueUpdate('#grid_power2', ((isNaN(data.grid.p)) ? "--.-" : (data.grid.p).toFixed(1)), "W");
+            checkValueUpdate('#grid_daily_energy2', (data.grid.dE).toFixed(3));
 
             var dtuConnect = "";
             switch (data.dtuConnState) {
@@ -724,6 +780,15 @@ static const char *index_html PROGMEM = R"=====(
                 $("#title").text(gridP + "W - dtuGateway");
             }
 
+            if(data.dtuConnection.dtuRemoteSummaryDisplay) {
+                $('#summaryDisplay').css('display', 'flex');
+                $('#summaryDisplay').css('flex-direction', 'column');
+                $('#summaryDisplay').css('align-items', 'center');
+                $('#summaryDisplay').css('justify-content', 'center');
+            } else {
+                $('#summaryDisplay').css('display', 'none');
+            }
+
             return true;
         }
 
@@ -805,6 +870,12 @@ static const char *index_html PROGMEM = R"=====(
                 $('#remoteDisplayActive').prop("checked", true).change();
             } else {
                 $('#remoteDisplayActive').prop("checked", false).change();
+            }
+
+            if (dtuData.dtuRemoteSummaryDisplay) {
+                $('#remoteSummaryDisplayActive').prop("checked", true).change();
+            } else {
+                $('#remoteSummaryDisplayActive').prop("checked", false).change();
             }
 
             $('#dtuSsid').val(dtuData.dtuSsid);
@@ -934,25 +1005,28 @@ static const char *index_html PROGMEM = R"=====(
         function changeDtuData() {
             var dtuHostIpDomainSend = $('#dtuHostIpDomain').val();
             var dtuDataCycleSend = $('#dtuDataCycle').val();
-            if ($("#dtuCloudPause").is(':checked')) {
+            if ($("#dtuCloudPause").is(':checked'))
                 dtuCloudPauseSend = 1;
-            } else {
+            else
                 dtuCloudPauseSend = 0;
-            }
-            if ($("#remoteDisplayActive").is(':checked')) {
+            if ($("#remoteDisplayActive").is(':checked'))
                 remoteDisplayActiveSend = 1;
-            } else {
+            else
                 remoteDisplayActiveSend = 0;
-            }
-
+            if ($("#remoteSummaryDisplayActive").is(':checked'))
+                remoteSummaryDisplayActiveSend = 1;
+            else
+                remoteSummaryDisplayActiveSend = 0;
+            
             var data = {};
             data["dtuHostIpDomainSend"] = dtuHostIpDomainSend;
             data["dtuDataCycleSend"] = dtuDataCycleSend;
             data["dtuCloudPauseSend"] = dtuCloudPauseSend;
 
             data["remoteDisplayActiveSend"] = remoteDisplayActiveSend;
+            data["remoteSummaryDisplayActiveSend"] = remoteSummaryDisplayActiveSend;
 
-            console.log("send to server: dtuHostIpDomain: " + dtuHostIpDomainSend + " dtuDataCycle: " + dtuDataCycleSend + " dtuCloudPause: " + dtuCloudPauseSend + " - remoteDisplayActive: " + remoteDisplayActiveSend);
+            console.log("send to server: dtuHostIpDomain: " + dtuHostIpDomainSend + " dtuDataCycle: " + dtuDataCycleSend + " dtuCloudPause: " + dtuCloudPauseSend + " - remoteDisplayActive: " + remoteDisplayActiveSend + " - remoteSummaryDisplayActive: " + remoteSummaryDisplayActiveSend);
 
             const urlEncodedDataPairs = [];
 

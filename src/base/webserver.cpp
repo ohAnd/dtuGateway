@@ -339,7 +339,8 @@ void DTUwebserver::handleInfojson(AsyncWebServerRequest *request)
     JSON = JSON + "\"dtuResetRequested\": " + dtuGlobalData.dtuResetRequested + ",";
     JSON = JSON + "\"dtuCloudPause\": " + userConfig.dtuCloudPauseActive + ",";
     JSON = JSON + "\"dtuCloudPauseTime\": " + userConfig.dtuCloudPauseTime + ",";
-    JSON = JSON + "\"dtuRemoteDisplay\": " + userConfig.remoteDisplayActive;
+    JSON = JSON + "\"dtuRemoteDisplay\": " + userConfig.remoteDisplayActive + ",";
+    JSON = JSON + "\"dtuRemoteSummaryDisplay\": " + userConfig.remoteSummaryDisplayActive;
     JSON = JSON + "},";
 
     JSON = JSON + "\"wifiConnection\": {";
@@ -451,16 +452,19 @@ void DTUwebserver::handleUpdateDtuSettings(AsyncWebServerRequest *request)
     if (request->hasParam("dtuHostIpDomainSend", true) &&
         request->hasParam("dtuDataCycleSend", true) &&
         request->hasParam("dtuCloudPauseSend", true) &&
-        request->hasParam("remoteDisplayActiveSend", true))
+        request->hasParam("remoteDisplayActiveSend", true) &&
+        request->hasParam("remoteSummaryDisplayActiveSend", true))
     {
         String dtuHostIpDomainUser = request->getParam("dtuHostIpDomainSend", true)->value(); // retrieve message from webserver
         String dtuDataCycle = request->getParam("dtuDataCycleSend", true)->value();           // retrieve message from webserver
         String dtuCloudPause = request->getParam("dtuCloudPauseSend", true)->value();         // retrieve message from webserver
 
         String remoteDisplayActive = request->getParam("remoteDisplayActiveSend", true)->value(); // retrieve message from webserver
+        String remoteSummaryDisplayActive = request->getParam("remoteSummaryDisplayActiveSend", true)->value(); // retrieve message from webserver
 
         Serial.println("WEB:\t\t handleUpdateDtuSettings - got dtu ip: " + dtuHostIpDomainUser + "- got dtuDataCycle: " + dtuDataCycle + "- got dtu dtuCloudPause: " + dtuCloudPause);
         Serial.println("WEB:\t\t handleUpdateDtuSettings - got remoteDisplayActive: " + remoteDisplayActive);
+        Serial.println("WEB:\t\t handleUpdateDtuSettings - got remoteSummaryDisplayActive: " + remoteSummaryDisplayActive);
 
         dtuHostIpDomainUser.toCharArray(userConfig.dtuHostIpDomain, sizeof(userConfig.dtuHostIpDomain));
         userConfig.dtuUpdateTime = dtuDataCycle.toInt();
@@ -482,6 +486,18 @@ void DTUwebserver::handleUpdateDtuSettings(AsyncWebServerRequest *request)
             platformData.rebootRequested = true;
         }
         userConfig.remoteDisplayActive = remoteDisplayActiveBool;
+
+        boolean remoteSummaryDisplayActiveBool = false;
+        if (remoteSummaryDisplayActive == "1")
+            remoteSummaryDisplayActiveBool = true;
+        else
+            remoteSummaryDisplayActiveBool = false;
+        if (remoteSummaryDisplayActiveBool != userConfig.remoteSummaryDisplayActive)
+        {
+            platformData.rebootRequestedInSec = 3;
+            platformData.rebootRequested = true;
+        }
+        userConfig.remoteSummaryDisplayActive = remoteSummaryDisplayActiveBool;
 
         configManager.saveConfig(userConfig);
 
