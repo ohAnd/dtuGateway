@@ -165,12 +165,14 @@ void MQTTHandler::subscribedMessageArrived(char *topic, byte *payload, unsigned 
                 instance->lastRemoteInverterData.updateReceived = true;
             }
             // summery display data
-            else if (String(topic) == instance->mqttMainTopicPath + "/PV_Power_Sum/state" && instance->lastRemoteInverterData.remoteSummaryDisplayActive) {
+            else if (String(topic) == instance->mqttMainTopicPath + "/PV_Power_Sum/state" && instance->lastRemoteInverterData.remoteSummaryDisplayActive)
+            {
                 instance->lastRemoteInverterData.grid.power = incommingMessage.toFloat();
                 // Serial.println("MQTT: received message for Summary Power: " + String(instance->lastRemoteInverterData.grid.power));
                 instance->lastRemoteInverterData.updateReceived = true;
             }
-            else if (String(topic) == instance->mqttMainTopicPath + "/PV_Energy_Sum_Day/state" && instance->lastRemoteInverterData.remoteSummaryDisplayActive) {
+            else if (String(topic) == instance->mqttMainTopicPath + "/PV_Energy_Sum_Day/state" && instance->lastRemoteInverterData.remoteSummaryDisplayActive)
+            {
                 instance->lastRemoteInverterData.grid.dailyEnergy = incommingMessage.toFloat();
                 // Serial.println("MQTT: received message for Summary day energy: " + String(instance->lastRemoteInverterData.grid.dailyEnergy));
                 instance->lastRemoteInverterData.updateReceived = true;
@@ -328,18 +330,81 @@ void MQTTHandler::publishDiscoveryMessage(const char *entity, const char *entity
     }
 }
 
+String MQTTHandler::mapTopic(const String &baseTopic)
+{
+    if (useOpenDTUStructure)
+    {
+        // OpenDTU-like structure mapping
+        if (baseTopic == "grid_power")
+            return "/0/power";
+        if (baseTopic == "grid_current")
+            return "/0/current";
+        if (baseTopic == "grid_voltage")
+            return "/0/voltage";
+        if (baseTopic == "grid_dailyEnergy")
+            return "/0/yieldday";
+        if (baseTopic == "grid_totalEnergy")
+            return "/0/yieldtotal";
+        if (baseTopic == "pv0_power")
+            return "/1/power";
+        if (baseTopic == "pv0_current")
+            return "/1/current";
+        if (baseTopic == "pv0_voltage")
+            return "/1/voltage";
+        if (baseTopic == "pv0_dailyEnergy")
+            return "/1/yieldday";
+        if (baseTopic == "pv0_totalEnergy")
+            return "/1/yieldtotal";
+        if (baseTopic == "pv1_power")
+            return "/2/power";
+        if (baseTopic == "pv1_current")
+            return "/2/current";
+        if (baseTopic == "pv1_voltage")
+            return "/2/voltage";
+        if (baseTopic == "pv1_dailyEnergy")
+            return "/2/yieldday";
+        if (baseTopic == "pv1_totalEnergy")
+            return "/2/yieldtotal";
+        if (baseTopic == "grid_Freq")
+            return "/0/frequency";
+        if (baseTopic == "inverter_Temp")
+            return "/0/temperatur";
+        if (baseTopic == "inverter_PowerLimit")
+            return "/status/limit_relative";
+        if (baseTopic == "inverter_WifiRSSI")
+            return "dtu/rssi";
+    }
+
+    // if no specific mapping is found - return the base topic as is
+    return "not_mapped";
+}
+
 void MQTTHandler::publishStandardData(String entity, String value)
 {
-    String entityType = "sensor";
-    if (String(entity).indexOf("PowerLimitSet") > -1)
+    String stateTopicPath = "";
+    if (useOpenDTUStructure)
     {
-        entityType = "number";
+        String openDtuTopic = mapTopic(entity);
+        if (stateTopicPath == "not_mapped")
+        {
+            Serial.println("MQTT:\t\t openDTUtopic - no mapping for '" + entity + "' - no transmit to MQTT broker");
+            return;
+        }
+        stateTopicPath = mqttMainTopicPath + openDtuTopic;
+        Serial.println("MQTT:\t\t openDTUtopic - publish '" + entity + "' to: " + stateTopicPath + " - value: " + value);
     }
-    String stateTopicPath = "homeassistant/" + entityType + "/" + String(deviceGroupName) + "/" + String(entity) + "/state";
-    entity.replace("_", "/");
-    if (String(deviceGroupName) != mqttMainTopicPath || !autoDiscoveryActive)
-        stateTopicPath = String(mqttMainTopicPath) + "/" + entity;
-
+    else
+    {
+        String entityType = "sensor";
+        if (String(entity).indexOf("PowerLimitSet") > -1)
+        {
+            entityType = "number";
+        }
+        stateTopicPath = "homeassistant/" + entityType + "/" + String(deviceGroupName) + "/" + String(entity) + "/state";
+        entity.replace("_", "/");
+        if (String(deviceGroupName) != mqttMainTopicPath || !autoDiscoveryActive)
+            stateTopicPath = String(mqttMainTopicPath) + "/" + entity;
+    }
     client.publish(stateTopicPath.c_str(), value.c_str(), true);
 }
 
@@ -578,6 +643,22 @@ void MQTTHandler::setMainTopic(String mainTopicPath)
 {
     stopConnection();
     mqttMainTopicPath = mainTopicPath;
+}
+
+void MQTTHandler::setTopicStructure(bool openDtuStructure)
+{
+    stopConnection();
+    if (openDtuStructure)
+    {
+        autoDiscoveryActive = false;
+        useOpenDTUStructure = true;
+        Serial.println("MQTT:\t\t set topic structure to openDTU structure");
+    }
+    else
+    {
+        useOpenDTUStructure = false;
+        Serial.println("MQTT:\t\t set topic structure to standard structure");
+    }
 }
 
 void MQTTHandler::setRemoteDisplayData(boolean remoteDisplayActive, boolean remoteSummaryDisplayActive)

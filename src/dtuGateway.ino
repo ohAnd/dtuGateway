@@ -1004,6 +1004,14 @@ void startServices()
     mqttHandler.setConfiguration(userConfig.mqttBrokerIpDomain, userConfig.mqttBrokerPort, userConfig.mqttBrokerUser, userConfig.mqttBrokerPassword, userConfig.mqttUseTLS, (platformData.espUniqueName).c_str(), userConfig.mqttBrokerMainTopic, userConfig.mqttHAautoDiscoveryON, ((platformData.dtuGatewayIP).toString()).c_str());
     mqttHandler.setup();
     mqttHandler.setRemoteDisplayData(userConfig.remoteDisplayActive, userConfig.remoteSummaryDisplayActive);
+    
+    mqttHandler.setTopicStructure(userConfig.mqttOpenDTUtopics);
+    // autodiscovery for home assistant with opendtu topics not implemented yet
+    if(userConfig.mqttOpenDTUtopics && userConfig.mqttHAautoDiscoveryON) {
+      mqttHandler.setAutoDiscovery(false);
+      userConfig.mqttHAautoDiscoveryON = false;
+      configManager.saveConfig(userConfig);
+    }
   }
   else
   {

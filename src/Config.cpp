@@ -159,6 +159,8 @@ void UserConfigManager::printConfigdata()
     Serial.println(userConfig.mqttBrokerPassword);
     Serial.print(F("topic: \t\t\t\t"));
     Serial.println(userConfig.mqttBrokerMainTopic);
+    Serial.print(F("openDTU topics: \t\t\t"));
+    Serial.println(userConfig.mqttOpenDTUtopics);
     Serial.print(F("binding active: \t\t\t"));
     Serial.println(userConfig.mqttActive);
     Serial.print(F("HA autoDiscovery: \t\t"));
@@ -230,6 +232,7 @@ JsonDocument UserConfigManager::mappingStructToJson(const UserConfig &config)
     doc["mqtt"]["user"] = config.mqttBrokerUser;
     doc["mqtt"]["pass"] = config.mqttBrokerPassword;
     doc["mqtt"]["mainTopic"] = config.mqttBrokerMainTopic;
+    doc["mqtt"]["openDTUtopics"] = config.mqttOpenDTUtopics;
     doc["mqtt"]["HAautoDiscoveryON"] = config.mqttHAautoDiscoveryON;
 
     doc["remoteDisplay"]["Active"] = config.remoteDisplayActive;
@@ -279,6 +282,7 @@ void UserConfigManager::mappingJsonToStruct(JsonDocument doc)
     String(doc["mqtt"]["user"].as<String>()).toCharArray(userConfig.mqttBrokerUser, sizeof(userConfig.mqttBrokerUser));
     String(doc["mqtt"]["pass"].as<String>()).toCharArray(userConfig.mqttBrokerPassword, sizeof(userConfig.mqttBrokerPassword));
     String(doc["mqtt"]["mainTopic"].as<String>()).toCharArray(userConfig.mqttBrokerMainTopic, sizeof(userConfig.mqttBrokerMainTopic));
+    userConfig.mqttOpenDTUtopics = doc["mqtt"]["openDTUtopics"].as<bool>();
     userConfig.mqttHAautoDiscoveryON = doc["mqtt"]["HAautoDiscoveryON"].as<bool>();
 
     userConfig.remoteDisplayActive = doc["remoteDisplay"]["Active"].as<bool>();
