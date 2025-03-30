@@ -4,6 +4,7 @@
         "ranges": "cpp",
         "string": "cpp",
         "map": "cpp",
-        "cmath": "cpp"
+        "cmath": "cpp",
+        "new": "cpp"
     }
 }

@@ -147,7 +147,7 @@ This branch will be maintained with small bug fix, if needed.
         | nightmodeEnd            | 390   | night time will end at 6:30 
         | displayTFTsecondsRing   | true  | seconds ring in TFT display is enabled
 - special feature for TFT display "remote summary display" aka Solar Monitor
-  - why: needed something where I can see the current overall PV power due to sveral sources (micro inverter, main PV system, ...)
+  - why: needed something where I can see the current overall PV power due to several sources (micro inverter, main PV system, ...)
   - clean PV wattage gauge and value display
   - showing the current yield of the day and a clock with HH:MM (blinking colon every second to show activity)
   
@@ -192,7 +192,8 @@ This branch will be maintained with small bug fix, if needed.
 ### regarding base framework
 
 - serving own access point in factory mode for first setup
-- web application will be directly served by the system
+- web application will be directly served by the system (default ```http:\\<your-ip>``` with port 80)
+  - port setting for webserver possible in advanced config e.g. you can set port to 85 and the website will be available at ```http:\\<your-ip>:85``` (see also [#66](https://github.com/ohAnd/dtuGateway/issues/66))
 - settings of needed user data over the web app (stored in a json-file in local flash file system - extensions of user setup will not lead to breakable changes)
   - select found local Wi-Fi (additional issue [#20](https://github.com/ohAnd/dtuGateway/issues/20)) and enter/ save the needed Wi-Fi password
   - change dtu connection data (e.g. host IP in local network, wireless user/ pass for dtu access point)

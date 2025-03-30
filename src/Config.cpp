@@ -122,6 +122,9 @@ void UserConfigManager::printConfigdata()
     Serial.print(F("wifi pass: \t\t\t"));
     Serial.println(userConfig.wifiPassword);
 
+    Serial.print(F("webServer Port: \t\t\t"));
+    Serial.println(userConfig.webServerPort);
+
     Serial.println(F("\ndtu"));
     Serial.print(F("update time: \t\t\t"));
     Serial.println(userConfig.dtuUpdateTime);
@@ -204,6 +207,8 @@ JsonDocument UserConfigManager::mappingStructToJson(const UserConfig &config)
     doc["wifi"]["ssid"] = config.wifiSsid;
     doc["wifi"]["pass"] = config.wifiPassword;
 
+    doc["webServer"]["port"] = config.webServerPort;
+
     doc["dtu"]["hostIP"] = config.dtuHostIpDomain;
     doc["dtu"]["cloudPauseActive"] = config.dtuCloudPauseActive;
     doc["dtu"]["cloudPauseTime"] = config.dtuCloudPauseTime;
@@ -249,6 +254,8 @@ void UserConfigManager::mappingJsonToStruct(JsonDocument doc)
 {
     String(doc["wifi"]["ssid"].as<String>()).toCharArray(userConfig.wifiSsid, sizeof(userConfig.wifiSsid));
     String(doc["wifi"]["pass"].as<String>()).toCharArray(userConfig.wifiPassword, sizeof(userConfig.wifiPassword));
+
+    userConfig.webServerPort = doc["webServer"]["port"].as<int>();
 
     String(doc["dtu"]["hostIP"].as<String>()).toCharArray(userConfig.dtuHostIpDomain, sizeof(userConfig.dtuHostIpDomain));
     userConfig.dtuCloudPauseActive = doc["dtu"]["cloudPauseActive"].as<bool>();

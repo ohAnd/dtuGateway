@@ -16,6 +16,8 @@ struct UserConfig
     char dtuSsid[64]              = "DTUBI-12345678";
     char dtuPassword[64]          = "dtubiPassword";
 
+    uint16_t webServerPort        = 80;
+
     char dtuHostIpDomain[128]     = "192.168.0.254";
     int dtuCloudPauseTime         = 40;
     boolean dtuCloudPauseActive   = true;

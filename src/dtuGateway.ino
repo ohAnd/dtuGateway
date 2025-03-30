@@ -97,7 +97,7 @@ UserConfigManager configManager;
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP); // By default 'pool.ntp.org' is used with 60 seconds update interval
 
-DTUwebserver dtuWebServer;
+DTUwebserver* dtuWebServer;
 
 // // OTA
 // #if defined(ESP8266)
@@ -209,7 +209,7 @@ boolean scanNetworksResult()
     }
     platformData.wifiFoundNetworks = platformData.wifiFoundNetworks + "]";
     WiFi.scanDelete();
-    dtuWebServer.setWifiScanIsRunning(false);
+    dtuWebServer->setWifiScanIsRunning(false);
     return true;
   }
   else
@@ -770,10 +770,20 @@ void setup()
     return;
   }
 
-  if (configManager.loadConfig(userConfig))
+  if (configManager.loadConfig(userConfig)) {
     configManager.printConfigdata();
-  else
+    if(userConfig.webServerPort == 0) {
+      userConfig.webServerPort = 80; // default port for webserver
+      Serial.println(F("Webserver port in config is 0 - set to default: 80"));
+    } else {
+      Serial.println("Webserver will be start with port: " + String(userConfig.webServerPort));
+    }
+    dtuWebServer = new DTUwebserver(userConfig.webServerPort);
+  }
+  else {
     Serial.println(F("Failed to load user config"));
+    dtuWebServer = new DTUwebserver();
+  }
   // ------- user config loaded --------------------------------------------
 
   // init display according to userConfig
@@ -825,7 +835,7 @@ void setup()
     ("dtu_" + String(platformData.chipID)).toCharArray(userConfig.mqttBrokerMainTopic, sizeof(userConfig.mqttBrokerMainTopic));
     configManager.saveConfig(userConfig);
 
-    dtuWebServer.start();
+    dtuWebServer->start();
   }
   else
   {
@@ -868,7 +878,7 @@ void startServices()
     Serial.print(F("NTPclient:\t got time from time server: "));
     Serial.println(String(platformData.dtuGWstarttime));
 
-    dtuWebServer.start();
+    dtuWebServer->start();
 
     if (!userConfig.remoteDisplayActive && !userConfig.remoteSummaryDisplayActive)
       dtuInterface.setup(userConfig.dtuHostIpDomain);
