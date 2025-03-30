@@ -33,7 +33,7 @@
 
 class DTUwebserver {
 public:
-    DTUwebserver();
+    DTUwebserver(uint16_t port = 80); // Add port parameter with a default value
     ~DTUwebserver();
     void start();
     void stop();
@@ -41,7 +41,8 @@ public:
     void setWifiScanIsRunning(bool state);
 
 private:
-    AsyncWebServer asyncDtuWebServer{80}; // Assuming port 80 for the web server
+    uint16_t serverPort; // Store the port number
+    AsyncWebServer asyncDtuWebServer;
     Ticker webServerTimer; // Timer object
     static void backgroundTask(DTUwebserver* instance);
 

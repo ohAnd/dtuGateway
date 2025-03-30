@@ -4,9 +4,10 @@ boolean wifiScanIsRunning = false;
 
 size_t content_len;
 
-DTUwebserver::DTUwebserver()
+DTUwebserver::DTUwebserver(uint16_t port)
+    : serverPort(port), asyncDtuWebServer(port) // Initialize AsyncWebServer with the given port
 {
-    // Constructor implementation
+    
 }
 
 DTUwebserver::~DTUwebserver()
