@@ -139,12 +139,12 @@ void MQTTHandler::subscribedMessageArrived(char *topic, byte *payload, unsigned 
             // summery display data
             else if (String(topic) == instance->mqttMainTopicPath + "/PV_Power_Sum/state" && instance->lastRemoteInverterData.remoteSummaryDisplayActive) {
                 instance->lastRemoteInverterData.grid.power = incommingMessage.toFloat();
-                Serial.println("MQTT: received message for Summary Power: " + String(instance->lastRemoteInverterData.grid.power));
+                // Serial.println("MQTT: received message for Summary Power: " + String(instance->lastRemoteInverterData.grid.power));
                 instance->lastRemoteInverterData.updateReceived = true;
             }
             else if (String(topic) == instance->mqttMainTopicPath + "/PV_Energy_Sum_Day/state" && instance->lastRemoteInverterData.remoteSummaryDisplayActive) {
                 instance->lastRemoteInverterData.grid.dailyEnergy = incommingMessage.toFloat();
-                Serial.println("MQTT: received message for Summary day energy: " + String(instance->lastRemoteInverterData.grid.dailyEnergy));
+                // Serial.println("MQTT: received message for Summary day energy: " + String(instance->lastRemoteInverterData.grid.dailyEnergy));
                 instance->lastRemoteInverterData.updateReceived = true;
             }
             else

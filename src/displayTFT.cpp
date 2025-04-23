@@ -347,7 +347,7 @@ void DisplayTFT::drawFooter(String time)
         tft.setTextPadding(padding);
         tft.drawString("kWh", 157, 191, 1);
 
-        if(isNight)
+        if (isNight)
         {
             tft.setTextSize(1);
             tft.setTextColor(TFT_MAROON, TFT_BLACK);
@@ -504,8 +504,8 @@ uint8_t last_timeSS = 0;
 
 void DisplayTFT::drawFooterSummary(String time)
 {
-    uint32_t powerRingColor = tft.color565(255, 165, 0);     // Define a dark orange color
-    uint32_t powerRingColorDark = tft.color565(64, 64, 64);  // Define a very dark gray color
+    uint32_t powerRingColor = tft.color565(255, 165, 0);    // Define a dark orange color
+    uint32_t powerRingColorDark = tft.color565(64, 64, 64); // Define a very dark gray color
     uint32_t textColorClock = TFT_DARKCYAN;
 
     if (!isNight)
@@ -563,25 +563,29 @@ void DisplayTFT::drawFooterSummary(String time)
         if (display_wattage > lastDisplayData.totalPowerMax)
         {
             lastDisplayData.totalPowerMax = display_wattage;
-            Serial.println("DisplayTFT:\t >> new max power: " + String(lastDisplayData.totalPowerMax));
+            Serial.println("\nDisplayTFT:\t >>>>>>>> new max power: " + String(lastDisplayData.totalPowerMax) + "\n");
             lastDisplayData.totalPowerMaxTimestamp = platformData.currentNTPtime;
         }
         // reset max power if it is older than 24 hours or if it is midnight
         if (lastDisplayData.totalPowerMax > 0)
         {
-            uint16_t currentTime = (platformData.currentNTPtime / 60) % 1440; // current time in minutes since midnight
-            if (currentTime == 0 || (platformData.currentNTPtime - lastDisplayData.totalPowerMaxTimestamp > 86400))
-            { // check if it's midnight
-                lastDisplayData.totalPowerMax = 0;
+            bool isMidnight = (((platformData.currentNTPtime / 60) % 1440) == 0);
+            // Serial.println("DisplayTFT:\t >> current time: " + String(platformData.currentNTPtime) + " - last max power timestamp: " + String(lastDisplayData.totalPowerMaxTimestamp) + " - diff: " + String(platformData.currentNTPtime - lastDisplayData.totalPowerMaxTimestamp) + " max power: " + String(lastDisplayData.totalPowerMax) + " - is midnight: " + String(isMidnight));
+            if (isMidnight || ((platformData.currentNTPtime - lastDisplayData.totalPowerMaxTimestamp) > (3600 * 12))) // 12 hours
+            {
+                lastDisplayData.totalPowerMax = 1;
                 lastDisplayData.totalPowerMaxTimestamp = platformData.currentNTPtime;
+                Serial.println("\nDisplayTFT:\t >> reset max power to 1 - midnight: " + String(isMidnight) + " - diff: " + String(platformData.currentNTPtime - lastDisplayData.totalPowerMaxTimestamp) + "\n");
             }
         }
 
-        if (lastDisplayData.totalPowerMax <= 0)
+        if (lastDisplayData.totalPowerMax <= 1)
             lastDisplayData.totalPowerMax = 1;
 
         wattage_length = map(display_wattage, 0, lastDisplayData.totalPowerMax, min + 1, max);
-
+        if(wattage_length > max)
+            wattage_length = max;
+        
         // Serial.println("DisplayTFT:\t >> current power: " + String(display_wattage) + " - max power: " + String(lastDisplayData.totalPowerMax) + " - wattage length: " + String(wattage_length));
         // if (lastDisplayData.totalPowerLast != lastDisplayData.totalPower && wattage_length != max)
         if (wattage_length != max)
@@ -589,7 +593,8 @@ void DisplayTFT::drawFooterSummary(String time)
             tft.drawSmoothArc(x, y, r, r - 15, wattage_length, max, powerRingColorDark, TFT_BLACK);
             // tft.drawSmoothArc(x, y, r, r - 1, wattage_length, max, TFT_DARKGREY, TFT_BLACK);
         }
-        tft.drawSmoothArc(x, y, r, r - 15, min, wattage_length, powerRingColor, TFT_BLACK);
+        if (min < wattage_length)
+            tft.drawSmoothArc(x, y, r, r - 15, min, wattage_length, powerRingColor, TFT_BLACK);
         lastDisplayData.totalPowerLast = lastDisplayData.totalPower;
     }
 }
