@@ -25,6 +25,9 @@ struct baseDataStruct
   #elif CONFIG_IDF_TARGET_ESP32S2
   String chipType = "ESP32 S2 (LOLIN S2 Mini)";
   // #warning "setting chipType for ESP32S2"
+  #elif CONFIG_IDF_TARGET_ESP32S3
+  String chipType = "ESP32 S3";
+  // #warning "setting chipType for ESP32S3"
   #endif
 
   const char *fwVersion = VERSION;

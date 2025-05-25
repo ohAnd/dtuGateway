@@ -47,6 +47,7 @@ jobs:
             echo "got versionnumber: " $VERSIONNUMBER
             echo "CURRENT_VERSIONNUMBER=$VERSIONNUMBER" >> $GITHUB_ENV
             mv .pio/build/esp32/firmware.bin .pio/build/dtuGateway_ESP32_snapshot_$VERSIONNUMBER.bin
+            mv .pio/build/esp32_S3/firmware.bin .pio/build/dtuGateway_ESP32_S3_snapshot_$VERSIONNUMBER.bin
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -54,3 +55,4 @@ jobs:
           name: dtuGateway_snapshot_${{ env.CURRENT_VERSIONNUMBER }}
           path: | 
             .pio/build/dtuGateway_ESP32_snapshot_${{ env.CURRENT_VERSIONNUMBER }}.bin
+            .pio/build/dtuGateway_ESP32_S3_snapshot_${{ env.CURRENT_VERSIONNUMBER }}.bin
