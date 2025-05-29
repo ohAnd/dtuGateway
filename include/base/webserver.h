@@ -62,6 +62,7 @@ private:
     static void handleUpdateBindingsSettings(AsyncWebServerRequest *request);
     static void handleUpdatePowerLimit(AsyncWebServerRequest *request);
     static void handleGetWifiNetworks(AsyncWebServerRequest *request);
+    static void handleRebootMi(AsyncWebServerRequest *request);
 
     static void handleUpdateOTASettings(AsyncWebServerRequest *request);
     static void handleUpdateInfoRequest(AsyncWebServerRequest *request);

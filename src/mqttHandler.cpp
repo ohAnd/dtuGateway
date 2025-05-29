@@ -46,6 +46,15 @@ void MQTTHandler::subscribedMessageArrived(char *topic, byte *payload, unsigned 
             instance->lastPowerLimitSet.setValue = setLimit;
             instance->lastPowerLimitSet.update = true;
         }
+        else if (String(topic) == instance->mqttMainTopicPath + "/inverter/RebootMi/set")
+        {
+
+            int gotReboot = (incommingMessage).toInt();
+            if (gotReboot == 1)
+            {
+                instance->rebootMi.reboot = true;
+            }
+        }
         else
         {
             // Serial.println("MQTT: received message for topic: " + String(topic) + " - value: " + incommingMessage);
@@ -172,6 +181,13 @@ RemoteInverterData MQTTHandler::getRemoteInverterData()
     RemoteInverterData lastReceive = lastRemoteInverterData;
     lastRemoteInverterData.updateReceived = false;
     return lastReceive;
+}
+
+RebootMi MQTTHandler::getRebootMi()
+{
+    RebootMi reboot = rebootMi;
+    rebootMi.reboot = false;
+    return reboot;
 }
 
 void MQTTHandler::setup()
@@ -433,6 +449,9 @@ void MQTTHandler::reconnect()
                 client.subscribe(topic.c_str());
                 Serial.println("MQTT:\t\t subscribe to: " + topic);
                 topic = "homeassistant/number/" + instance->mqttMainTopicPath + "/inverter_PowerLimitSet/set";
+                client.subscribe(topic.c_str());
+                Serial.println("MQTT:\t\t subscribe to: " + topic);
+                topic = mqttMainTopicPath + "/inverter/RebootMi/set";
                 client.subscribe(topic.c_str());
                 Serial.println("MQTT:\t\t subscribe to: " + topic);
 

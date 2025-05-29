@@ -58,6 +58,7 @@
 #define DTU_TXRX_STATE_WAIT_GET_ALARMS 8
 #define DTU_TXRX_STATE_WAIT_PERFORMANCE_DATA_MODE 9
 #define DTU_TXRX_STATE_WAIT_REQUEST_ALARMS 10
+#define DTU_TXRX_STATE_WAIT_RESTARTMI 11
 #define DTU_TXRX_STATE_ERROR 99
 
 
@@ -115,6 +116,7 @@ struct inverterData
   uint8_t powerLimit = 254;
   uint8_t powerLimitSet = 101; // init with not possible value for startup
   boolean powerLimitSetUpdate = false;
+  boolean rebootMi = false;
   uint32_t dtuRssi = 0;
   uint32_t wifi_rssi_gateway = 0;
   uint32_t respTimestamp = 1704063600;     // init with start time stamp > 0
@@ -151,6 +153,7 @@ public:
     void getDataUpdate();
     void setPowerLimit(int limit);
     void requestRestartDevice();
+    void requestRestartMi();
     void requestInverterTargetState(boolean OnOff);
     void requestAlarms();
 
@@ -215,7 +218,10 @@ private:
 
     boolean writeReqCommandGetAlarms();
     boolean readRespCommandGetAlarms(pb_istream_t istream);
-    
+
+    boolean writeReqCommandRestartMi();
+    boolean readRespCommandRestartMi(pb_istream_t istream);
+
     const char* serverIP;
     uint16_t serverPort;
     AsyncClient* client;

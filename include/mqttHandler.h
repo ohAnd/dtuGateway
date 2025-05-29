@@ -27,6 +27,10 @@ struct PowerLimitSet {
     boolean update = false;
 };
 
+struct RebootMi {
+    boolean reboot = false;
+};
+
 struct RemoteBaseData
 {
   float current = 0;
@@ -80,6 +84,8 @@ public:
 
     PowerLimitSet getPowerLimitSet();
     RemoteInverterData getRemoteInverterData();
+    RebootMi getRebootMi();
+
     void stopConnection(boolean full=false);
 
     static void subscribedMessageArrived(char *topic, byte *payload, unsigned int length);
@@ -110,6 +116,7 @@ private:
 
     PowerLimitSet lastPowerLimitSet;
     RemoteInverterData lastRemoteInverterData;
+    RebootMi rebootMi;
     
     void reconnect();
     boolean initiateDiscoveryMessages(bool autoDiscoveryRemove=false);

@@ -193,6 +193,18 @@ static const char *index_html PROGMEM = R"=====(
             </div>
         </div>
     </div>
+    <div class="popup" id="rebootMi" style="display: none;">
+        <h2>Reboot Mi</h2>
+        <div>
+            <div style="text-align: center;">
+                <b onclick="rebootMi()" id="btnRebootMi" class="form-button btn" style="opacity: 1;">Reboot Mi</b>
+            </div>
+
+            <div style="text-align: center;">
+                <b onclick="hide('#rebootMi')" class="form-button btn">close</b>
+            </div>
+        </div>
+    </div>
     <div class="popup" id="updateMenu">
         <h2>Update</h2>
         <h6 id="chipType">controller architecture type: ...</h6>
@@ -488,6 +500,10 @@ static const char *index_html PROGMEM = R"=====(
                 </div>
                 <div class="menuButton notification">
                     <i class="fa fa-sliders" onclick="show('#changeSettings')" alt="settings" id="settingsBtn"></i>
+                    <!-- <span class="badge">0</span> -->
+                </div>
+                <div class="menuButton notification">
+                    <i class="fa fa-close" onclick="show('#rebootMi')" alt="reboot" id="settingsBtn"></i>
                     <!-- <span class="badge">0</span> -->
                 </div>
             </div>
@@ -1157,6 +1173,35 @@ static const char *index_html PROGMEM = R"=====(
             }
 
             hide('#changeSettings');
+            return;
+        }
+
+        function rebootMi() {
+            var data = {};
+            data["rebootMi"] = true;
+            console.log("send to server: rebootMi");
+            const urlEncodedDataPairs = [];
+
+            // Turn the data object into an array of URL-encoded key/value pairs.
+            for (const [name, value] of Object.entries(data)) {
+                urlEncodedDataPairs.push(
+                    `${encodeURIComponent(name)}=${encodeURIComponent(value)}`,
+                );
+            }
+
+            // Combine the pairs into a single string and replace all %-encoded spaces to
+            // the '+' character; matches the behavior of browser form submissions.
+            const urlEncodedData = urlEncodedDataPairs.join("&").replace(/%20/g, "+");
+
+
+            var xmlHttp = new XMLHttpRequest();
+            xmlHttp.open("POST", "/rebootMi", false); // false for synchronous request
+            xmlHttp.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+
+            // Finally, send our data.
+            xmlHttp.send(urlEncodedData);
+
+            hide('#rebootMi')
             return;
         }
 

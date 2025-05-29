@@ -78,6 +78,7 @@ void DTUwebserver::start()
 
     // direct settings
     asyncDtuWebServer.on("/updatePowerLimit", handleUpdatePowerLimit);
+    asyncDtuWebServer.on("/rebootMi", handleRebootMi);
     asyncDtuWebServer.on("/getWifiNetworks", handleGetWifiNetworks);
 
     // api GETs
@@ -668,6 +669,30 @@ void DTUwebserver::handleUpdatePowerLimit(AsyncWebServerRequest *request)
     else
     {
         request->send(400, "text/plain", "handleUpdatePowerLimit - ERROR requested without the expected params");
+        Serial.println(F("WEB:\t\t handleUpdatePowerLimit - ERROR without the expected params"));
+    }
+}
+
+void DTUwebserver::handleRebootMi(AsyncWebServerRequest *request)
+{
+    if (request->hasParam("rebootMi", true))
+    {
+        Serial.println("WEB:\t\t handleRebootMi");
+
+        dtuGlobalData.rebootMi = true;
+
+        Serial.println("WEB:\t\t got Reboot");
+
+        String JSON = "{";
+        JSON = JSON + "\"RebootMi\": true";
+        JSON = JSON + "}";
+
+        request->send(200, "application/json", JSON);
+        Serial.println("WEB:\t\t handleRebootMi - send JSON: " + String(JSON));
+    }
+    else
+    {
+        request->send(400, "text/plain", "handleRebootMi - ERROR requested without the expected params");
         Serial.println(F("WEB:\t\t handleUpdatePowerLimit - ERROR without the expected params"));
     }
 }
