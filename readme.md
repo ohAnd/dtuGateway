@@ -424,18 +424,20 @@ This branch will be maintained with small bug fix, if needed.
   - connect SSH1106 driven OLED display (128x64) with your ESP32 board (VCC, GND, SCK, SCL)
   - pinning for different boards (display connector to ESPxx board pins)
 
-    | dev board                                        | ESP family | VCC  | GND |        SCK       |       SDA        | tested |
-    |--------------------------------------------------|------------|:----:|:---:|:----------------:|:----------------:|:------:|
-    | ESP-WROOM-32 NodeMCU-32S                         | ESP32      | 3.3V | GND | D22/GPIO22/SCL   | D21/GPIO21/SDA   |   OK   |
+    | dev board                                        | ESP family | VCC  | GND |        SCK       |       SDA        |      tested    |
+    |--------------------------------------------------|------------|:----:|:---:|:----------------:|:----------------:|:--------------:|
+    | ESP-WROOM-32 NodeMCU-32S                         | ESP32      | 3.3V | GND | D22/GPIO22/SCL   | D21/GPIO21/SDA   |   OK           |
+    | ESP32 S3                                         | ESP32      | 3.3V | GND | D22/GPIO22/SCL   | D21/GPIO21/SDA   |   not tested   |
 
 - optional display GC9A01 round TFT 1,28" 240x240 (e.g. [link](https://de.aliexpress.com/i/1005006190625792.html)):
   - connect GC9A01 driven round TFT display (240x240) with your ESP32 board (VCC, GND, SCL, SDA, DC, CS, RST, BLK)
   - pinning for different boards (display connector to ESPxx board pins)
   - BLK = backlight control - will be served with PWM via GPIO 4
 
-    | dev board                                        | ESP family | VCC  | GND |        SCL       |       SDA       |        DC         |       CS            |     RST       |     BKL (opt)  | tested |
-    |--------------------------------------------------|------------|:----:|:---:|:----------------:|:---------------:|:-----------------:|:-------------------:|:-------------:|:--------------:|:------:|
-    | ESP-WROOM-32 NodeMCU-32S                         | ESP32      | 3.3V | GND | D18/GPIO18/SCK   | D23/GPIO23/MOSI | D2/GPIO2/HSPI_WP0 | D15/GPIO15/HSPI_CS0 |   3V3[^1]     |    D4/GPIO04   |   OK   |
+    | dev board                                        | ESP family | VCC  | GND |        SCL       |       SDA       |        DC         |       CS            |     RST       |     BKL (opt)  |     tested     |
+    |--------------------------------------------------|------------|:----:|:---:|:----------------:|:---------------:|:-----------------:|:-------------------:|:-------------:|:--------------:|:--------------:|
+    | ESP-WROOM-32 NodeMCU-32S                         | ESP32      | 3.3V | GND | D18/GPIO18/SCK   | D23/GPIO23/MOSI | D2/GPIO2/HSPI_WP0 | D15/GPIO15/HSPI_CS0 |   3V3[^1]     |    D4/GPIO04   |   OK           |
+    | ESP32 S3                                         | ESP32      | 3.3V | GND | D18/GPIO18/SCK   | D23/GPIO23/MOSI | D2/GPIO2/HSPI_WP0 | D15/GPIO15/HSPI_CS0 |   3V3[^1]     |    D4/GPIO04   |   not tested   |
     [^1]: reset pin of display currently not in use therefore directly pulled up to 3,3 V
 
 ### first installation to the ESP device

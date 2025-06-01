@@ -82,6 +82,14 @@ int wifiTimeoutLong = WIFI_RETRY_TIME_SECONDS;
 #define LED_BLINK_ON HIGH
 #define LED_BLINK_OFF LOW
 #warning "Compiling for ESP32"
+#elif CONFIG_IDF_TARGET_ESP32S3
+#undef LED_BLINK
+#undef LED_BLINK_ON
+#undef LED_BLINK_OFF
+#define LED_BLINK 2
+#define LED_BLINK_ON HIGH
+#define LED_BLINK_OFF LOW
+#warning "Compiling for ESP32_S3"
 #endif
 
 #define BLINK_NORMAL_CONNECTION 0    // 1 Hz blip - normal connection and running
