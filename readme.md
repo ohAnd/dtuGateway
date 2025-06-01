@@ -369,6 +369,7 @@ This branch will be maintained with small bug fix, if needed.
   - the incoming value will be checked for this interval and locally corrected to 2 or 100 if exceeds
   - with retain flag, to get the last set value after restart / reconnect of the dtuGateway
 - to reboot the Mictroinverter
+  - The hoymiles inverter has a micro inverter attached to a dtu. The micro inverter handles mains and solarpanels, while the dtu communicates states and control the mi. Dtu is rebooted if an error occure. Sometimes it is also nessesary to reboot the micro inverter itself.
   - you have to publish to `<main topic>/inverter/RebootMi/set` a value of 1
   - the incoming value will be checked for 1 and reboot the micro inverter
   - this is useful if after a mains power fail the inverter is not injecting power to mains in time
