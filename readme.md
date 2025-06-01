@@ -368,6 +368,11 @@ This branch will be maintained with small bug fix, if needed.
   - you have to publish to `<main topic>/inverter/PowerLimitSet` a value between 2...100 (possible range at DTU)
   - the incoming value will be checked for this interval and locally corrected to 2 or 100 if exceeds
   - with retain flag, to get the last set value after restart / reconnect of the dtuGateway
+- to reboot the Mictroinverter
+  - you have to publish to `<main topic>/inverter/RebootMi/set` a value of 1
+  - the incoming value will be checked for 1 and reboot the micro inverter
+  - this is useful if after a mains power fail the inverter is not injecting power to mains in time
+  - it could also useful in other scenarios where the micro inverter is in some error state
 - data will be published as following ('dtuGateway_12345678' is configurable in the settings):
   <details>
   <summary>expand to see to details</summary>
