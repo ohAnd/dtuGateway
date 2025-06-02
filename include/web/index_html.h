@@ -746,6 +746,12 @@ static const char *index_html PROGMEM = R"=====(
                 case 5:
                     dtuConnect = "connect error";
                     break;
+                case 6:
+                    dtuConnect = "stopped";
+                    break;
+                case 7:
+                    dtuConnect = "reboot inverter";
+                    break;
                 default:
                     dtuConnect = "not known";
             }

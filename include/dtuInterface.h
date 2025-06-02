@@ -40,6 +40,7 @@
 #define DTU_STATE_DTU_REBOOT 4
 #define DTU_STATE_CONNECT_ERROR 5
 #define DTU_STATE_STOPPED 6
+#define DTU_STATE_INV_REBOOT 7
 
 #define DTU_ERROR_NO_ERROR 0
 #define DTU_ERROR_NO_TIME 1
@@ -186,6 +187,7 @@ private:
 
     void checkingDataUpdate();
     void checkingForLastDataReceived();
+    void resetDtuGlobalData(uint8_t errorState,uint8_t dtuState);
     boolean cloudPauseActiveControl();
         
     // Protobuf functions

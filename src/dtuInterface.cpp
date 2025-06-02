@@ -133,12 +133,12 @@ void DTUInterface::requestRestartMi()
 {
     if (client->connected())
     {
-        Serial.println(F("DTUinterface:\t requestRestartDevice - send command to DTU ..."));
+        Serial.println(F("DTUinterface:\t requestRestartMi - send command to DTU ..."));
         writeReqCommandRestartMi();
     }
     else
     {
-        Serial.println(F("DTUinterface:\t requestRestartDevice - client not connected."));
+        Serial.println(F("DTUinterface:\t requestRestartMi - client not connected."));
     }
 }
 
@@ -579,6 +579,13 @@ void DTUInterface::checkingForLastDataReceived()
     // check if last data received - currentTimestamp + 5 sec (to debounce async current timestamp) - lastRespTimestamp > 3 min
     if (((dtuGlobalData.currentTimestamp + 5) - dtuGlobalData.lastRespTimestamp) > (3 * 60) && dtuGlobalData.grid.voltage > 0 && dtuConnection.dtuErrorState != DTU_ERROR_LAST_SEND) // dtuGlobalData.grid.voltage > 0 indicates dtu/ inverter was working
     {
+        resetDtuGlobalData(DTU_ERROR_LAST_SEND, DTU_STATE_OFFLINE);
+        Serial.println("DTUinterface:\t checkingForLastDataReceived >>>>> TIMEOUT 5 min for DTU -> NIGHT - send zero values +++ currentTimestamp: " + String(dtuGlobalData.currentTimestamp) + " - lastRespTimestamp: " + String(dtuGlobalData.lastRespTimestamp));
+    }
+}
+
+void DTUInterface::resetDtuGlobalData(uint8_t errorState,uint8_t dtuState)
+{
         dtuGlobalData.grid.power = 0;
         dtuGlobalData.grid.current = 0;
         dtuGlobalData.grid.voltage = 0;
@@ -593,12 +600,10 @@ void DTUInterface::checkingForLastDataReceived()
 
         dtuGlobalData.dtuRssi = 0;
 
-        dtuConnection.dtuErrorState = DTU_ERROR_LAST_SEND;
+        dtuConnection.dtuErrorState = errorState;
         dtuConnection.dtuActiveOffToCloudUpdate = false;
-        dtuConnection.dtuConnectState = DTU_STATE_OFFLINE;
+        dtuConnection.dtuConnectState = dtuState;
         dtuGlobalData.updateReceived = true;
-        Serial.println("DTUinterface:\t checkingForLastDataReceived >>>>> TIMEOUT 5 min for DTU -> NIGHT - send zero values +++ currentTimestamp: " + String(dtuGlobalData.currentTimestamp) + " - lastRespTimestamp: " + String(dtuGlobalData.lastRespTimestamp));
-    }
 }
 
 /**
@@ -1146,75 +1151,6 @@ boolean DTUInterface::readRespCommandSetPowerlimit(pb_istream_t istream)
 
     return true;
 }
-boolean DTUInterface::writeReqCommandRestartMi()
-{
-    if (!client->connected())
-    {
-        Serial.println(F("DTUinterface:\t writeReqCommandRestartMi - not possible - currently not connect"));
-        return false;
-    }
-
-    // request message
-    uint8_t buffer[200];
-    pb_ostream_t stream = pb_ostream_from_buffer(buffer, sizeof(buffer));
-
-    CommandResDTO commandresdto = CommandResDTO_init_default;
-    // commandresdto.time = int32_t(locTimeSec);
-
-    commandresdto.action = CMD_ACTION_MI_REBOOT;
-    commandresdto.package_nub = 1;
-    commandresdto.tid = int32_t(dtuGlobalData.currentTimestamp);
-
-    bool status = pb_encode(&stream, CommandResDTO_fields, &commandresdto);
-
-    if (!status)
-    {
-        Serial.println(F("DTUinterface:\t writeReqCommandRestartDevice - failed to encode"));
-        return false;
-    }
-
-    // Serial.print(F("\nencoded: "));
-    for (unsigned int i = 0; i < stream.bytes_written; i++)
-    {
-        // Serial.printf("%02X", buffer[i]);
-        crc.add(buffer[i]);
-    }
-
-    uint8_t header[10];
-    header[0] = 0x48;
-    header[1] = 0x4d;
-    header[2] = 0x23; // Command = 0x23 - CMD_CLOUD_COMMAND_RES_DTO = b"\x23\x05"
-    header[3] = 0x05; // Command = 0x05
-    header[4] = 0x00;
-    header[5] = 0x01;
-    header[6] = (crc.calc() >> 8) & 0xFF;
-    header[7] = (crc.calc()) & 0xFF;
-    header[8] = ((stream.bytes_written + 10) >> 8) & 0xFF; // suggest parentheses around '+' inside '>>' [-Wparentheses]
-    header[9] = (stream.bytes_written + 10) & 0xFF;        // warning: suggest parentheses around '+' in operand of '&' [-Wparentheses]
-    crc.restart();
-
-    uint8_t message[10 + stream.bytes_written];
-    for (int i = 0; i < 10; i++)
-    {
-        message[i] = header[i];
-    }
-    for (unsigned int i = 0; i < stream.bytes_written; i++)
-    {
-        message[i + 10] = buffer[i];
-    }
-
-    // Serial.print(F("\nRequest: "));
-    // for (int i = 0; i < 10 + stream.bytes_written; i++)
-    // {
-    //   Serial.print(message[i]);
-    // }
-    // Serial.println("");
-
-    Serial.println(F("DTUinterface:\t writeReqCommandRestartMi --- send request to DTU ..."));
-    dtuConnection.dtuTxRxState = DTU_TXRX_STATE_WAIT_RESTARTMI;
-    client->write((const char *)message, 10 + stream.bytes_written);
-    return true;
-}
 
 boolean DTUInterface::writeReqCommandRestartDevice()
 {
@@ -1302,6 +1238,78 @@ boolean DTUInterface::readRespCommandRestartDevice(pb_istream_t istream)
     Serial.printf("\ncommand req time: %i", commandreqdto.time);
     return true;
 }
+
+boolean DTUInterface::writeReqCommandRestartMi()
+{
+    if (!client->connected())
+    {
+        Serial.println(F("DTUinterface:\t writeReqCommandRestartMi - not possible - currently not connect"));
+        return false;
+    }
+
+    // request message
+    uint8_t buffer[200];
+    pb_ostream_t stream = pb_ostream_from_buffer(buffer, sizeof(buffer));
+
+    CommandResDTO commandresdto = CommandResDTO_init_default;
+    // commandresdto.time = int32_t(locTimeSec);
+
+    commandresdto.action = CMD_ACTION_MI_REBOOT;
+    commandresdto.package_nub = 1;
+    commandresdto.tid = int32_t(dtuGlobalData.currentTimestamp);
+
+    bool status = pb_encode(&stream, CommandResDTO_fields, &commandresdto);
+
+    if (!status)
+    {
+        Serial.println(F("DTUinterface:\t writeReqCommandRestartMi - failed to encode"));
+        return false;
+    }
+
+    // Serial.print(F("\nencoded: "));
+    for (unsigned int i = 0; i < stream.bytes_written; i++)
+    {
+        // Serial.printf("%02X", buffer[i]);
+        crc.add(buffer[i]);
+    }
+
+    uint8_t header[10];
+    header[0] = 0x48;
+    header[1] = 0x4d;
+    header[2] = 0x23; // Command = 0x23 - CMD_CLOUD_COMMAND_RES_DTO = b"\x23\x05"
+    header[3] = 0x05; // Command = 0x05
+    header[4] = 0x00;
+    header[5] = 0x01;
+    header[6] = (crc.calc() >> 8) & 0xFF;
+    header[7] = (crc.calc()) & 0xFF;
+    header[8] = ((stream.bytes_written + 10) >> 8) & 0xFF; // suggest parentheses around '+' inside '>>' [-Wparentheses]
+    header[9] = (stream.bytes_written + 10) & 0xFF;        // warning: suggest parentheses around '+' in operand of '&' [-Wparentheses]
+    crc.restart();
+
+    uint8_t message[10 + stream.bytes_written];
+    for (int i = 0; i < 10; i++)
+    {
+        message[i] = header[i];
+    }
+    for (unsigned int i = 0; i < stream.bytes_written; i++)
+    {
+        message[i + 10] = buffer[i];
+    }
+
+    // Serial.print(F("\nRequest: "));
+    // for (int i = 0; i < 10 + stream.bytes_written; i++)
+    // {
+    //   Serial.print(message[i]);
+    // }
+    // Serial.println("");
+
+    Serial.println(F("DTUinterface:\t writeReqCommandRestartMi --- send request to DTU ..."));
+    dtuConnection.dtuTxRxState = DTU_TXRX_STATE_WAIT_RESTARTMI;
+    client->write((const char *)message, 10 + stream.bytes_written);
+    resetDtuGlobalData(DTU_ERROR_NO_ERROR, DTU_STATE_INV_REBOOT);
+    return true;
+}
+
 boolean DTUInterface::readRespCommandRestartMi(pb_istream_t istream)
 {
     dtuConnection.dtuTxRxState = DTU_TXRX_STATE_IDLE;
