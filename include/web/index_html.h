@@ -8,7 +8,8 @@ static const char *index_html PROGMEM = R"=====(
     <meta name="viewport"
         content="user-scalable=no, initial-scale=1, maximum-scale=1, minimum-scale=1, width=device-width">
     <link rel="stylesheet" type="text/css" href="style.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+    <!-- <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css"> -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
     <!-- <script src="jquery.min.js"></script> -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 </head>
@@ -24,8 +25,13 @@ static const char *index_html PROGMEM = R"=====(
     </div>
     <div class="popup" id="changeSettings">
         <div class="popupHeader">
-            <div class="popupHeaderTitle" id="popHeadTitle">settings <i style="font-size: x-small;float:right;"><a
-                        href="/config" target=_blank>advanced config</a></i>
+            <div class="popupHeaderTitle" id="popHeadTitle">settings
+                <!-- <span style="font-size: small;float:right;"> -->
+                <span style="float:right;">
+                    <i class="fa-solid fa-plug-circle-bolt" onclick="show('#rebootMi')" id="settingsBtn" style="cursor: pointer;" title="Restart micro inverter"></i>
+                    &nbsp;
+                    <a href="/config" target="_blank"><i class="fa-solid fa-gears" title="advanced settings"></i></a>
+                </span>
                 <!-- <h2>settings</h2> -->
             </div>
             <div class="popupHeaderTabs">
@@ -113,8 +119,9 @@ static const char *index_html PROGMEM = R"=====(
                     <input type="password" id="mqttPassword" value="admin12345" required maxlength="64">
                 </div>
                 <div id="mqttMainTopicComment">
-                    MQTT main topic for this dtu: <br><small>(e.g. dtu_12345678 will appear as 'dtu_12345678/grid/U' in the broker -
-                    has to be unique in your setup)</small>
+                    MQTT main topic for this dtu: <br><small>(e.g. dtu_12345678 will appear as 'dtu_12345678/grid/U' in
+                        the broker -
+                        has to be unique in your setup)</small>
                 </div>
                 <div>
                     <input type="text" id="mqttMainTopic" maxlength="64">
@@ -138,8 +145,10 @@ static const char *index_html PROGMEM = R"=====(
                     from a given MQTT broker</small>
             </div>
             <div id="remoteSummaryDisplaySettings">
-                <input type="checkbox" id="remoteSummaryDisplayActive"> run as a remote summary display (Solar Monitor)<br>
-                <small>option to use this device as an remote display based on current data from a given MQTT broker to show PV power and yield of current day</small>
+                <input type="checkbox" id="remoteSummaryDisplayActive"> run as a remote summary display (Solar
+                Monitor)<br>
+                <small>option to use this device as an remote display based on current data from a given MQTT broker to
+                    show PV power and yield of current day</small>
             </div>
             <hr>
             <div id="dtuSettings">
@@ -193,8 +202,11 @@ static const char *index_html PROGMEM = R"=====(
             </div>
         </div>
     </div>
-    <div class="popup" id="rebootMi" style="display: none;">
-        <h2>Reboot Mi</h2>
+    <div class="popup2" id="rebootMi" style="display: none;">
+        <h2><i class="fa-solid fa-plug-circle-bolt"></i> Reboot Micro Inverter</h2>
+        <div style="padding-bottom: 10px;">
+            <small>restarting the micro inverter <br/><br/><i style="font-size: small;">(hint: this not rebooting the communication unit 'dtu')</i></small>
+        </div>
         <div>
             <div style="text-align: center;">
                 <b onclick="rebootMi()" id="btnRebootMi" class="form-button btn" style="opacity: 1;">Reboot Mi</b>
@@ -292,7 +304,8 @@ static const char *index_html PROGMEM = R"=====(
         <div>
             <h2>current dtu warnings</h2>
             <h6>Displays the entries in the DTU sorted by the time they occurred <i id="warningsLastUpdate">(last
-                    updated: 01.01.2024 - 00:00:00)</i><br><i id="warningDetailsHint">... rotate the screen to see more details at the warning entry ...</i></h6>
+                    updated: 01.01.2024 - 00:00:00)</i><br><i id="warningDetailsHint">... rotate the screen to see more
+                    details at the warning entry ...</i></h6>
             <hr>
         </div>
         <div id="activeWarnings" style="flex-grow: 1;padding-bottom: 10px;text-align: center; overflow-y: auto;">
@@ -302,24 +315,26 @@ static const char *index_html PROGMEM = R"=====(
             <b onclick="hide('#warningOverview')" class="form-button btn">close</b>
         </div>
     </div>
-    <div class="popup" id="summaryDisplay" style="flex-direction: column; width: 95%; left: 2.5%; height: 85%; top: 2.5%; background-color: #1c1c1c; border-radius: 10px; border-width: 1px; border-color: #2196f3; border-style: solid; box-shadow: 0px 0px 19px 11px rgb(255 165 0); z-index: 19;">
+    <div class="popup" id="summaryDisplay"
+        style="flex-direction: column; width: 95%; left: 2.5%; height: 85%; top: 2.5%; background-color: #1c1c1c; border-radius: 10px; border-width: 1px; border-color: #2196f3; border-style: solid; box-shadow: 0px 0px 19px 11px rgb(255 165 0); z-index: 19;">
         <div>
             <h2>remote summary display</h2>
             <h6>this dtuGateway is configured as a remote summary display</h6>
-            <i style="font-size: x-small;float:right;">change this in <a href="/config" target=_blank>advanced config</a></i>
+            <i style="font-size: x-small;float:right;">change this in <a href="/config" target=_blank>advanced
+                    config</a></i>
             <br>
             <hr>
         </div>
-            <div>
-                solar monitor
-            </div>
-            <div class="panelValueBox">
-                <p>current PV power</p><br>
-                <b id="grid_power2" class="panelValue valueText">--.- W</b><br><br>
-                <small class="panelHead">solar yield today</small><br><br>
-                <b id="grid_daily_energy2" class="panelValueSmall valueText">00.0 </b>kWh<br>
-            </div>
+        <div>
+            solar monitor
         </div>
+        <div class="panelValueBox">
+            <p>current PV power</p><br>
+            <b id="grid_power2" class="panelValue valueText">--.- W</b><br><br>
+            <small class="panelHead">solar yield today</small><br><br>
+            <b id="grid_daily_energy2" class="panelValueSmall valueText">00.0 </b>kWh<br>
+        </div>
+    </div>
     </div>
     <div id="frame">
         <div class="header">
@@ -495,15 +510,12 @@ static const char *index_html PROGMEM = R"=====(
             </div>
             <div id="footer_right">
                 <div class="menuButton notification">
-                    <i class="fa fa-cloud-download" onclick="show('#updateMenu')" alt="update" id="updateBtn"></i>
+                    <i class="fa-solid fa-cloud-download" onclick="show('#updateMenu')" alt="update" id="updateBtn"></i>
                     <span class="badge" id="updateBadge" style="display: none;"></span>
                 </div>
                 <div class="menuButton notification">
-                    <i class="fa fa-sliders" onclick="show('#changeSettings')" alt="settings" id="settingsBtn"></i>
-                    <!-- <span class="badge">0</span> -->
-                </div>
-                <div class="menuButton notification">
-                    <i class="fa fa-close" onclick="show('#rebootMi')" alt="reboot" id="settingsBtn"></i>
+                    <i class="fa-solid fa-sliders" onclick="show('#changeSettings')" alt="settings"
+                        id="settingsBtn"></i>
                     <!-- <span class="badge">0</span> -->
                 </div>
             </div>
@@ -796,7 +808,7 @@ static const char *index_html PROGMEM = R"=====(
                 $("#title").text(gridP + "W - dtuGateway");
             }
 
-            if(data.dtuConnection.dtuRemoteSummaryDisplay) {
+            if (data.dtuConnection.dtuRemoteSummaryDisplay) {
                 $('#summaryDisplay').css('display', 'flex');
                 $('#summaryDisplay').css('flex-direction', 'column');
                 $('#summaryDisplay').css('align-items', 'center');
@@ -1033,7 +1045,7 @@ static const char *index_html PROGMEM = R"=====(
                 remoteSummaryDisplayActiveSend = 1;
             else
                 remoteSummaryDisplayActiveSend = 0;
-            
+
             var data = {};
             data["dtuHostIpDomainSend"] = dtuHostIpDomainSend;
             data["dtuDataCycleSend"] = dtuDataCycleSend;
@@ -1666,8 +1678,7 @@ static const char *index_html PROGMEM = R"=====(
             var iconElement = document.createElement('i');
             iconElement.className = 'fa';
             document.body.appendChild(iconElement);
-            // Check if the 'fa' class is applied, indicating successful loading
-            if (window.getComputedStyle(iconElement).fontFamily !== 'FontAwesome') {
+            if (!window.getComputedStyle(iconElement).fontFamily.includes('Font Awesome')) {
                 handleFontAwesomeError();
             }
             // Remove the temporary element
