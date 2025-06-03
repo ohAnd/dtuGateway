@@ -365,7 +365,7 @@ This branch will be maintained with small bug fix, if needed.
 - set the main topic e.g. 'dtuGateway_12345678' for the published data (default: is `dtuGateway_<ESP chip id>` and has to be unique in your environment)
 - choosing insecure or TLS based connection to your MQTT broker (only ESP32)
 - to set the Power Limit from your environment
-  - you have to publish to `<main topic>/inverter/PowerLimitSet` a value between 2...100 (possible range at DTU)
+  - you have to publish to `<main topic>/inverter/PowerLimitSet/set` a value between 2...100 (possible range at DTU)
   - the incoming value will be checked for this interval and locally corrected to 2 or 100 if exceeds
   - with retain flag, to get the last set value after restart / reconnect of the dtuGateway
 - to reboot the Mictroinverter
