@@ -1103,6 +1103,15 @@ void getSerialCommand(String cmd, String value)
       dtuInterface.requestRestartDevice();
     }
   }
+  else if (cmd == "rebootMi") // cmd: 'rebootMi 1'
+  {
+    Serial.print(F(" rebootMi "));
+    if (val == 1)
+    {
+      Serial.println(F(" request Mi reboot at DTUinterface ... "));
+      dtuInterface.requestRestartMi();
+    }
+  }
   else if (cmd == "dtuInverter") // cmd: 'dtuInverter 1' or 'dtuInverter 0'
   {
     Serial.print(F(" dtu inverter "));
@@ -1255,11 +1264,22 @@ void loop()
         dtuGlobalData.powerLimitSetUpdate = true;
         Serial.println("\nMQTT:\t changed powerset value to '" + String(dtuGlobalData.powerLimitSet) + "'");
       }
+      RebootMi rebootMi = mqttHandler.getRebootMi();
+      if (rebootMi.reboot == true)
+      {
+        dtuGlobalData.rebootMi = true;
+        Serial.println("\nMQTT:\t reboot mi");
+      }
       if (dtuGlobalData.powerLimitSetUpdate)
       {
         mqttHandler.publishStandardData("inverter_PowerLimitSet", String(dtuGlobalData.powerLimitSet));
         // postMessageToOpenhab(String(userConfig.openItemPrefix) + "_PowerLimitSet", (String)dtuGlobalData.powerLimit);
         dtuGlobalData.powerLimitSetUpdate = false;
+      }
+      if (dtuGlobalData.rebootMi)
+      {
+        mqttHandler.publishStandardData("inverter_RebootMi", String(1));
+        // postMessageToOpenhab(String(userConfig.openItemPrefix) + "_PowerLimitSet", (String)dtuGlobalData.powerLimit);
       }
 
       RemoteInverterData remoteData = mqttHandler.getRemoteInverterData();
@@ -1367,6 +1387,11 @@ void loop()
           if (dtuGlobalData.currentTimestamp - dtuGlobalData.lastRespTimestamp < (userConfig.dtuUpdateTime * 2))
             platformData.dtuNextUpdateCounterSeconds = dtuGlobalData.currentTimestamp - userConfig.dtuUpdateTime + 5;
         }
+      }
+      if (dtuGlobalData.rebootMi) {
+          dtuGlobalData.rebootMi = false;
+          Serial.println("----- ----- reboot mi ----- ----- ");
+          dtuInterface.requestRestartMi();
       }
     }
 
