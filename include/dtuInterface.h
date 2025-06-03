@@ -40,6 +40,7 @@
 #define DTU_STATE_DTU_REBOOT 4
 #define DTU_STATE_CONNECT_ERROR 5
 #define DTU_STATE_STOPPED 6
+#define DTU_STATE_INV_REBOOT 7
 
 #define DTU_ERROR_NO_ERROR 0
 #define DTU_ERROR_NO_TIME 1
@@ -58,6 +59,7 @@
 #define DTU_TXRX_STATE_WAIT_GET_ALARMS 8
 #define DTU_TXRX_STATE_WAIT_PERFORMANCE_DATA_MODE 9
 #define DTU_TXRX_STATE_WAIT_REQUEST_ALARMS 10
+#define DTU_TXRX_STATE_WAIT_RESTARTMI 11
 #define DTU_TXRX_STATE_ERROR 99
 
 
@@ -115,6 +117,7 @@ struct inverterData
   uint8_t powerLimit = 254;
   uint8_t powerLimitSet = 101; // init with not possible value for startup
   boolean powerLimitSetUpdate = false;
+  boolean rebootMi = false;
   uint32_t dtuRssi = 0;
   uint32_t wifi_rssi_gateway = 0;
   uint32_t respTimestamp = 1704063600;     // init with start time stamp > 0
@@ -151,6 +154,7 @@ public:
     void getDataUpdate();
     void setPowerLimit(int limit);
     void requestRestartDevice();
+    void requestRestartMi();
     void requestInverterTargetState(boolean OnOff);
     void requestAlarms();
 
@@ -183,6 +187,7 @@ private:
 
     void checkingDataUpdate();
     void checkingForLastDataReceived();
+    void resetDtuGlobalData(uint8_t errorState,uint8_t dtuState);
     boolean cloudPauseActiveControl();
         
     // Protobuf functions
@@ -215,7 +220,10 @@ private:
 
     boolean writeReqCommandGetAlarms();
     boolean readRespCommandGetAlarms(pb_istream_t istream);
-    
+
+    boolean writeReqCommandRestartMi();
+    boolean readRespCommandRestartMi(pb_istream_t istream);
+
     const char* serverIP;
     uint16_t serverPort;
     AsyncClient* client;

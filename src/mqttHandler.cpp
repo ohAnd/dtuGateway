@@ -46,6 +46,15 @@ void MQTTHandler::subscribedMessageArrived(char *topic, byte *payload, unsigned 
             instance->lastPowerLimitSet.setValue = setLimit;
             instance->lastPowerLimitSet.update = true;
         }
+        else if (String(topic) == instance->mqttMainTopicPath + "/inverter/RebootMi/set")
+        {
+
+            int gotReboot = (incommingMessage).toInt();
+            if (gotReboot == 1)
+            {
+                instance->rebootMi.reboot = true;
+            }
+        }
         else
         {
             // Serial.println("MQTT: received message for topic: " + String(topic) + " - value: " + incommingMessage);
@@ -174,6 +183,13 @@ RemoteInverterData MQTTHandler::getRemoteInverterData()
     return lastReceive;
 }
 
+RebootMi MQTTHandler::getRebootMi()
+{
+    RebootMi reboot = rebootMi;
+    rebootMi.reboot = false;
+    return reboot;
+}
+
 void MQTTHandler::setup()
 {
     Serial.println("MQTT:\t\t setup callback for subscribed messages");
@@ -207,6 +223,8 @@ void MQTTHandler::publishDiscoveryMessage(const char *entity, const char *entity
         entityType = "number";
     else if (String(deviceClass).indexOf("running") > -1)
         entityType = "binary_sensor";
+    else if (String(entity).indexOf("Reboot") > -1)
+        entityType = "button";
     String uniqueID = String(deviceGroupName) + "_" + String(entity);
     String entityGroup = String(entity).substring(0, String(entity).indexOf("_"));
     String entityName = String(entity).substring(String(entity).indexOf("_") + 1);
@@ -232,7 +250,13 @@ void MQTTHandler::publishDiscoveryMessage(const char *entity, const char *entity
         doc["min"] = 0;
         doc["max"] = 100;
     }
-    doc["state_topic"] = stateTopicPath;
+
+    if (entityType == "button") {
+        doc["command_topic"] = commandTopicPath;
+        doc["payload_press"] = "1";
+    } else {
+        doc["state_topic"] = stateTopicPath;
+    }
 
     if (deviceClass != NULL)
     {
@@ -335,6 +359,7 @@ boolean MQTTHandler::initiateDiscoveryMessages(bool autoDiscoveryRemove)
 
             publishDiscoveryMessage("inverter_PowerLimit", "power limit", "%", autoDiscoveryRemove, NULL, "power_factor"); //"mdi:car-speed-limiter"
             publishDiscoveryMessage("inverter_PowerLimitSet", "power limit set", "%", autoDiscoveryRemove, "mdi:car-speed-limiter", "power_factor");
+            publishDiscoveryMessage("inverter_RebootMi", "Reboot Micro Inverter", NULL, autoDiscoveryRemove, "mdi:restart", "restart", true);
 
             publishDiscoveryMessage("inverter_Temp", "Inverter temperature", "°C", autoDiscoveryRemove, NULL, "temperature", true); //"mdi:thermometer"
             publishDiscoveryMessage("inverter_WifiRSSI", "WiFi strength", "%", autoDiscoveryRemove, "mdi:wifi", NULL, true);
@@ -433,6 +458,9 @@ void MQTTHandler::reconnect()
                 client.subscribe(topic.c_str());
                 Serial.println("MQTT:\t\t subscribe to: " + topic);
                 topic = "homeassistant/number/" + instance->mqttMainTopicPath + "/inverter_PowerLimitSet/set";
+                client.subscribe(topic.c_str());
+                Serial.println("MQTT:\t\t subscribe to: " + topic);
+                topic = mqttMainTopicPath + "/inverter/RebootMi/set";
                 client.subscribe(topic.c_str());
                 Serial.println("MQTT:\t\t subscribe to: " + topic);
 
