@@ -28,7 +28,7 @@ static const char *index_html PROGMEM = R"=====(
             <div class="popupHeaderTitle" id="popHeadTitle">settings
                 <!-- <span style="font-size: small;float:right;"> -->
                 <span style="float:right;">
-                    <i class="fa-solid fa-plug-circle-bolt" onclick="show('#rebootMi')" id="settingsBtn" style="cursor: pointer;" title="Restart micro inverter"></i>
+                    <i class="fa-solid fa-plug-circle-bolt" onclick="hide('#changeSettings');show('#rebootMi')" id="showRebootMiBtn" style="cursor: pointer;" title="Restart micro inverter"></i>
                     &nbsp;
                     <a href="/config" target="_blank"><i class="fa-solid fa-gears" title="advanced settings"></i></a>
                 </span>
