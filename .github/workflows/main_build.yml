@@ -41,6 +41,7 @@ jobs:
             echo "CURRENT_VERSIONNUMBER=$VERSIONNUMBER" >> $GITHUB_ENV
             mv .pio/build/esp32/firmware.bin .pio/build/esp32/dtuGateway_ESP32_release_$VERSIONNUMBER.bin
             mv .pio/build/esp32_S3/firmware.bin .pio/build/esp32_S3/dtuGateway_ESP32_S3_release_$VERSIONNUMBER.bin
+            mv .pio/build/esp32_S3/firmware.bin .pio/build/esp32_S3_16MB_N16R8/dtuGateway_ESP32_S3_16MB_PS_release_$VERSIONNUMBER.bin
       
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -49,6 +50,7 @@ jobs:
           path: |
             .pio/build/esp32/dtuGateway_ESP32_release_${{ env.CURRENT_VERSIONNUMBER }}.bin
             .pio/build/esp32_S3/dtuGateway_ESP32_S3_release_${{ env.CURRENT_VERSIONNUMBER }}.bin
+            .pio/build/esp32_S3/dtuGateway_ESP32_S3_16MB_PS_release_${{ env.CURRENT_VERSIONNUMBER }}.bin
 
       - uses: "marvinpinto/action-automatic-releases@latest"
         with:
@@ -60,4 +62,5 @@ jobs:
           files: |
             .pio/build/esp32/dtuGateway_ESP32_release_${{ env.CURRENT_VERSIONNUMBER }}.bin
             .pio/build/esp32_S3/dtuGateway_ESP32_S3_release_${{ env.CURRENT_VERSIONNUMBER }}.bin
+            .pio/build/esp32_S3/dtuGateway_ESP32_S3_16MB_PS_release_${{ env.CURRENT_VERSIONNUMBER }}.bin
             include/version.json
