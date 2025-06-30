@@ -88,6 +88,10 @@ This branch will be maintained with small bug fix, if needed.
 - syncing time of gateway with the local time of the dtu to prevent wrong restart counters
 - configurable 'cloud pause' - see [experiences](#experiences-with-the-hoymiles-HMS-800W-2T) - to prevent missing updates by the dtu to the hoymiles cloud
 - automatic reboot of DTU, if there is an error detected (e.g. implausible unchanged values)
+- manual reboot per WebUI and MQTT ([see also](#mqtt-integration-configuration)) possible for:
+  - the dtuGateway itself
+  - the dtu - the communication unit of the hoymiles inverter
+  - the inverter itself of the hoymiles inverter
 - gathering the current dtu warnings and show them in the webfrontend
   - click on icon in the top right corner - icon will be only shown if warnings were received
   - a badge will reporting the number of warnings
@@ -368,12 +372,19 @@ This branch will be maintained with small bug fix, if needed.
   - you have to publish to `<main topic>/inverter/PowerLimitSet/set` a value between 2...100 (possible range at DTU)
   - the incoming value will be checked for this interval and locally corrected to 2 or 100 if exceeds
   - with retain flag, to get the last set value after restart / reconnect of the dtuGateway
-- to reboot the Mictroinverter
-  - The hoymiles inverter has a micro inverter attached to a dtu. The micro inverter handles mains and solarpanels, while the dtu communicates states and control the mi. Dtu is rebooted if an error occure. Sometimes it is also nessesary to reboot the micro inverter itself.
-  - you have to publish to `<main topic>/inverter/RebootMi/set` a value of 1
-  - the incoming value will be checked for 1 and reboot the micro inverter
-  - this is useful if after a mains power fail the inverter is not injecting power to mains in time
-  - it could also useful in other scenarios where the micro inverter is in some error state
+- reboot options:
+  - MicroInverter
+    - The hoymiles inverter has a micro inverter attached to a dtu. The micro inverter handles mains and solarpanels, while the dtu communicates states and control the mi. Dtu is rebooted if an error occure. Sometimes it is also nessesary to reboot the micro inverter itself.
+    - you have to publish to `<main topic>/inverter/RebootMi/set` a value of 1
+    - the incoming value will be checked for 1 and reboot the micro inverter
+    - this is useful if after a mains power fail the inverter is not injecting power to mains in time
+    - it could also useful in other scenarios where the micro inverter is in some error state
+  - dtu
+    - according to MicroInverter Reboot
+    - to reboot the dtu, teh communication unit of the hoymiles inverter, use `<main topic>/inverter/RebootDtu/set`
+  - dtuGateway
+    - according to MicroInverter Reboot
+    - to reboot the dtuGateway istself use `<main topic>/inverter/RebootDtuGw/set`
 - data will be published as following ('dtuGateway_12345678' is configurable in the settings):
   <details>
   <summary>expand to see to details</summary>
@@ -399,10 +410,18 @@ This branch will be maintained with small bug fix, if needed.
   dtuGateway_12345678/pv1/dailyEnergy
   dtuGateway_12345678/pv1/totalEnergy
 
-  dtuGateway_12345678/inverter/Temp
   dtuGateway_12345678/inverter/PowerLimit
-  dtuGateway_12345678/inverter/PowerLimitSet // <-- this topic (extended with ../set) will be subscribed to get the power limit to set from your broker
+  dtuGateway_12345678/inverter/Temp
   dtuGateway_12345678/inverter/WifiRSSI
+  dtuGateway_12345678/inverter/cloudPause
+  dtuGateway_12345678/inverter/dtuConnectState
+  dtuGateway_12345678/inverter/dtuConnectionOnline
+  dtuGateway_12345678/inverter/PowerLimitSet // <-- this topic (extended with ../set) will be subscribed to get the power limit to set from your broker
+  dtuGateway_12345678/inverter/inverterControlStateOn
+  dtuGateway_12345678/inverter/warningsActive
+  dtuGateway_12345678/inverter/RebootMi
+  dtuGateway_12345678/inverter/RebootDtu
+
   ```
   </details>
 
