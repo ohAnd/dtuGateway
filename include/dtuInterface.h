@@ -118,6 +118,8 @@ struct inverterData
   uint8_t powerLimitSet = 101; // init with not possible value for startup
   boolean powerLimitSetUpdate = false;
   boolean rebootMi = false;
+  boolean rebootDtu = false;
+  boolean rebootDtuGw = false;
   uint32_t dtuRssi = 0;
   uint32_t wifi_rssi_gateway = 0;
   uint32_t respTimestamp = 1704063600;     // init with start time stamp > 0

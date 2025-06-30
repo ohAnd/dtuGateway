@@ -27,8 +27,11 @@ struct PowerLimitSet {
     boolean update = false;
 };
 
-struct RebootMi {
-    boolean reboot = false;
+
+struct RebootDevices {
+    boolean rebootMi = false;
+    boolean rebootDtu = false;
+    boolean rebootDtuGw = false;
 };
 
 struct RemoteBaseData
@@ -84,7 +87,7 @@ public:
 
     PowerLimitSet getPowerLimitSet();
     RemoteInverterData getRemoteInverterData();
-    RebootMi getRebootMi();
+    RebootDevices getRebootDevices();
 
     void stopConnection(boolean full=false);
 
@@ -116,7 +119,7 @@ private:
 
     PowerLimitSet lastPowerLimitSet;
     RemoteInverterData lastRemoteInverterData;
-    RebootMi rebootMi;
+    RebootDevices rebootDevices;
     
     void reconnect();
     boolean initiateDiscoveryMessages(bool autoDiscoveryRemove=false);

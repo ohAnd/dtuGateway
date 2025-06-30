@@ -52,7 +52,26 @@ void MQTTHandler::subscribedMessageArrived(char *topic, byte *payload, unsigned 
             int gotReboot = (incommingMessage).toInt();
             if (gotReboot == 1)
             {
-                instance->rebootMi.reboot = true;
+                // instance->rebootMi.reboot = true;
+                instance->rebootDevices.rebootMi = true;
+            }
+        }
+        else if (String(topic) == instance->mqttMainTopicPath + "/inverter/RebootDtu/set")
+        {
+
+            int gotReboot = (incommingMessage).toInt();
+            if (gotReboot == 1)
+            {
+                instance->rebootDevices.rebootDtu = true;
+            }
+        }
+        else if (String(topic) == instance->mqttMainTopicPath + "/inverter/RebootDtuGw/set")
+        {
+
+            int gotReboot = (incommingMessage).toInt();
+            if (gotReboot == 1)
+            {
+                instance->rebootDevices.rebootDtuGw = true;
             }
         }
         else
@@ -183,10 +202,12 @@ RemoteInverterData MQTTHandler::getRemoteInverterData()
     return lastReceive;
 }
 
-RebootMi MQTTHandler::getRebootMi()
+RebootDevices MQTTHandler::getRebootDevices()
 {
-    RebootMi reboot = rebootMi;
-    rebootMi.reboot = false;
+    RebootDevices reboot = rebootDevices;
+    rebootDevices.rebootMi = false; // reset reboot mi
+    rebootDevices.rebootDtu = false; // reset reboot dtu
+    rebootDevices.rebootDtuGw = false; // reset reboot dtu gateway
     return reboot;
 }
 
@@ -360,6 +381,8 @@ boolean MQTTHandler::initiateDiscoveryMessages(bool autoDiscoveryRemove)
             publishDiscoveryMessage("inverter_PowerLimit", "power limit", "%", autoDiscoveryRemove, NULL, "power_factor"); //"mdi:car-speed-limiter"
             publishDiscoveryMessage("inverter_PowerLimitSet", "power limit set", "%", autoDiscoveryRemove, "mdi:car-speed-limiter", "power_factor");
             publishDiscoveryMessage("inverter_RebootMi", "Reboot Micro Inverter", NULL, autoDiscoveryRemove, "mdi:restart", "restart", true);
+            publishDiscoveryMessage("inverter_RebootDtu", "Reboot DTU", NULL, autoDiscoveryRemove, "mdi:restart", "restart", true);
+            publishDiscoveryMessage("inverter_RebootDtuGw", "Reboot DTU Gateway", NULL, autoDiscoveryRemove, "mdi:restart", "restart", true);
 
             publishDiscoveryMessage("inverter_Temp", "Inverter temperature", "°C", autoDiscoveryRemove, NULL, "temperature", true); //"mdi:thermometer"
             publishDiscoveryMessage("inverter_WifiRSSI", "WiFi strength", "%", autoDiscoveryRemove, "mdi:wifi", NULL, true);
@@ -461,6 +484,12 @@ void MQTTHandler::reconnect()
                 client.subscribe(topic.c_str());
                 Serial.println("MQTT:\t\t subscribe to: " + topic);
                 topic = mqttMainTopicPath + "/inverter/RebootMi/set";
+                client.subscribe(topic.c_str());
+                Serial.println("MQTT:\t\t subscribe to: " + topic);
+                topic = mqttMainTopicPath + "/inverter/RebootDtu/set";
+                client.subscribe(topic.c_str());
+                Serial.println("MQTT:\t\t subscribe to: " + topic);
+                topic = mqttMainTopicPath + "/inverter/RebootDtuGw/set";
                 client.subscribe(topic.c_str());
                 Serial.println("MQTT:\t\t subscribe to: " + topic);
 

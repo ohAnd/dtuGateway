@@ -28,9 +28,34 @@ static const char *index_html PROGMEM = R"=====(
             <div class="popupHeaderTitle" id="popHeadTitle">settings
                 <!-- <span style="font-size: small;float:right;"> -->
                 <span style="float:right;">
-                    <i class="fa-solid fa-plug-circle-bolt" onclick="hide('#changeSettings');show('#rebootMi')" id="showRebootMiBtn" style="cursor: pointer;" title="Restart micro inverter"></i>
+                    <span style="display: inline-block; text-align: center;">
+                        <div style="position: relative; display: inline-block;">
+                            <i class="fa-solid fa-rotate" style="position: absolute; top: 0; left: 65%; cursor: pointer; color: #2196f3; font-size: 0.45em; z-index: 1;"></i>
+                            <i class="fa-solid fa-house-laptop" onclick="hide('#changeSettings');show('#rebootDtuGw')" id="showRebootDtuGwBtn" style="position: relative; font-size: 0.9em; cursor: pointer; color: #888;" title="Restart dtuGateway"></i>
+                        </div>
+                        <span style="display: block; font-size: 0.3em; line-height: 1; margin-top: 2px; color: #888;">dtuGateway</span>
+                    </span>
                     &nbsp;
-                    <a href="/config" target="_blank"><i class="fa-solid fa-gears" title="advanced settings"></i></a>
+                    <span style="display: inline-block; text-align: center;">
+                        <div style="position: relative; display: inline-block;">
+                            <i class="fa-solid fa-rotate" style="position: absolute; top: 0; left: 65%; cursor: pointer; color: #2196f3; font-size: 0.45em;"></i>
+                            <i class="fa-solid fa-wifi" onclick="hide('#changeSettings');show('#rebootDtu')" id="showRebootDtuBtn" style="position: relative; cursor: pointer; z-index: 1; color: #888;" title="Restart DTU"></i>
+                        </div>
+                        <span style="display: block; font-size: 0.3em; line-height: 1; margin-top: 2px; color: #888;">DTU</span>
+                    </span>
+                    &nbsp;
+                    <span style="display: inline-block; text-align: center;">
+                        <div style="position: relative; display: inline-block;">
+                            <i class="fa-solid fa-rotate" style="position: absolute; top: 0; left: 65%; cursor: pointer; color: #2196f3; font-size: 0.45em;"></i>
+                            <i class="fa-solid fa-plug-circle-bolt" onclick="hide('#changeSettings');show('#rebootMi')" id="showRebootMiBtn" style="position: relative; cursor: pointer; z-index: 1; color: #888;" title="Restart micro inverter"></i>
+                        </div>
+                        <span style="display: block; font-size: 0.3em; line-height: 1; margin-top: 2px; color: #888;">micro Inverter</span>
+                    </span>
+                    
+                    <span style="display: inline-block; text-align: center;">
+                        <a href="/config" target="_blank" style="color: #888; text-decoration: none;"><i class="fa-solid fa-gears" title="open advanced settings in a new tab"></i></a>
+                        <span style="display: block; font-size: 0.3em; line-height: 1; margin-top: 2px; color: #888;">advanced settings</span>
+                    </span>
                 </span>
                 <!-- <h2>settings</h2> -->
             </div>
@@ -203,9 +228,10 @@ static const char *index_html PROGMEM = R"=====(
         </div>
     </div>
     <div class="popup2" id="rebootMi" style="display: none;">
-        <h2><i class="fa-solid fa-plug-circle-bolt"></i> Reboot Micro Inverter</h2>
+        <h2><i class="fa-solid fa-plug-circle-bolt"></i> Restart Micro Inverter</h2>
         <div style="padding-bottom: 10px;">
-            <small>restarting the micro inverter <br/><br/><i style="font-size: small;">(hint: this not rebooting the communication unit 'dtu')</i></small>
+            <small>restarting the micro inverter <br /><br /><i style="font-size: small;">(hint: this will not rebooting
+                    the communication unit 'dtu')</i></small>
         </div>
         <div>
             <div style="text-align: center;">
@@ -214,6 +240,39 @@ static const char *index_html PROGMEM = R"=====(
 
             <div style="text-align: center;">
                 <b onclick="hide('#rebootMi')" class="form-button btn">close</b>
+            </div>
+        </div>
+    </div>
+    <div class="popup2" id="rebootDtu" style="display: none;">
+        <h2><i class="fa-solid fa-repeat"></i> Restart DTU</h2>
+        <div style="padding-bottom: 10px;">
+            <small>restarting the DTU <br /><br /><i style="font-size: small;">(hint: this will not rebooting the micro
+                    inverter)</i></small>
+        </div>
+        <div>
+            <div style="text-align: center;">
+                <b onclick="rebootDtu()" id="btnRebootDtu" class="form-button btn" style="opacity: 1;">Reboot DTU</b>
+            </div>
+
+            <div style="text-align: center;">
+                <b onclick="hide('#rebootDtu')" class="form-button btn">close</b>
+            </div>
+        </div>
+    </div>
+    <div class="popup2" id="rebootDtuGw" style="display: none;">
+        <h2><i class="fa-solid fa-repeat"></i> Restart dtuGateway</h2>
+        <div style="padding-bottom: 10px;">
+            <small>restarting the dtuGateway <br /><br /><i style="font-size: small;">(hint: this will not rebooting the
+                    dtu or the micro inverter)</i></small>
+        </div>
+        <div>
+            <div style="text-align: center;">
+                <b onclick="rebootDtuGw()" id="btnRebootDtuGw" class="form-button btn" style="opacity: 1;">Reboot
+                    dtuGateway</b>
+            </div>
+
+            <div style="text-align: center;">
+                <b onclick="hide('#rebootDtuGw')" class="form-button btn">close</b>
             </div>
         </div>
     </div>
@@ -1220,6 +1279,64 @@ static const char *index_html PROGMEM = R"=====(
             xmlHttp.send(urlEncodedData);
 
             hide('#rebootMi')
+            return;
+        }
+
+        function rebootDtu() {
+            var data = {};
+            data["rebootDtu"] = true;
+            console.log("send to server: rebootDtu");
+            const urlEncodedDataPairs = [];
+
+            // Turn the data object into an array of URL-encoded key/value pairs.
+            for (const [name, value] of Object.entries(data)) {
+                urlEncodedDataPairs.push(
+                    `${encodeURIComponent(name)}=${encodeURIComponent(value)}`,
+                );
+            }
+
+            // Combine the pairs into a single string and replace all %-encoded spaces to
+            // the '+' character; matches the behavior of browser form submissions.
+            const urlEncodedData = urlEncodedDataPairs.join("&").replace(/%20/g, "+");
+
+
+            var xmlHttp = new XMLHttpRequest();
+            xmlHttp.open("POST", "/rebootDtu", false); // false for synchronous request
+            xmlHttp.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+
+            // Finally, send our data.
+            xmlHttp.send(urlEncodedData);
+
+            hide('#rebootDtu')
+            return;
+        }
+
+        function rebootDtuGw() {
+            var data = {};
+            data["rebootDtuGw"] = true;
+            console.log("send to server: rebootDtuGw");
+            const urlEncodedDataPairs = [];
+
+            // Turn the data object into an array of URL-encoded key/value pairs.
+            for (const [name, value] of Object.entries(data)) {
+                urlEncodedDataPairs.push(
+                    `${encodeURIComponent(name)}=${encodeURIComponent(value)}`,
+                );
+            }
+
+            // Combine the pairs into a single string and replace all %-encoded spaces to
+            // the '+' character; matches the behavior of browser form submissions.
+            const urlEncodedData = urlEncodedDataPairs.join("&").replace(/%20/g, "+");
+
+
+            var xmlHttp = new XMLHttpRequest();
+            xmlHttp.open("POST", "/rebootDtuGw", false); // false for synchronous request
+            xmlHttp.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+
+            // Finally, send our data.
+            xmlHttp.send(urlEncodedData);
+
+            hide('#rebootDtuGw')
             return;
         }
 

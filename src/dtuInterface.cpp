@@ -301,6 +301,7 @@ void DTUInterface::dtuConnectionObserver()
         Serial.print(F("DTUinterface:\t setOverallOnlineOfflineState - timeout - reset online offline state"));
         Serial.println(" - difference: " + String((millis() - lastOnlineOfflineChange) / 1000, 3) + " ms - current conn state: " + String(dtuConnection.dtuConnectState));
         dtuConnection.dtuConnectionOnline = false;
+        dtuConnection.dtuConnectState = DTU_STATE_OFFLINE; // reset to offline state
     }
 }
 

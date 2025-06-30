@@ -1264,12 +1264,24 @@ void loop()
         dtuGlobalData.powerLimitSetUpdate = true;
         Serial.println("\nMQTT:\t changed powerset value to '" + String(dtuGlobalData.powerLimitSet) + "'");
       }
-      RebootMi rebootMi = mqttHandler.getRebootMi();
-      if (rebootMi.reboot == true)
+      
+      RebootDevices RebootDevices = mqttHandler.getRebootDevices();
+      if (RebootDevices.rebootMi == true)
       {
         dtuGlobalData.rebootMi = true;
-        Serial.println("\nMQTT:\t reboot mi");
+        Serial.println("\nMQTT:\t reboot Microinverter");
       }
+      if (RebootDevices.rebootDtu == true)
+      {
+        dtuGlobalData.rebootDtu = true;
+        Serial.println("\nMQTT:\t reboot DTU");
+      }
+      if (RebootDevices.rebootDtuGw == true)
+      {
+        dtuGlobalData.rebootDtuGw = true;
+        Serial.println("\nMQTT:\t reboot DTU Gateway");
+      }      
+
       if (dtuGlobalData.powerLimitSetUpdate)
       {
         mqttHandler.publishStandardData("inverter_PowerLimitSet", String(dtuGlobalData.powerLimitSet));
@@ -1277,10 +1289,11 @@ void loop()
         dtuGlobalData.powerLimitSetUpdate = false;
       }
       if (dtuGlobalData.rebootMi)
-      {
         mqttHandler.publishStandardData("inverter_RebootMi", String(1));
-        // postMessageToOpenhab(String(userConfig.openItemPrefix) + "_PowerLimitSet", (String)dtuGlobalData.powerLimit);
-      }
+      if (dtuGlobalData.rebootDtu)
+        mqttHandler.publishStandardData("inverter_RebootDtu", String(1));
+      if (dtuGlobalData.rebootDtuGw)
+        mqttHandler.publishStandardData("inverter_RebootDtuGw", String(1));
 
       RemoteInverterData remoteData = mqttHandler.getRemoteInverterData();
       if (remoteData.updateReceived == true)
@@ -1392,6 +1405,17 @@ void loop()
           dtuGlobalData.rebootMi = false;
           Serial.println("----- ----- reboot mi ----- ----- ");
           dtuInterface.requestRestartMi();
+      }
+      if (dtuGlobalData.rebootDtu) {
+          dtuGlobalData.rebootDtu = false;
+          Serial.println("----- ----- reboot dtu ----- ----- ");
+          dtuInterface.requestRestartDevice();
+      }
+      if (dtuGlobalData.rebootDtuGw) {
+          dtuGlobalData.rebootDtuGw = false;
+          Serial.println("----- ----- reboot dtu gw ----- ----- ");
+          platformData.rebootRequested = true;
+          platformData.rebootRequestedInSec = 3;
       }
     }
 

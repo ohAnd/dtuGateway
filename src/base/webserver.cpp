@@ -79,6 +79,9 @@ void DTUwebserver::start()
     // direct settings
     asyncDtuWebServer.on("/updatePowerLimit", handleUpdatePowerLimit);
     asyncDtuWebServer.on("/rebootMi", handleRebootMi);
+    asyncDtuWebServer.on("/rebootDtu", handleRebootDtu);
+    asyncDtuWebServer.on("/rebootDtuGw", handleRebootDtuGw);
+    
     asyncDtuWebServer.on("/getWifiNetworks", handleGetWifiNetworks);
 
     // api GETs
@@ -681,7 +684,7 @@ void DTUwebserver::handleRebootMi(AsyncWebServerRequest *request)
 
         dtuGlobalData.rebootMi = true;
 
-        Serial.println("WEB:\t\t got Reboot");
+        Serial.println("WEB:\t\t got Reboot Mi");
 
         String JSON = "{";
         JSON = JSON + "\"RebootMi\": true";
@@ -693,7 +696,55 @@ void DTUwebserver::handleRebootMi(AsyncWebServerRequest *request)
     else
     {
         request->send(400, "text/plain", "handleRebootMi - ERROR requested without the expected params");
-        Serial.println(F("WEB:\t\t handleUpdatePowerLimit - ERROR without the expected params"));
+        Serial.println(F("WEB:\t\t handleRebootMi - ERROR without the expected params"));
+    }
+}
+
+void DTUwebserver::handleRebootDtu(AsyncWebServerRequest *request)
+{
+    if (request->hasParam("rebootDtu", true))
+    {
+        Serial.println("WEB:\t\t handleRebootDtu");
+
+        dtuGlobalData.rebootDtu = true;
+
+        Serial.println("WEB:\t\t got Reboot DTU");
+
+        String JSON = "{";
+        JSON = JSON + "\"RebootDtu\": true";
+        JSON = JSON + "}";
+
+        request->send(200, "application/json", JSON);
+        Serial.println("WEB:\t\t handleRebootDtu - send JSON: " + String(JSON));
+    }
+    else
+    {
+        request->send(400, "text/plain", "handleRebootDtu - ERROR requested without the expected params");
+        Serial.println(F("WEB:\t\t handleRebootDtu - ERROR without the expected params"));
+    }
+}
+
+void DTUwebserver::handleRebootDtuGw(AsyncWebServerRequest *request)
+{
+    if (request->hasParam("rebootDtuGw", true))
+    {
+        Serial.println("WEB:\t\t handleRebootDtuGw");
+
+        dtuGlobalData.rebootDtuGw = true;
+
+        Serial.println("WEB:\t\t got Reboot DTU Gateway");
+
+        String JSON = "{";
+        JSON = JSON + "\"RebootDtuGw\": true";
+        JSON = JSON + "}";
+
+        request->send(200, "application/json", JSON);
+        Serial.println("WEB:\t\t handleRebootDtuGw - send JSON: " + String(JSON));
+    }
+    else
+    {
+        request->send(400, "text/plain", "handleRebootDtuGw - ERROR requested without the expected params");
+        Serial.println(F("WEB:\t\t handleRebootDtuGw - ERROR without the expected params"));
     }
 }
 
