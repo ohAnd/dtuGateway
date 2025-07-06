@@ -1849,6 +1849,7 @@ boolean DTUInterface::readRespCommandGetAlarms(pb_istream_t istream)
     // };
 
     std::map<int, std::string> warningCodeMap = {
+        {72, "[text not known]"},                      // -> https://github.com/ohAnd/dtuGateway/issues/81#issuecomment-3013403830
         {78, "Grid frequency above limit"},            // 1101 0000
         {143, "[text not known]"},                     // seen 143,112 with data0 64, data1 1840 - during no AC voltage (plugged off)
         {145, "[text not known]"},                     // seen 145,112 with no data  - during no AC voltage (plugged off)
@@ -1860,6 +1861,7 @@ boolean DTUInterface::readRespCommandGetAlarms(pb_istream_t istream)
         {216, "PV0 Undervoltage"},                     // 1101 1000
         {210, "PV1 no input voltage"},                 // 1101 0010
         {218, "PV1 Undervoltage"},                     // 1101 1010
+        {223, "[text not known]"},                     // -> https://github.com/ohAnd/dtuGateway/issues/81#issue-3084216551
     };
 
     uint8_t warningActiveCount = 0;
