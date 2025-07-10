@@ -216,6 +216,13 @@ void DTUwebserver::handleConfigPage(AsyncWebServerRequest *request)
 {
     JsonDocument doc;
     bool gotUserChanges = false;
+    if(userConfig.protectSettings)
+    {
+        Serial.println(F("WEB:\t\t handleConfigPage - got user changes but settings are protected"));
+        request->send(403, "text/plain", "Settings are protected. Please disable protection per serial console command 'protectSettings 0' to change settings.");
+        return;
+    }
+
     if (request->params() && request->hasParam("local.wifiAPstart", true))
     {
         if (request->getParam("local.wifiAPstart", true)->value() == "false")
@@ -308,6 +315,7 @@ void DTUwebserver::handleInfojson(AsyncWebServerRequest *request)
     JSON = JSON + "\"chipType\": \"" + platformData.chipType + "\",";
     JSON = JSON + "\"host\": \"" + platformData.espUniqueName + "\",";
     JSON = JSON + "\"initMode\": " + userConfig.wifiAPstart + ",";
+    JSON = JSON + "\"protectSettings\": " + String(userConfig.protectSettings) + ",";
 
     JSON = JSON + "\"firmware\": {";
     JSON = JSON + "\"version\": \"" + String(platformData.fwVersion) + "\",";
@@ -402,6 +410,12 @@ void DTUwebserver::handleDtuInfoJson(AsyncWebServerRequest *request)
 // user config
 void DTUwebserver::handleUpdateWifiSettings(AsyncWebServerRequest *request)
 {
+    if (userConfig.protectSettings)
+    {
+        Serial.println(F("WEB:\t\t handleUpdateWifiSettings - got user changes but settings are protected"));
+        request->send(403, "text/plain", "Settings are protected. Please disable protection per serial console command 'protectSettings 0' to change settings.");
+        return;
+    }
     if (request->hasParam("wifiSSIDsend", true) && request->hasParam("wifiPASSsend", true))
     {
         String wifiSSIDUser = request->getParam("wifiSSIDsend", true)->value(); // server.arg("wifiSSIDsend"); // retrieve message from webserver
@@ -454,6 +468,12 @@ void DTUwebserver::handleUpdateWifiSettings(AsyncWebServerRequest *request)
 
 void DTUwebserver::handleUpdateDtuSettings(AsyncWebServerRequest *request)
 {
+    if (userConfig.protectSettings)
+    {
+        Serial.println(F("WEB:\t\t handleUpdateDtuSettings - got user changes but settings are protected"));
+        request->send(403, "text/plain", "Settings are protected. Please disable protection per serial console command 'protectSettings 0' to change settings.");
+        return;
+    }
     if (request->hasParam("dtuHostIpDomainSend", true) &&
         request->hasParam("dtuDataCycleSend", true) &&
         request->hasParam("dtuCloudPauseSend", true) &&
@@ -527,6 +547,12 @@ void DTUwebserver::handleUpdateDtuSettings(AsyncWebServerRequest *request)
 
 void DTUwebserver::handleUpdateBindingsSettings(AsyncWebServerRequest *request)
 {
+    if (userConfig.protectSettings)
+    {
+        Serial.println(F("WEB:\t\t handleUpdateBindingsSettings - got user changes but settings are protected"));
+        request->send(403, "text/plain", "Settings are protected. Please disable protection per serial console command 'protectSettings 0' to change settings.");
+        return;
+    }
     if (request->hasParam("openhabHostIpDomainSend", true) &&
         request->hasParam("openhabPrefixSend", true) &&
         request->hasParam("openhabActiveSend", true) &&

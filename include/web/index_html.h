@@ -25,7 +25,7 @@ static const char *index_html PROGMEM = R"=====(
     </div>
     <div class="popup" id="changeSettings">
         <div class="popupHeader">
-            <div class="popupHeaderTitle" id="popHeadTitle">settings
+            <div class="popupHeaderTitle" id="popHeadTitle">settings <span id="settings_message" style="border: 1px solid; padding: 2px; font-size: small; color: darksalmon;display:none;"></span>
                 <!-- <span style="font-size: small;float:right;"> -->
                 <span style="float:right;">
                     <span style="display: inline-block; text-align: center;">
@@ -159,7 +159,7 @@ static const char *index_html PROGMEM = R"=====(
             </div>
             <hr>
             <div style="text-align: center;">
-                <b onclick="changeBindingsData()" id="btnSaveWifiSettings" class="form-button btn">save</b>
+                <b onclick="changeBindingsData()" id="btnSaveBindingsSettings" class="form-button btn">save</b>
                 <b onclick="hide('#changeSettings')" id="btnSettingsClose" class="form-button btn">close</b>
             </div>
         </div>
@@ -725,6 +725,28 @@ static const char *index_html PROGMEM = R"=====(
                 // disable close button
                 $('#btnSettingsClose').css('opacity', '0.3');
                 $('#btnSettingsClose').attr('onclick', "")
+            }
+            if(data.protectSettings) {
+                // if settings are protected then disable the save button
+                $('#btnSaveWifiSettings').css('opacity', '0.3');
+                $('#btnSaveWifiSettings').attr('onclick', "");
+                $('#btnSaveDtuSettings').css('opacity', '0.3');
+                $('#btnSaveDtuSettings').attr('onclick', "");
+                $('#btnSaveBindingsSettings').css('opacity', '0.3');
+                $('#btnSaveBindingsSettings').attr('onclick', "");
+                $('#settings_message').show();
+                $('#settings_message').html("settings read-only - use serial console (USB connection) to unlock");
+                
+            } else {
+                // enable save button
+                $('#btnSaveWifiSettings').css('opacity', '1');
+                $('#btnSaveWifiSettings').attr('onclick', "changeWIFIdata()");
+                $('#btnSaveDtuSettings').css('opacity', '1');
+                $('#btnSaveDtuSettings').attr('onclick', "changeDtuData()");
+                $('#btnSaveBindingsSettings').css('opacity', '1');
+                $('#btnSaveBindingsSettings').attr('onclick', "changeBindingsData()");
+                $('#settings_message').hide();
+                $('#settings_message').html("");               
             }
         }
 

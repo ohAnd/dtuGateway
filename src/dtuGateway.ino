@@ -1164,6 +1164,21 @@ void getSerialCommand(String cmd, String value)
     Serial.println(F("restart the device to make the changes take effect"));
     ESP.restart();
   }
+  else if (cmd == "protectSettings")
+  {
+    Serial.print(F(" 'protectSettings' to "));
+    if (val == 1)
+    {
+      userConfig.protectSettings = true;
+      Serial.print(F(" 'ACTIVE' - settings can not be changed over web interface"));
+    }
+    else
+    {
+      userConfig.protectSettings = false;
+      Serial.print(F(" 'NOT ACTIVE' - settings can be changed over web interface"));
+    }
+    configManager.saveConfig(userConfig);
+  }
   else
   {
     Serial.print(F("Cmd not recognized\n"));

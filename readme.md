@@ -198,6 +198,7 @@ This branch will be maintained with small bug fix, if needed.
 - serving own access point in factory mode for first setup
 - web application will be directly served by the system (default ```http:\\<your-ip>``` with port 80)
   - port setting for webserver possible in advanced config e.g. you can set port to 85 and the website will be available at ```http:\\<your-ip>:85``` (see also [#66](https://github.com/ohAnd/dtuGateway/issues/66))
+- settings can be protected by serial command `protectSettings 1` = protection active and `protectSettings 0` = protection inactive 
 - settings of needed user data over the web app (stored in a json-file in local flash file system - extensions of user setup will not lead to breakable changes)
   - select found local Wi-Fi (additional issue [#20](https://github.com/ohAnd/dtuGateway/issues/20)) and enter/ save the needed Wi-Fi password
   - change dtu connection data (e.g. host IP in local network, wireless user/ pass for dtu access point)

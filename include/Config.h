@@ -10,6 +10,7 @@
 
 struct UserConfig
 {
+    boolean protectSettings       = false;  // protect settings from changes
     char wifiSsid[64]             = "mySSID";
     char wifiPassword[64]         = "myPassword";
     
