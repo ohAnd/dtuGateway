@@ -53,7 +53,7 @@ struct UserConfig
 
     boolean wifiAPstart           = true;
     int selectedUpdateChannel     = 0;      // 0 - release 1 - snapshot
-    int timezoneOffest            = 7200;   // default CEST
+    int timezoneOffest            = 3600;   // default CEST
 };
 
 extern UserConfig userConfig;

@@ -13,6 +13,7 @@
 
 #include <WiFiUdp.h>
 #include <NTPClient.h>
+#include <time.h>
 
 // #include <ArduinoJson.h>
 
@@ -491,9 +492,95 @@ boolean scanNetworksResult()
 //   strcpy(updateInfo.updateStateText, "error");
 // }
 
+// timezone configuration with automatic DST switching
+void configureTimezone() {
+  // POSIX timezone strings for common European regions
+  // Format: STD offset DST,start_rule,end_rule
+  // where offset is hours west of UTC (negative for east of UTC)
+  
+  const char* timezoneStrings[] = {
+    "CET-1CEST,M3.5.0,M10.5.0/3",     // Central European Time (Germany, France, etc.)
+    "EET-2EEST,M3.5.0/3,M10.5.0/4",   // Eastern European Time (Finland, Romania, etc.)
+    "WET0WEST,M3.5.0/1,M10.5.0",      // Western European Time (UK, Portugal)
+    "EST5EDT,M3.2.0,M11.1.0",         // US Eastern Time
+    "CST6CDT,M3.2.0,M11.1.0",         // US Central Time
+    "MST7MDT,M3.2.0,M11.1.0",         // US Mountain Time
+    "PST8PDT,M3.2.0,M11.1.0"          // US Pacific Time
+  };
+  
+  // Select timezone based on user config or default to Central European Time
+  int timezoneIndex = 0; // Default to CET
+  
+  // You can extend this to read from userConfig in the future
+  // For now, auto-detect based on current timezone offset
+  int offsetHours = userConfig.timezoneOffest / 3600;
+  switch(offsetHours) {
+    case 0:  timezoneIndex = 2; break; // WET (UK, Portugal)
+    case 1:  timezoneIndex = 0; break; // CET (Germany, France, etc.)
+    case 2:  timezoneIndex = 1; break; // EET (Finland, Romania, etc.)
+    case -5: timezoneIndex = 3; break; // EST (US Eastern)
+    case -6: timezoneIndex = 4; break; // CST (US Central)
+    case -7: timezoneIndex = 5; break; // MST (US Mountain)
+    case -8: timezoneIndex = 6; break; // PST (US Pacific)
+    default: timezoneIndex = 0; break; // Default to CET
+  }
+  
+  // Configure timezone with automatic DST
+  configTime(0, 0, "pool.ntp.org", "time.nist.gov");
+  setenv("TZ", timezoneStrings[timezoneIndex], 1);
+  tzset();
+  
+  Serial.println("TIMEZONE:\t configured for automatic DST switching: " + String(timezoneStrings[timezoneIndex]));
+}
+
+// get current time with automatic DST consideration
+String getCurrentTimeString() {
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo)) {
+    return timeClient.getFormattedTime(); // fallback to NTPClient
+  }
+  
+  char timeString[32];
+  strftime(timeString, sizeof(timeString), "%H:%M:%S", &timeinfo);
+  return String(timeString);
+}
+
+// get timestamp with automatic DST consideration
+time_t getCurrentTimestamp() {
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo)) {
+    return timeClient.getEpochTime(); // fallback to NTPClient
+  }
+  return mktime(&timeinfo);
+}
+
+// check if currently in DST
+bool isDST() {
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo)) {
+    return false; // fallback
+  }
+  return timeinfo.tm_isdst > 0;
+}
+
 // APIs (non REST)
 String getTimeStringByTimestamp(unsigned long timestamp)
 {
+  // Use the new timezone-aware time functions when possible
+  time_t currentTime = getCurrentTimestamp();
+  
+  // If the timestamp is current (within 1 hour), use timezone-aware formatting
+  if (abs((long)(timestamp - currentTime)) < 3600) {
+    struct tm timeinfo;
+    time_t ts = timestamp;
+    localtime_r(&ts, &timeinfo);
+    
+    char buf[32];
+    strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S%z", &timeinfo);
+    return String(buf);
+  }
+  
+  // Fallback to original method for historical timestamps
   UnixTime stamp(1);
   char buf[32];
   stamp.getDateTime(timestamp - 3600);
@@ -877,14 +964,17 @@ void startServices()
     MDNS.addService("http", "tcp", 80);
     Serial.println("MDNS:\t\t ready! Open http://" + platformData.espUniqueName + ".local in your browser");
 
-    // ntp time - offset in summertime 7200 else 3600
+    // ntp time - configure timezone with automatic DST switching
+    configureTimezone();
     timeClient.begin();
-    timeClient.setTimeOffset(userConfig.timezoneOffest);
+    timeClient.setTimeOffset(0); // offset handled by timezone configuration
     // get first time
     timeClient.update();
     platformData.dtuGWstarttime = timeClient.getEpochTime();
     Serial.print(F("NTPclient:\t got time from time server: "));
     Serial.println(String(platformData.dtuGWstarttime));
+    Serial.println("TIMEZONE:\t current DST status: " + String(isDST() ? "DST active" : "Standard time"));
+    Serial.println("TIMEZONE:\t local time: " + getCurrentTimeString());
 
     dtuWebServer->start();
 
@@ -910,7 +1000,7 @@ void blinkCodeTask()
   ledCycle++;
   if (blinkCode == BLINK_NORMAL_CONNECTION) // Blip every 5 sec
   {
-    ledOffCount = 2;  // 200 ms
+    ledOffCount = 2;  // 200 ms 
     ledOffReset = 50; // 5000 ms
   }
   else if (blinkCode == BLINK_WAITING_NEXT_TRY_DTU) // 0,5 Hz
@@ -1254,9 +1344,9 @@ void loop()
     {
       // display tasks every 50ms = 20Hz
       if (userConfig.displayConnected == 0)
-        displayOLED.renderScreen(timeClient.getFormattedTime(), String(platformData.fwVersion));
+        displayOLED.renderScreen(getCurrentTimeString(), String(platformData.fwVersion));
       else if (userConfig.displayConnected == 1)
-        displayTFT.renderScreen(timeClient.getFormattedTime(), String(platformData.fwVersion));
+        displayTFT.renderScreen(getCurrentTimeString(), String(platformData.fwVersion));
     }
   }
 
@@ -1357,8 +1447,8 @@ void loop()
       }
     }
 
-    platformData.currentNTPtime = timeClient.getEpochTime() < (12 * 60 * 60) ? (12 * 60 * 60) : timeClient.getEpochTime();
-    platformData.currentNTPtimeFormatted = timeClient.getFormattedTime();
+    platformData.currentNTPtime = getCurrentTimestamp();
+    platformData.currentNTPtimeFormatted = getCurrentTimeString();
   }
 
   // short task
@@ -1457,8 +1547,8 @@ void loop()
   if (currentMillis - previousMillis5000ms >= interval5000ms)
   {
     Serial.printf(">>>>> %02is task - state --> ", int(interval5000ms));
-    Serial.print("local: " + dtuInterface.getTimeStringByTimestamp(dtuGlobalData.currentTimestamp));
-    Serial.println(" --- NTP: " + timeClient.getFormattedTime() + " ---> dtuConnState: " + String(dtuConnection.dtuConnectState));
+    Serial.print("local: " + getTimeStringByTimestamp(dtuGlobalData.currentTimestamp));
+    Serial.println(" --- NTP: " + getCurrentTimeString() + " ---> dtuConnState: " + String(dtuConnection.dtuConnectState));
 
     previousMillis5000ms = currentMillis;
     // -------->
@@ -1493,8 +1583,8 @@ void loop()
   if (currentMillis - platformData.dtuNextUpdateCounterSeconds >= userConfig.dtuUpdateTime)
   {
     Serial.printf(">>>>> %02is task - state --> ", int(userConfig.dtuUpdateTime));
-    Serial.print("local: " + dtuInterface.getTimeStringByTimestamp(dtuGlobalData.currentTimestamp));
-    Serial.println(" --- NTP: " + timeClient.getFormattedTime() + "\n");
+    Serial.print("local: " + getTimeStringByTimestamp(dtuGlobalData.currentTimestamp));
+    Serial.println(" --- NTP: " + getCurrentTimeString() + "\n");
 
     platformData.dtuNextUpdateCounterSeconds = currentMillis;
     // -------->
@@ -1516,6 +1606,16 @@ void loop()
     if (WiFi.status() == WL_CONNECTED)
     {
       timeClient.update();
+      // Check DST status every hour and log if it changed
+      static bool lastDSTstatus = false;
+      static bool firstDSTcheck = true;
+      bool currentDSTstatus = isDST();
+      
+      if (firstDSTcheck || (lastDSTstatus != currentDSTstatus)) {
+        Serial.println("TIMEZONE:\t DST status: " + String(currentDSTstatus ? "DST active (summer time)" : "Standard time (winter time)"));
+        lastDSTstatus = currentDSTstatus;
+        firstDSTcheck = false;
+      }
     }
   }
 }

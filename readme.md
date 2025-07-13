@@ -86,6 +86,7 @@ This branch will be maintained with small bug fix, if needed.
     - hint: it seems there is no state reported regarding inverter on or off - but the inverter-off state will be shown as a warning "Inverter remote off" - this will be used to recheck the state with every cyclic refresh of dtu warnings
 - for testing purposes the time between each request is adjustable (default 31 seconds) 
 - syncing time of gateway with the local time of the dtu to prevent wrong restart counters
+- automatic summertime (DST) switching based on configured timezone - all time displays and APIs automatically adjust for daylight saving time
 - configurable 'cloud pause' - see [experiences](#experiences-with-the-hoymiles-HMS-800W-2T) - to prevent missing updates by the dtu to the hoymiles cloud
 - automatic reboot of DTU, if there is an error detected (e.g. implausible unchanged values)
 - manual reboot per WebUI and MQTT ([see also](#mqtt-integration-configuration)) possible for:
@@ -207,6 +208,7 @@ This branch will be maintained with small bug fix, if needed.
   - advanced web config[^2] for all configuration parameters (http://IP_domain/config) - expert mode
     - display selection (0 - OLED, 1 - round TFT)
     - timeZone Offset -xxxx sec <-> xxxx sec e.g. 3600 for CET(+1h) /7200 for CEST(+2)/-21600 for CST
+      - **Note**: Automatic DST/summertime switching is built-in - all time displays and API responses automatically adjust for daylight saving time transitions based on the configured timezone
 - ~~OTA with direct connection to the github build pipeline - available updates will be checked by web app and device. Notification in web app, if update available and user can decide for direct online update~~
 - manual OTA/ web Update via web ui (hint: only stable if the Wi-Fi connection is above ~ 50%)
 

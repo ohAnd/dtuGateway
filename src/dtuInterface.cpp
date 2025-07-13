@@ -1,6 +1,7 @@
 #include "dtuInterface.h"
 #include <Arduino.h>
 #include <map>
+#include <time.h>
 
 struct connectionControl dtuConnection;
 struct inverterData dtuGlobalData;
@@ -556,6 +557,24 @@ float DTUInterface::calcValue(int32_t value, int32_t divider)
 
 String DTUInterface::getTimeStringByTimestamp(unsigned long timestamp)
 {
+    // Use DST-aware formatting when possible
+    struct tm timeinfo;
+    time_t ts = timestamp;
+    
+    // Try to use localtime_r for DST-aware formatting
+    if (localtime_r(&ts, &timeinfo)) {
+        char buf[30];
+        sprintf(buf, "%02d.%02d.%04d - %02d:%02d:%02d", 
+                timeinfo.tm_mday, 
+                timeinfo.tm_mon + 1, 
+                timeinfo.tm_year + 1900, 
+                timeinfo.tm_hour, 
+                timeinfo.tm_min, 
+                timeinfo.tm_sec);
+        return String(buf);
+    }
+    
+    // Fallback to original method if DST formatting fails
     UnixTime stamp(1);
     char buf[30];
     stamp.getDateTime(timestamp);

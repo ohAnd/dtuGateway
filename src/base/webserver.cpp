@@ -263,7 +263,7 @@ void DTUwebserver::handleDataJson(AsyncWebServerRequest *request)
 {
     String JSON = "{";
     JSON = JSON + "\"localtime\": " + String(dtuGlobalData.currentTimestamp) + ",";
-    JSON = JSON + "\"ntpStamp\": " + String(platformData.currentNTPtime - userConfig.timezoneOffest) + ",";
+    JSON = JSON + "\"ntpStamp\": " + String(platformData.currentNTPtime) + ",";
 
     JSON = JSON + "\"lastResponse\": " + dtuGlobalData.lastRespTimestamp + ",";
     JSON = JSON + "\"dtuConnState\": " + dtuConnection.dtuConnectState + ",";
