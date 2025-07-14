@@ -1,227 +1,544 @@
-# dtu Gateway for Hoymiles HMS-xxxW-2T (2T series)
+# dtuGateway for Hoymiles HMS-xxxW-2T Inverters
 
-## Contents
-- [dtu Gateway for Hoymiles HMS-xxxW-2T (2T series)](#dtu-gateway-for-hoymiles-hms-xxxw-2t-2t-series)
-  - [Contents](#contents)
-  - [problem](#problem)
-  - [goal](#goal)
-  - [ESP8266 maintenance path](#esp8266-maintenance-path)
-  - [features](#features)
-    - [regarding dtu](#regarding-dtu)
-      - [dtu connection](#dtu-connection)
-      - [connections to the environment](#connections-to-the-environment)
-      - [display support](#display-support)
-    - [regarding base framework](#regarding-base-framework)
-  - [api](#api)
-    - [data - http://\<ip\_to\_your\_device\>/api/data.json](#data---httpip_to_your_deviceapidatajson)
-    - [info - http://\<ip\_to\_your\_device\>/api/info.json](#info---httpip_to_your_deviceapiinfojson)
-  - [openhab integration/ configuration](#openhab-integration-configuration)
-  - [MQTT integration/ configuration](#mqtt-integration-configuration)
-  - [known bugs](#known-bugs)
-  - [installation](#installation)
-    - [hardware](#hardware)
-    - [first installation to the ESP device](#first-installation-to-the-esp-device)
-      - [example for ESP32](#example-for-esp32)
-      - [first setup with access point](#first-setup-with-access-point)
-      - [return to factory mode](#return-to-factory-mode)
-    - [update](#update)
-  - [releases](#releases)
-    - [main](#main)
-    - [snapshot](#snapshot)
-  - [troubleshooting](#troubleshooting)
-  - [experiences with the hoymiles HMS-800W-2T](#experiences-with-the-hoymiles-hms-800w-2t)
-    - [set values - frequency](#set-values---frequency)
-    - [hoymiles cloud update](#hoymiles-cloud-update)
-    - [sources](#sources)
-  - [build environment](#build-environment)
-    - [platformio](#platformio)
-    - [hints for workflow](#hints-for-workflow)
+> 🔌 A reliable ESP32-based gateway that bridges your Hoymiles solar inverter to smart home systems like Home Assistant, openHAB, and MQTT.
 
+[![GitHub Downloads](https://img.shields.io/github/downloads/ohAnd/dtuGateway/latest/total)](https://github.com/ohAnd/dtuGateway/releases/latest)
+[![GitHub Release Date](https://img.shields.io/github/release-date/ohAnd/dtuGateway)](https://github.com/ohAnd/dtuGateway/releases/latest)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/ohAnd/dtuGateway/main_build.yml)](https://github.com/ohAnd/dtuGateway/actions)
 
-## problem
-The newer series of Hoymiles inverter with internal wireless access point and wireless client have no direct API to include this endpoint in smarthome installations/ IFTT environments.
+## 🚀 Quick Start
 
-Usually there should be no need for an extra device to "translate" the connection to common APIs or bindings. Unfortunately the interface on the dtu is unlikely unstable/ or not really stable.
+| What you need | What you get |
+|---------------|--------------|
+| ESP32 board + Hoymiles HMS-xxxW-2T | Real-time solar data in your smart home |
+| 5 minutes setup | Power monitoring, remote control, automatic updates |
 
-E.g. there is a threshold of ~ 31 seconds before you can send new data to the dtu (e.g. new power limit), otherwise the connection hangs and an internal restart/ reboot (???) leads to an offline time of ~ 30 minutes. 
-Data from dtu can be read in a very short time, but it has to be tested how often a request leads to the problem before.
+**Ready to start?** → [5-Minute Setup Guide](#5-minute-setup)
 
-On a manual way you can be back on track, if you are logging in to the local access point of the dtu and resend your local Wi-Fi login data to (it seems) initiate a reboot. With this way you can be back online in ~ 1:30 minutes.
+---
 
-So I decided to put this abstraction in an **ESP32** to have a stable abstraction to an existing smart home environment.
+## 📋 Table of Contents
 
-> *hint: the whole project could be also implemented on a small server and translated to e.g. python [see here for an example](https://github.com/henkwiedig/Hoymiles-DTU-Proto) and also the sources below*
+### Getting Started
+- [What is dtuGateway?](#what-is-dtugateway)
+- [Key Features](#key-features)
+- [Compatible Hardware](#compatible-hardware)
+- [5-Minute Setup](#5-minute-setup)
 
-## goal
-1. Abstract the interface to the dtu (inverter connection endpoint) with different possibilities to connect to other systems. (push/ pull)
-2. Very stable interface with no dependencies to an environment/ a system with a standalone application based on an Arduino board (ESP32).
-3. TODO: Ability to change running Wi-Fi to connect to dtu over local network or direct access point.
-4. Use this need to create a full environment for an ESP32 based project. (see features below)
+### Installation & Configuration
+- [Hardware Setup](#hardware-setup)
+- [Initial Installation](#initial-installation)
+- [Web Configuration](#web-configuration)
+- [Display Options](#display-options)
 
-## ESP8266 maintenance path
+### Smart Home Integration
+- [Home Assistant (MQTT)](#home-assistant-mqtt)
+- [openHAB](#openhab)
+- [MQTT Broker](#mqtt-broker)
+- [JSON API](#json-api)
 
-The project was started with an ESP8266. Due to some further implementations the ESP8266 was not capable anymore for the new features - therefore a maintenance branch was forked with the base functionalities until version 2.0.
+### Support & Advanced
+- [Compatibility Check](#compatibility-check)
+- [Troubleshooting](#troubleshooting)
+- [API Reference](#api-reference)
+- [Advanced Configuration](#advanced-configuration)
+- [Developer Information](#developer-information)
 
-https://github.com/ohAnd/dtuGateway/tree/esp8266_maintenance
+> **📖 New User-Friendly Documentation**  
+> This README has been restructured for easier navigation and first-time setup. Looking for the original technical documentation? Find it in [`readme_old.md`](readme_old.md).
 
-This branch will be maintained with small bug fix, if needed.
+---
 
-## features
+## What is dtuGateway?
 
-### regarding dtu
+**Transform your Hoymiles HMS-xxxW-2T solar inverter with integrated Wi-Fi DTU into a smart home powerhouse!** 
 
-#### dtu connection
-- base connection to retrieve data from inverter e.g.
-  - power (Watts), voltage (V), current (A) for the PV input data (PV0,PV1) and the grid
-  - energy counter (kWh) for all 3 sources (day and total)
-  - temperature and Wi-Fi RSSI of the dtu
-- setting the target inverter power limit dynamically (currently update rate up to 1 second implemented)
-  - via website (see [#33](https://github.com/ohAnd/dtuGateway/issues/33) - thanks to [@hirbelo](https://github.com/hirbelo))
-  - via openhab item (see below)
-  - via MQTT topic (see below)
-  - power limit value is settable in an interval of [0 ... 100]
-    - value 1 will be ignored due to the inverter capabilities
-    - value = 0 switching the inverter off - dtu is still alive and measuring input values
-    - if in state 'inverter off' any value > 0 will be switching the inverter on again (1 will be interpreted as 2)
-    - hint: it seems there is no state reported regarding inverter on or off - but the inverter-off state will be shown as a warning "Inverter remote off" - this will be used to recheck the state with every cyclic refresh of dtu warnings
-- for testing purposes the time between each request is adjustable (default 31 seconds) 
-- syncing time of gateway with the local time of the dtu to prevent wrong restart counters
-- automatic summertime (DST) switching based on configured timezone - all time displays and APIs automatically adjust for daylight saving time
-- configurable 'cloud pause' - see [experiences](#experiences-with-the-hoymiles-HMS-800W-2T) - to prevent missing updates by the dtu to the hoymiles cloud
-- automatic reboot of DTU, if there is an error detected (e.g. implausible unchanged values)
-- manual reboot per WebUI and MQTT ([see also](#mqtt-integration-configuration)) possible for:
-  - the dtuGateway itself
-  - the dtu - the communication unit of the hoymiles inverter
-  - the inverter itself of the hoymiles inverter
-- gathering the current dtu warnings and show them in the webfrontend
-  - click on icon in the top right corner - icon will be only shown if warnings were received
-  - a badge will reporting the number of warnings
-    - dark if only old warnings and the number of this old warnings
-    - bright if there are active warnings and only the number of active warnings
- 
-#### connections to the environment
-- serving the read data per /api/data.json
-- configuration of bindings with separate activation and login data setting
-- binding: updating openHab instance with read data and pulling power set data from the instance
-- binding: updating to a MQTT broker with read data including subscribing to the Set PowerLimit over MQTT
-  - 2 ways to configure - simple MQTT publishing with base topic or together with HA MQTT AutoDiscovery based
-  - for all publishing retain flag is set (keeping last seen data in broker)
-  - TLS connection to MQTT broker  e.g. for hivemq.cloud - ! only possible for ESP32 setup
-- can act as a remote display for another dtuGateway
-  - data will be received by MQTT
-  - webUI shows the same data as the host
-  - OLED/ TFT will show the host data
-    - OLED - a small cloud symbol will identify as a remote display
-    - TFT - a green inner ring and the name 'dtuMonitor' will identify as a remote display
+dtuGateway provides a reliable, dedicated gateway to your Hoymiles DTU where no direct API is available. Instead of relying on Hoymiles' unstable interface or waiting for official smart home integration, you get a rock-solid bridge that connects your inverter to any smart home system.
 
-#### display support
-- common
-  - selectable (and storable) via advanced web config[^2] or per serial com and at directly at start up coming from factory mode ( [see first-setup-with-access-point](#first-setup-with-access-point) )
-    
-    `selectDisplay 0` = OLED (default)
+> **Important**: Only compatible with HMS inverters that have **built-in Wi-Fi DTU** (integrated Wi-Fi). External DTU models (DTU-Lite, DTU-Pro sticks) are **not supported**.
 
-    `selectDisplay 1` = round TFT
-  - setting the orientation of the display via advanced web config[^2]
-    - OLED - 0 and 180 degrees are supported
-    - TFT - 0, 90, 180, 270 degrees are supported
-  - brightness and night mode (brightness only for TFT with connected backlight control and OLED)
-    - with night mode enabled and during the active time frame the display will be
-      - off (with backlight control)/ blank (without backlight control) or
-      - show the current time and power (if greater than 0) in a reduced scope
-    - adjustable via web config[^2]
-      - brightness day [0...255] - will also be used without night mode enabled for standard brightness (falling back to this after the power value changes)
-      - brightness night [0...255] - note: 0 = backlight off
-      - (to disable PWM control for TFT without backlight control set both brightness values to zero)
-      - night clock - on/off - if enabled the clock will be shown at night, otherwise blank or dark screen at night
-      - night mode enabled on/ off
-      - night mode OfflineTrigger on/off - the night mode will be additionally to the schedule triggered, if dtu is offline
-      - night mode start in minutes to start of the day - e.g. 1320 for 22:00
-      - night mode stop in minutes to start of the day - e.g. 360 for 6:00
-      - night clock enabled on/ off - on = clock will be displayed instead of dark screen
-      - TFT display only: enable/ disable the seconds ring (red) - if disabled only the static ring is visible and in nightmode there is no ring displayed
-      - example settings:
+### The Problem We Solve
+- ❌ **No official API**: Hoymiles provides no direct smart home integration
+- ❌ **Unreliable DTU interface**: Connection timeouts and 30+ minute downtimes
+- ❌ **Manual intervention required**: DTU connections fail and need manual recovery
+- ❌ **Inconsistent data access**: No reliable way to get real-time solar data
 
-        | setting                 | value | comment |
-        |-------------------------|-------|---------
-        | brightnessDay           | 150   | note: 255 - ~150 only difficult to perceive
-        | brightnessNight         |  30   | 
-        | nightClock              | true  | show the clock instead of black screen during night (and/ or offline)
-        | nightMode               | true  | night mode is enabled
-        | nightModeOfflineTrigger | true  | night mode will be also triggered if dtu is offline
-        | nightmodeStart          | 1320  | night time will start at 22 o'clock
-        | nightmodeEnd            | 390   | night time will end at 6:30 
-        | displayTFTsecondsRing   | true  | seconds ring in TFT display is enabled
-- special feature for TFT display "remote summary display" aka Solar Monitor
-  - why: needed something where I can see the current overall PV power due to several sources (micro inverter, main PV system, ...)
-  - clean PV wattage gauge and value display
-  - showing the current yield of the day and a clock with HH:MM (blinking colon every second to show activity)
-  
-    <img src="doc/images/dtuGateway_solarMonitor_1.jpg" alt="solar monitor example 1" width="180"/>
-    <img src="doc/images/dtuGateway_solarMonitor_2.jpg" alt="solar monitor example 2" width="180"/>
+### Our Solution
+- ✅ **Dedicated reliable gateway**: ESP32-based bridge with automatic DTU recovery
+- ✅ **Multiple APIs provided**: MQTT, REST JSON, openHAB integration where none existed
+- ✅ **Consistent data delivery**: Real-time monitoring with guaranteed updates
+- ✅ **Remote control capabilities**: Power limiting and inverter management via API
+- ✅ **Set-and-forget operation**: Automatic recovery from DTU connection issues
 
-  - needs only a MQTT broker with a source of your PV power and yield of the day (could be also another dtuGateway)
-  - config in settings
-    - go to "dtu" - check "run as a remote summary display" - other entries on this menu will disappear
-    - go to "bindings" - only mqtt part is visible and has to be set
-    - to retrieve the right data for your PV wattage and the yield of the current day you have to set the right "MQTT main topic for the solar monitor data"
-    - below this path the PV power will be expected with <yourpath>/PV_Power_Sum/state and for the yield of the day <yourpath>/PV_Energy_Sum_Day/state
+---
 
-- display hardware types
-  - display SSH1106 OLED 1,3" 128x64 (other sizes with same driver (SSH1106) and resolution should also directly work)
-    
-    <img src="doc/images/dtuGateay_OLED_firstStart.jpg" alt="drawdtuGateay_OLED_firstStarting" width="180"/>
-    <img src="doc/images/dtuGateay_OLED.jpg" alt="dtuGateay_OLED" width="180"/>
+## Key Features
 
-    - segmented in 3 parts
-      - header:
-        - left: Wi-Fi quality dtuGateway to local Wi-Fi
-        - mid: current time of dtuGateway
-        - right: Wi-Fi quality of dtu connection to local Wi-Fi
-      - main:
-        - small left: current power limit of inverter
-        - big mid/ right: current power of inverter
-      - footer:
-        - left: current daily yield
-        - right: current total yield
-    - additional features
-      - small screensaver to prevent burn-in effect with steady components on the screen (shifting the whole screen every minute with 1 pixel in a 4 step rotation)
-      - smooth brightness control for changed main value - increase to max after change and then dimming smooth back to the default level
-    
-  - display GC9A01 round TFT 1,28" 240x240 with or without backlight control
+### 🔌 **Solar Data Monitoring**
+- **Real-time metrics**: Power (W), voltage (V), current (A) for both PV panels and grid
+- **Energy tracking**: Daily and total energy counters (kWh) 
+- **System health**: Inverter temperature, Wi-Fi signal strength, warnings
+- **Automatic timezone/DST**: Built-in daylight saving time handling
 
-    <img src="doc/images/roundTFT_firstSTart.jpg" alt="roundTFT_firstSTart" width="180"/>
-    <img src="doc/images/roundTFT.jpg" alt="roundTFT" width="180"/>
+### 🏠 **Smart Home Ready**
+- **🏡 Home Assistant**: Auto-discovery via MQTT, instant setup
+- **🔗 openHAB**: Direct REST API integration with configurable items
+- **📡 MQTT**: Full broker support with TLS encryption
+- **🌐 JSON API**: Direct HTTP access for custom integrations
 
-    - setup screen for first start (factory mode)
-    - status screen with the (current) most important data
-### regarding base framework
+### 🎛️ **Remote Control**
+- **Power limiting**: Set inverter output from 0-100% remotely
+- **Inverter control**: Turn inverter on/off from your smart home
+- **System management**: Reboot DTU, inverter, or gateway remotely
+- **Automatic recovery**: Detects and fixes connection issues automatically
 
-- serving own access point in factory mode for first setup
-- web application will be directly served by the system (default ```http:\\<your-ip>``` with port 80)
-  - port setting for webserver possible in advanced config e.g. you can set port to 85 and the website will be available at ```http:\\<your-ip>:85``` (see also [#66](https://github.com/ohAnd/dtuGateway/issues/66))
-- settings can be protected by serial command `protectSettings 1` = protection active and `protectSettings 0` = protection inactive 
-- settings of needed user data over the web app (stored in a json-file in local flash file system - extensions of user setup will not lead to breakable changes)
-  - select found local Wi-Fi (additional issue [#20](https://github.com/ohAnd/dtuGateway/issues/20)) and enter/ save the needed Wi-Fi password
-  - change dtu connection data (e.g. host IP in local network, wireless user/ pass for dtu access point)
-  - configurable data for openhab item settings
-  - configurable data for MQTT settings including HomeAssistant AutoDiscovery
-  - advanced web config[^2] for all configuration parameters (http://IP_domain/config) - expert mode
-    - display selection (0 - OLED, 1 - round TFT)
-    - timeZone Offset -xxxx sec <-> xxxx sec e.g. 3600 for CET(+1h) /7200 for CEST(+2)/-21600 for CST
-      - **Note**: Automatic DST/summertime switching is built-in - all time displays and API responses automatically adjust for daylight saving time transitions based on the configured timezone
-- ~~OTA with direct connection to the github build pipeline - available updates will be checked by web app and device. Notification in web app, if update available and user can decide for direct online update~~
-- manual OTA/ web Update via web ui (hint: only stable if the Wi-Fi connection is above ~ 50%)
+### 📱 **User Interface Options**
+- **Built-in web interface**: Configure and monitor via browser
+- **OLED display**: 1.3" 128x64 with screensaver and brightness control
+- **Round TFT display**: 1.28" 240x240 with night mode and gauges
+- **Remote monitoring**: Act as display for another dtuGateway
 
-[^2]: 'advanced config' aka. 'dtuGateway Configuration Interface' it is something like an expert mode, that means you have to know which parameter you want to change with which effect.
+### 🔧 **Professional Features**
+- **OTA updates**: Manual firmware updates via web interface
+- **Factory reset**: Easy recovery from any configuration issues
+- **Warning system**: Real-time DTU alerts and error monitoring
+- **Cloud pause**: Configurable Hoymiles cloud update coordination
 
-## api
+---
 
-### data - http://<ip_to_your_device>/api/data.json
+## Compatible Hardware
+
+### ✅ Required
+- **ESP32 microcontroller**
+  - ESP-WROOM-32 NodeMCU-32S *(tested, recommended)*
+  - ESP32-S3 *(untested by maintainer, but tested by community users)*
+  - ESP32-S3 16MB N16R8 *(separate build target: `esp32_S3_16MB_N16R8`, tested by community)*
+- **Hoymiles HMS-xxxW-2T** solar inverter with **built-in Wi-Fi DTU**
+  - ✅ **Supported**: HMS-800W-2T, HMS-1000W-2T, HMS-600W-2T, HMS-300W-2T
+  - ✅ **Confirmed**: All HMS inverters with 2 panel connections **and integrated Wi-Fi DTU**
+  - ❌ **NOT Supported**: External DTU models (DTU-Lite stick, DTU-Pro external units)
+
+### 📺 Optional Displays
+| Display Type | Size | Features | Wiring |
+|--------------|------|----------|---------|
+| **OLED** | 1.3" 128x64 | SSH1106, screensaver, brightness | 4 wires (VCC, GND, SCL, SDA) |
+| **Round TFT** | 1.28" 240x240 | GC9A01, night mode, backlight | 8 wires (see pinout table) |
+
+**Need wiring help?** → [Hardware Setup Guide](#hardware-setup)
+
+### 🔍 **DTU Compatibility Details**
+
+**What works:**
+- HMS inverters with **integrated Wi-Fi DTU** (built into the inverter)
+- These models have Wi-Fi connectivity built directly into the inverter unit
+- Communication happens directly to the inverter's internal DTU over Wi-Fi
+
+**What doesn't work:**
+- HMS inverters that require **external DTU units** (DTU-Lite stick, DTU-Pro, etc.)
+- These systems use a separate physical DTU device for communication
+- dtuGateway connects directly to the inverter, not external DTU hardware
+
+*Not sure about your setup?* Check if your inverter has its own Wi-Fi network or connects directly to your home Wi-Fi. If it does, you have a compatible integrated Wi-Fi DTU model.
+
+---
+
+## 5-Minute Setup
+
+### Step 1: Get the Firmware
+📥 **[Download Latest Release](https://github.com/ohAnd/dtuGateway/releases/latest)**
+
+Choose your version:
+- **Stable**: Latest tested release (recommended for most users)
+- **Snapshot**: Latest development features (for testing and early adopters)
+
+#### 🧪 **Want to Test New Features?**
+**Snapshot releases** contain the latest development code before it's released as stable:
+
+[![Snapshot Downloads](https://img.shields.io/github/downloads/ohAnd/dtuGateway/snapshot/total)](https://github.com/ohAnd/dtuGateway/releases/tag/snapshot)
+[![Snapshot Release Date](https://img.shields.io/github/release-date-pre/ohAnd/dtuGateway)](https://github.com/ohAnd/dtuGateway/releases/tag/snapshot)
+
+- **📥 [Download Snapshot](https://github.com/ohAnd/dtuGateway/releases/tag/snapshot)**
+- **⚠️ Use with caution**: May contain bugs or incomplete features
+- **🔄 Manual updates**: Check for newer snapshots via web interface
+- **💡 Help development**: Report issues to improve the project
+
+**Perfect for**: Advanced users who want to test new features and help with development.
+
+### Step 2: Flash Your ESP32
+Using [ESP Download Tool](https://www.espressif.com/en/support/download/other-tools):
+
+1. **Download required files** from `doc/esp32_factoryFlash/`:
+   - `bootloader.bin` → Address: `0x1000`
+   - `partitions.bin` → Address: `0x8000` 
+   - `boot_app0.bin` → Address: `0xE000`
+   - `firmware.bin` → Address: `0x10000`
+
+2. **Flash settings**:
+   - SPI Speed: 40 MHz
+   - SPI Mode: QIO
+   - Baud rate: 921600
+
+3. **Press Start** and wait for completion
+
+*Alternative: Use esptool.py ([community guide](https://github.com/ohAnd/dtuGateway/discussions/46#discussion-7106516))*
+
+### Step 3: Initial Configuration
+1. **Connect to setup Wi-Fi**: `dtuGateway_XXXXXX`
+2. **Open browser**: Navigate to `http://192.168.4.1`
+3. **Configure network**:
+   - Select your home Wi-Fi
+   - Enter Wi-Fi password
+   - Set your DTU's IP address
+
+### Step 4: Choose Your Integration
+**For Home Assistant users:**
+- Enable MQTT with auto-discovery
+- Set MQTT broker details
+- Devices appear automatically in HA
+
+**For openHAB users:**
+- Set openHAB IP address
+- Configure item prefix
+- Items created automatically
+
+**For other systems:**
+- Use JSON API at `http://your-device-ip/api/data.json`
+- Or configure custom MQTT topics
+
+### Step 5: Enjoy! 🎉
+Your solar data is now flowing into your smart home system. The device will:
+- ✅ Update data every 31 seconds
+- ✅ Automatically handle DTU connection issues  
+- ✅ Provide web interface at `http://your-device-ip`
+- ✅ Manual firmware updates via web interface (auto-update planned for future)
+
+**Next steps:** [Set up displays](#display-options) • [Explore advanced features](#advanced-configuration)
+
+---
+
+## Hardware Setup
+
+### ESP32 Pinout for OLED Display
+
+| Display Pin | ESP32 Pin | Description |
+|-------------|-----------|-------------|
+| VCC | 3.3V | Power supply |
+| GND | GND | Ground |
+| SCL | GPIO22 (D22) | I2C Clock |
+| SDA | GPIO21 (D21) | I2C Data |
+
+### ESP32 Pinout for Round TFT Display
+
+| Display Pin | ESP32 Pin | Description |
+|-------------|-----------|-------------|
+| VCC | 3.3V | Power supply |
+| GND | GND | Ground |
+| SCL | GPIO18 (D18) | SPI Clock |
+| SDA | GPIO23 (D23) | SPI Data (MOSI) |
+| DC | GPIO2 (D2) | Data/Command |
+| CS | GPIO15 (D15) | Chip Select |
+| RST | 3.3V | Reset (pulled high) |
+| BLK | GPIO4 (D4) | Backlight control (ESP32) / GPIO12 (ESP8266) |
+
+### Assembly Tips
+- **OLED**: Simple 4-wire connection, plug and play
+- **TFT**: 8 wires required, but backlight control enables night mode
+- **Both displays**: Factory mode alternates between OLED/TFT config on each reboot until configured
+- **No display**: Gateway works perfectly via web interface only
+- **OLED pins**: Uses default I2C pins (GPIO21/SDA, GPIO22/SCL) for ESP32
+
+---
+
+## Initial Installation
+
+### Method 1: ESP Download Tool (Recommended)
+1. Download [ESP32 Download Tool](https://www.espressif.com/en/support/download/other-tools)
+2. Get firmware files from [latest release](https://github.com/ohAnd/dtuGateway/releases/latest)
+3. Flash according to [5-Minute Setup](#step-2-flash-your-esp32)
+
+### Method 2: esptool.py (Advanced)
+**When to use**: Command-line users, automated scripts, or when ESP Download Tool doesn't work
+
+```bash
+esptool.py --chip esp32 --baud 921600 --before default_reset --after hard_reset write_flash \
+  0x1000 bootloader.bin \
+  0x8000 partitions.bin \
+  0xe000 boot_app0.bin \
+  0x10000 firmware.bin
+```
+
+**📚 Community Resources:**
+- **[Detailed esptool.py Guide](https://github.com/ohAnd/dtuGateway/discussions/46#discussion-7106516)** by @netzbasteln - Step-by-step tutorial with troubleshooting tips
+- **Installation help**: [GitHub Discussions](https://github.com/ohAnd/dtuGateway/discussions) - Community support for flashing issues
+- **Official esptool docs**: [Espressif esptool documentation](https://docs.espressif.com/projects/esptool/en/latest/)
+
+### First Boot Behavior
+- **With display**: Alternates between OLED/TFT on each reboot until configured
+- **No display**: Starts access point immediately
+- **LED indicator**: Built-in LED shows activity status
+- **Serial output**: 115200 baud for debugging (optional)
+
+### Factory Reset
+If something goes wrong:
+1. Connect via serial terminal (115200 baud)
+2. Type: `resetToFactory 1`
+3. Device reboots to factory settings
+4. Reconnect to setup Wi-Fi and reconfigure
+
+---
+
+## Web Configuration
+
+### Access Point Mode (First Setup)
+- **Network**: `dtuGateway_<ChipID>`
+- **URL**: `http://192.168.4.1` or `http://dtuGateway.local`
+- **Password**: None (open network)
+
+### Connected Mode (After Setup)
+- **URL**: `http://<device-ip>` (check your router for IP)
+- **Port**: Default 80 (configurable in advanced settings)
+- **Security**: Optional password protection via serial command
+
+### Configuration Tabs
+
+#### 1. Network Settings
+- **Wi-Fi Selection**: Scan and select your network
+- **DTU Connection**: Set your inverter's IP address
+- **Advanced**: Custom ports, timeouts, cloud pause settings
+
+#### 2. Display Options
+- **Type Selection**: OLED (0) or Round TFT (1)
+- **Orientation**: 0°, 90°, 180°, 270° (TFT only)
+- **Brightness**: Day/night levels (0-255)
+- **Night Mode**: Scheduled dimming with time ranges
+- **Screensaver**: Anti-burn-in for OLED displays
+
+#### 3. Smart Home Bindings
+- **openHAB**: IP address and item prefix configuration
+- **MQTT**: Broker settings, TLS, auto-discovery options
+- **Remote Display**: Use as monitor for another dtuGateway
+
+#### 4. Advanced Configuration
+Access expert mode at `http://<device-ip>/config`:
+- **Timezone**: Automatic DST handling with offset configuration
+- **Update Channel**: Stable vs. snapshot releases  
+- **Debug Settings**: Polling intervals, cloud coordination
+- **Security**: Settings protection and access control
+
+---
+
+## Display Options
+
+### OLED Display (SSH1106)
+<img src="doc/images/dtuGateay_OLED.jpg" alt="OLED Display" width="200"/>
+
+**Features:**
+- **Segmented layout**: Header (Wi-Fi status, time), main (power data), footer (energy totals)
+- **Screensaver**: 1-pixel shift every minute to prevent burn-in
+- **Brightness control**: Smooth transitions when values change
+- **Status indicators**: Connection quality for both gateway and DTU
+
+**Data shown:**
+- Current power output and limit
+- Daily and total energy yield
+- Real-time clock with automatic DST
+- Wi-Fi signal strength indicators
+
+### Round TFT Display (GC9A01)
+<img src="doc/images/roundTFT.jpg" alt="Round TFT Display" width="200"/>
+
+**Features:**
+- **Gauge-style display**: Analog power meter with digital readouts
+- **Night mode**: Automatic dimming or clock-only display
+- **Backlight control**: PWM brightness adjustment
+- **Status rings**: Visual indicators for system status
+
+**Modes:**
+- **Normal**: Full power and energy display
+- **Night**: Clock only or dimmed display
+- **Solar Monitor**: Multi-source power aggregation display
+- **Remote Display**: Mirror another dtuGateway's data
+
+### Solar Monitor Mode
+<img src="doc/images/dtuGateway_solarMonitor_1.jpg" alt="Solar Monitor" width="200"/>
+
+Special TFT mode for monitoring multiple solar sources:
+- **Aggregate display**: Combined power from multiple inverters
+- **MQTT-based**: Receives data from other dtuGateways
+- **Clean interface**: Gauge + daily yield + real-time clock
+- **Perfect for**: Main monitoring point in multi-inverter setups
+
+**Configuration:**
+1. Enable "run as remote summary display" in DTU settings
+2. Configure MQTT broker connection
+3. Set main topic path for data sources
+4. Expects data at: `<path>/PV_Power_Sum/state` and `<path>/PV_Energy_Sum_Day/state`
+
+---
+
+## Home Assistant (MQTT)
+
+### Automatic Setup
+1. **Enable MQTT** in dtuGateway web interface
+2. **Configure broker**: IP, port, username, password
+3. **Enable auto-discovery**: Toggle "HomeAssistant Auto Discovery"
+4. **Restart dtuGateway**: Devices appear automatically in HA
+
+### What You Get
+**Sensors automatically created:**
+- `sensor.dtugateway_xxxxx_grid_power` - Current grid power
+- `sensor.dtugateway_xxxxx_pv0_power` - Panel 1 power  
+- `sensor.dtugateway_xxxxx_pv1_power` - Panel 2 power
+- `sensor.dtugateway_xxxxx_grid_daily_energy` - Today's energy
+- `sensor.dtugateway_xxxxx_inverter_temp` - Inverter temperature
+- ... and many more
+
+**Device identifier**: Appears as "HMS-xxxxW-2T" in Home Assistant
+**Controls automatically created:**
+- `number.dtugateway_xxxxx_power_limit` - Set power limit (0-100%)
+- `button.dtugateway_xxxxx_reboot_dtu` - Reboot DTU
+- `button.dtugateway_xxxxx_reboot_inverter` - Reboot inverter
+
+### Example Home Assistant Dashboard
+```yaml
+type: entities
+title: Solar System
+entities:
+  - entity: sensor.dtugateway_xxxxx_grid_power
+    name: Current Power
+  - entity: sensor.dtugateway_xxxxx_grid_daily_energy  
+    name: Today's Energy
+  - entity: number.dtugateway_xxxxx_power_limit
+    name: Power Limit
+  - entity: sensor.dtugateway_xxxxx_inverter_temp
+    name: Temperature
+```
+
+### Advanced MQTT Configuration
+```yaml
+# Custom main topic (optional)
+dtu_12345678/grid/P          # Power values
+dtu_12345678/grid/dailyEnergy # Energy values
+dtu_12345678/inverter/Temp   # Temperature
+dtu_12345678/timestamp       # Last update time
+
+# Control topics
+dtu_12345678/inverter/PowerLimitSet/set  # Set power limit
+dtu_12345678/inverter/RebootDtu/set      # Reboot DTU
+dtu_12345678/inverter/RebootMi/set       # Reboot inverter
+```
+
+---
+
+## openHAB
+
+### Configuration
+1. **Set openHAB IP** in dtuGateway web interface
+2. **Configure item prefix** (e.g., "inverter")
+3. **Create items** in your openHAB items file
+
+### Required openHAB Items
+```java
+// Read power limit setting from openHAB
+Number inverter_PowerLimitSet "Power Limit Set [%d %%]"
+
+// Grid data
+Number inverter_Grid_U "Grid Voltage [%.1f V]"
+Number inverter_Grid_I "Grid Current [%.2f A]"
+Number inverter_Grid_P "Grid Power [%.0f W]"
+Number inverter_PV_E_day "Daily Energy [%.3f kWh]"
+Number inverter_PV_E_total "Total Energy [%.3f kWh]"
+
+// Panel 1 data  
+Number inverter_PV1_U "PV1 Voltage [%.1f V]"
+Number inverter_PV1_I "PV1 Current [%.2f A]"
+Number inverter_PV1_P "PV1 Power [%.0f W]"
+Number inverter_PV1_E_day "PV1 Daily Energy [%.3f kWh]"
+Number inverter_PV1_E_total "PV1 Total Energy [%.3f kWh]"
+
+// Panel 2 data
+Number inverter_PV2_U "PV2 Voltage [%.1f V]"
+Number inverter_PV2_I "PV2 Current [%.2f A]"
+Number inverter_PV2_P "PV2 Power [%.0f W]"
+Number inverter_PV2_E_day "PV2 Daily Energy [%.3f kWh]"
+Number inverter_PV2_E_total "PV2 Total Energy [%.3f kWh]"
+
+// Inverter status
+Number inverter_Temp "Inverter Temperature [%.1f °C]"
+Number inverter_PowerLimit "Current Power Limit [%d %%]"
+Number inverter_WifiRSSI "DTU Wi-Fi Signal [%d %%]"
+```
+
+### How It Works
+- **Data flow**: dtuGateway → openHAB REST API → Items updated
+- **Control flow**: openHAB item change → dtuGateway reads → DTU updated
+- **Update interval**: Every 31 seconds (configurable)
+- **API endpoint**: `http://openhab-ip:8080/rest/items/<itemName>/state`
+
+---
+
+## MQTT Broker
+
+### Basic Configuration
+```yaml
+Broker Settings:
+  Host: your-mqtt-broker.local
+  Port: 1883 (or 8883 for TLS)
+  Username: your-mqtt-user
+  Password: your-mqtt-password
+  Main Topic: dtuGateway_12345678
+```
+
+### Published Topics
+```
+dtuGateway_12345678/
+├── timestamp                    # Last update timestamp
+├── grid/
+│   ├── U                       # Voltage (V)
+│   ├── I                       # Current (A)  
+│   ├── P                       # Power (W)
+│   ├── dailyEnergy            # Daily energy (kWh)
+│   └── totalEnergy            # Total energy (kWh)
+├── pv0/ (same structure as grid)
+├── pv1/ (same structure as grid)
+└── inverter/
+    ├── PowerLimit             # Current limit (%)
+    ├── PowerLimitSet          # Target limit (%)
+    ├── Temp                   # Temperature (°C)
+    ├── WifiRSSI              # Signal strength
+    ├── cloudPause            # Cloud update status
+    ├── dtuConnectState       # Connection status
+    ├── dtuConnectionOnline   # Online status
+    ├── inverterControlStateOn # Inverter state
+    └── warningsActive        # Warning count
+```
+
+### Control Topics (Subscribe)
+```
+dtuGateway_12345678/inverter/PowerLimitSet/set  # Set power limit (2-100)
+dtuGateway_12345678/inverter/RebootMi/set       # Reboot inverter (send 1)
+dtuGateway_12345678/inverter/RebootDtu/set      # Reboot DTU (send 1)  
+dtuGateway_12345678/inverter/RebootDtuGw/set    # Reboot gateway (send 1)
+```
+
+### TLS Configuration
+For secure connections (e.g., HiveMQ Cloud):
+- **Enable TLS**: Check "Use TLS" in MQTT settings
+- **Port**: Usually 8883 for TLS
+- **Certificates**: Uses ESP32 built-in CA certificates
+- **Note**: TLS only available on ESP32 (not ESP8266)
+
+---
+
+## JSON API
+
+### Real-time Data Endpoint
+**URL**: `http://<device-ip>/api/data.json`
 
 <details>
-<summary>expand to see json example</summary>
+<summary>Click to see example response</summary>
 
-```json 
+```json
 {
   "localtime": 1704110892,
   "ntpStamp": 1707640484,
@@ -230,356 +547,602 @@ This branch will be maintained with small bug fix, if needed.
   "dtuErrorState": 0,
   "starttime": 1707593197,
   "inverter": {
-    "pLim": 0,
+    "pLim": 80,
     "pLimSet": 101,
-    "temp": 0.00,
-    "active": 0,
-    "uptodate": 0
+    "temp": 24.5,
+    "active": 1,
+    "uptodate": 1
   },
   "grid": {
-    "v": 0.00,
-    "c": 0.00,
-    "p": 0.00,
-    "dE": 0.000,
-    "tE": 0.000
+    "v": 230.2,
+    "c": 2.45,
+    "p": 564.0,
+    "dE": 12.456,
+    "tE": 1234.567
   },
   "pv0": {
-    "v": 0.00,
-    "c": 0.00,
-    "p": 0.00,
-    "dE": 0.000,
-    "tE": 0.000
+    "v": 35.8,
+    "c": 8.2,
+    "p": 293.0,
+    "dE": 6.123,
+    "tE": 567.890
   },
   "pv1": {
-    "v": 0.00,
-    "c": 0.00,
-    "p": 0.00,
-    "dE": 0.000,
-    "tE": 0.000
+    "v": 36.1,
+    "c": 7.9,
+    "p": 285.0,
+    "dE": 6.333,
+    "tE": 666.677
   }
 }
 ```
 </details>
 
-### info - http://<ip_to_your_device>/api/info.json
+### System Information Endpoint  
+**URL**: `http://<device-ip>/api/info.json`
 
 <details>
-<summary>expand to see json example</summary>
+<summary>Click to see example response</summary>
 
-```json 
+```json
 {
   "chipid": 123456,
   "chipType": "ESP32",
-  "host": "dtuGateway_123456",
+  "host": "dtuGateway_123456", 
   "initMode": 0,
+  "protectSettings": 0,
   "firmware": {
-    "version": "1.9.1",
-    "versiondate": "20.08.2024 - 23:42:26",
-    "versionServer": "checking",
-    "versiondateServer": "...",
-    "versionServerRelease": "checking",
-    "versiondateServerRelease": "...",
-    "selectedUpdateChannel": "0",
+    "version": "2.1.0",
+    "versiondate": "13.07.2025 - 12:00:00",
     "updateAvailable": 0
   },
-  "openHabConnection": {
-    "ohActive": 1,
-    "ohHostIp": "192.168.0.1",
-    "ohItemPrefix": "inverter"
-  },
-  "mqttConnection": {
-    "mqttActive": 1,
-    "mqttIp": "homeassistant.fritz.box",
-    "mqttPort": 1883,
-    "mqttUseTLS": 0,
-    "mqttUser": "userMQTT",
-    "mqttPass": "passMQTT",
-    "mqttMainTopic": "dtu_123456",
-    "mqttHAautoDiscoveryON": 1
-  },
   "dtuConnection": {
-    "dtuHostIpDomain": "192.168.0.2",
-    "dtuRssi": 0,
+    "dtuHostIpDomain": "192.168.1.100",
+    "dtuRssi": 75,
     "dtuDataCycle": 31,
-    "dtuResetRequested": 0,
-    "dtuCloudPause": 1,
-    "dtuCloudPauseTime": 30,
-    "dtuRemoteDisplay": 1
+    "dtuCloudPause": 1
   },
   "wifiConnection": {
-    "wifiSsid": "privateWifi",
-    "wifiPassword": "privateWifiPass",
-    "rssiGW": 80,
-    "wifiScanIsRunning": 0,
-    "networkCount": 0,
-    "foundNetworks": [
-      {
-        "name": "Name1 Wlan",
-        "wifi": 62,
-        "rssi": -69,
-        "chan": 1
-      },
-      {
-        "name": "name2-wifi",
-        "wifi": 48,
-        "rssi": -76,
-        "chan": 3
-      }
-    ]
+    "wifiSsid": "MyHomeWiFi",
+    "rssiGW": 85,
+    "networkCount": 3
   }
 }
 ```
 </details>
 
-## openhab integration/ configuration
+### Usage Examples
 
-- set the IP to your openhab instance - data will be read with http://<your_openhab_ip>:8080/rest/items/<itemName>/state
-- set the prefix ( \<openItemPrefix\> ) of your openhab items
-- list of items that should be available in your openhab config
-  - read your given power set value from openhab with "<yourOpenItemPrefix>_PowerLimitSet"
-  - set openhab items with data from dtu:
-  <details>
-  <summary>expand to see to details</summary>
+**Python**:
+```python
+import requests
+import json
 
-    - grid data:
-      - "<openItemPrefix>Grid_U"
-      - "<openItemPrefix>Grid_I"
-      - "<openItemPrefix>Grid_P"
-      - "<openItemPrefix>PV_E_day"
-      - "<openItemPrefix>PV_E_total"
-    - panel 1 data:
-      - "<openItemPrefix>PV1_U"
-      - "<openItemPrefix>PV1_I"
-      - "<openItemPrefix>PV1_P"
-      - "<openItemPrefix>PV1_E_day"
-      - "<openItemPrefix>PV1_E_total"
-    - panel 2 data:
-      - "<openItemPrefix>PV2_U"
-      - "<openItemPrefix>PV2_I"
-      - "<openItemPrefix>PV2_P"
-      - "<openItemPrefix>PV2_E_day"
-      - "<openItemPrefix>PV2_E_total"
-    - inverter status:
-      - "<openItemPrefix>_Temp"
-      - "<openItemPrefix>_PowerLimit" //current read power limit from dtu
-      - "<openItemPrefix>_WifiRSSI"
+# Get current data
+response = requests.get('http://192.168.1.50/api/data.json')
+data = response.json()
 
-  </details>
+current_power = data['grid']['p']
+daily_energy = data['grid']['dE']
+inverter_temp = data['inverter']['temp']
 
-## MQTT integration/ configuration
+print(f"Current power: {current_power}W")
+print(f"Today's energy: {daily_energy}kWh") 
+print(f"Inverter temp: {inverter_temp}°C")
+```
 
-- set the IP to your MQTT broker
-- set the MQTT user and MQTT password
-- set the main topic e.g. 'dtuGateway_12345678' for the published data (default: is `dtuGateway_<ESP chip id>` and has to be unique in your environment)
-- choosing insecure or TLS based connection to your MQTT broker (only ESP32)
-- to set the Power Limit from your environment
-  - you have to publish to `<main topic>/inverter/PowerLimitSet/set` a value between 2...100 (possible range at DTU)
-  - the incoming value will be checked for this interval and locally corrected to 2 or 100 if exceeds
-  - with retain flag, to get the last set value after restart / reconnect of the dtuGateway
-- reboot options:
-  - MicroInverter
-    - The hoymiles inverter has a micro inverter attached to a dtu. The micro inverter handles mains and solarpanels, while the dtu communicates states and control the mi. Dtu is rebooted if an error occure. Sometimes it is also nessesary to reboot the micro inverter itself.
-    - you have to publish to `<main topic>/inverter/RebootMi/set` a value of 1
-    - the incoming value will be checked for 1 and reboot the micro inverter
-    - this is useful if after a mains power fail the inverter is not injecting power to mains in time
-    - it could also useful in other scenarios where the micro inverter is in some error state
-  - dtu
-    - according to MicroInverter Reboot
-    - to reboot the dtu, teh communication unit of the hoymiles inverter, use `<main topic>/inverter/RebootDtu/set`
-  - dtuGateway
-    - according to MicroInverter Reboot
-    - to reboot the dtuGateway istself use `<main topic>/inverter/RebootDtuGw/set`
-- data will be published as following ('dtuGateway_12345678' is configurable in the settings):
-  <details>
-  <summary>expand to see to details</summary>
+**Node.js**:
+```javascript
+const axios = require('axios');
+
+async function getSolarData() {
+  try {
+    const response = await axios.get('http://192.168.1.50/api/data.json');
+    const data = response.data;
+    
+    console.log(`Power: ${data.grid.p}W`);
+    console.log(`Energy: ${data.grid.dE}kWh`);
+    console.log(`Temperature: ${data.inverter.temp}°C`);
+  } catch (error) {
+    console.error('Error fetching data:', error);
+  }
+}
+
+setInterval(getSolarData, 30000); // Every 30 seconds
+```
+
+**curl**:
+```bash
+# Get current data
+curl http://192.168.1.50/api/data.json | jq '.grid.p'
+
+# Monitor power output
+watch -n 30 'curl -s http://192.168.1.50/api/data.json | jq ".grid.p"'
+```
+
+---
+
+## Compatibility Check
+
+### ✅ **Is Your Inverter Compatible?**
+
+**Quick Check**: Can you connect directly to your inverter's Wi-Fi network?
+
+1. **Look for inverter Wi-Fi network**: 
+   - Should appear as `HMS-XXXXXX` or `AP_HMS_XXXXXX`
+   - If you see this, you have a compatible integrated Wi-Fi DTU
+
+2. **Connect using S-Miles app**:
+   - If the app connects directly to your inverter via Wi-Fi, you're compatible
+   - If you need a separate DTU device between app and inverter, you're **not compatible**
+
+3. **Physical check**:
+   - **Compatible**: Single inverter unit with antenna (no separate DTU box)
+   - **Not Compatible**: Inverter + separate DTU device (stick/box)
+
+### ❌ **Incompatible Setups**
+
+**External DTU Models** *(not supported)*:
+- DTU-Lite (stick-style external DTU)
+- DTU-Pro (external DTU box)  
+- DTU-W100 (external DTU)
+- Any setup where DTU is separate from inverter
+
+**Why these don't work**: dtuGateway communicates directly with the inverter's built-in DTU. External DTU devices use different communication protocols.
+
+### 🆘 **Still Unsure?**
+
+Post your inverter model and setup photos in [GitHub Discussions](https://github.com/ohAnd/dtuGateway/discussions) for compatibility confirmation.
+
+---
+
+## Troubleshooting
+
+### Common Issues
+
+#### 🔌 **Connection Problems**
+
+**Problem**: Can't connect to dtuGateway_XXXXXX Wi-Fi
+- **Solution**: Power cycle the ESP32, wait 30 seconds for boot
+- **Check**: LED should blink during startup
+- **Note**: On mobile, accept "no internet" connection warning
+
+**Problem**: DTU connection fails
+- **Check**: DTU IP address is correct in settings
+- **Test**: Ping DTU IP from same network: `ping 192.168.1.100`
+- **Fix**: Ensure DTU is connected to same Wi-Fi network
+
+**Problem**: Smart home integration not working
+- **MQTT**: Verify broker settings, test with MQTT client
+- **openHAB**: Check item names match exactly (case sensitive)
+- **API**: Test endpoints directly in browser first
+
+#### ⚡ **Data Issues**
+
+**Problem**: No power data showing
+- **Check**: Inverter is producing power (sunny day, panels connected)
+- **Verify**: DTU shows data in Hoymiles app
+- **Wait**: Initial connection can take 2-3 update cycles (2 minutes)
+
+**Problem**: Inconsistent data updates
+- **Normal**: DTU connection issues happen, gateway auto-recovers
+- **Check**: DTU signal strength in web interface
+- **Fix**: Improve DTU Wi-Fi signal or move gateway closer
+
+**Problem**: Wrong timezone/time
+- **Fix**: Set timezone offset in advanced config
+- **Note**: DST adjusts automatically based on configured timezone
+- **Format**: Seconds from UTC (3600 = +1h, -21600 = -6h)
+
+#### 🖥️ **Display Issues**
+
+**Problem**: Display not working
+- **Check**: Wiring matches pinout tables exactly
+- **Test**: Display type setting (OLED=0, TFT=1) 
+- **Try**: Factory reset and reconfigure display type
+
+**Problem**: Display too dim/bright
+- **Fix**: Adjust brightness in web interface (0-255)
+- **Night mode**: Check night mode schedule settings
+- **TFT**: Verify backlight wire connected to correct GPIO (GPIO4 for ESP32, GPIO12 for ESP8266)
+
+#### 🔄 **Update/Recovery Issues**
+
+**Problem**: Firmware update fails
+- **Check**: Wi-Fi signal >50% during update
+- **Try**: Stable release instead of snapshot
+- **Recovery**: Factory reset if device won't boot
+
+**Problem**: Settings corrupted/lost
+- **Fix**: Serial connection → `resetToFactory 1`
+- **Prevent**: Don't power off during updates or config saves
+
+**Problem**: Can't access web interface
+- **Find IP**: Check router DHCP client list
+- **Try**: `http://dtugateway.local` (if mDNS works)
+- **Reset**: Factory reset and reconfigure
+
+### Advanced Diagnostics
+
+#### Serial Console Debug
+1. Connect USB-to-serial adapter (115200 baud)
+2. Monitor debug output during operation
+3. **Available Commands** (send via serial terminal):
+
+**Basic Control:**
+- `setPower <watts>` - Set power limit (e.g., `setPower 600`)
+- `getDataAuto 1/0` - Enable/disable automatic data collection  
+- `getDataOnce 1/0` - Trigger single data collection
+- `dataFormatJSON 1/0` - Toggle JSON format for data output
+- `setWifi 1/0` - Enable/disable Wi-Fi connection
+
+**System Management:**
+- `resetToFactory 1` - Factory reset (clears all settings)
+- `rebootDevice 1` - Restart the ESP32 device
+- `protectSettings 1/0` - Enable/disable web interface settings protection
+
+**DTU/Inverter Control:**
+- `rebootDTU 1` - Request DTU device reboot
+- `rebootMi 1` - Request inverter microcontroller reboot
+- `dtuInverter 1/0` - Turn inverter ON/OFF (1=ON, 0=OFF)
+- `getDtuAlarms 1` - Request DTU alarm information
+
+**Configuration:**
+- `setInterval <seconds>` - Set DTU update interval (minimum 31s)
+- `getInterval` - Display current update interval
+- `setCloudSave 1/0` - Enable/disable cloud error prevention
+- `selectDisplay 0/1` - Choose display type (0=OLED, 1=Round TFT)
+
+**Example Usage:**
+```
+setPower 400          # Set power limit to 400W
+getDataAuto 1         # Enable auto data collection
+resetToFactory 1      # Factory reset device
+```
+
+#### Network Troubleshooting
+```bash
+# Find device IP
+nmap -sn 192.168.1.0/24 | grep -B2 "dtuGateway"
+
+# Test API endpoints  
+curl http://DEVICE-IP/api/info.json
+curl http://DEVICE-IP/api/data.json
+
+# Test MQTT (if using mosquitto)
+mosquitto_sub -h BROKER-IP -t "dtuGateway_+/+/+"
+```
+
+#### DTU Communication Test
+1. Web interface → DTU tab → Check connection status
+2. Look for "DTU reboots" counter (should be low)
+3. Check "last response" timestamp (should update every ~31 seconds)
+4. Warning icon shows DTU alerts if any
+
+### Getting Help
+
+1. **Check logs**: Serial console output helps diagnose issues
+2. **Test basics**: API endpoints, ping tests, LED indicators  
+3. **Community**: [GitHub Discussions](https://github.com/ohAnd/dtuGateway/discussions)
+4. **Bug reports**: [GitHub Issues](https://github.com/ohAnd/dtuGateway/issues) with serial logs
+
+### 🤝 **Help Improve dtuGateway**
+
+**Test snapshot releases** and report issues to help development:
+- **Try new features**: Enable snapshot updates in advanced config
+- **Report bugs**: Include serial logs and detailed steps to reproduce
+- **Share feedback**: What works well? What could be improved?
+- **Community support**: Help other users in GitHub Discussions
+
+**Your testing helps make the next stable release better for everyone!**
+
+---
+
+## Advanced Configuration
+
+### Expert Web Interface
+Access advanced settings at: `http://<device-ip>/config`
+
+⚠️ **Warning**: Expert mode allows changing parameters that can break functionality. Only modify settings you understand.
+
+### Advanced Settings Reference
+
+#### Network Configuration
+```yaml
+Webserver Port: 80        # Change web interface port
+DTU Data Cycle: 31        # Seconds between DTU requests (min 31)
+Cloud Pause: 30           # Hoymiles cloud coordination time
+Connection Timeout: 10    # DTU connection timeout
+```
+
+#### Display Advanced Settings
+```yaml
+Display Type: 0/1                # 0=OLED, 1=Round TFT
+Display Orientation: 0-270       # Rotation angle (TFT only)
+Brightness Day: 150              # Day brightness (0-255)
+Brightness Night: 30             # Night brightness (0-255)
+Night Mode: true/false           # Enable scheduled dimming
+Night Mode Start: 1320           # Minutes from midnight (22:00)
+Night Mode End: 360              # Minutes from midnight (06:00)
+Night Clock: true/false          # Show clock during night mode
+Offline Trigger: true/false      # Night mode when DTU offline
+TFT Seconds Ring: true/false     # Show red seconds ring (TFT)
+```
+
+#### Timezone Configuration
+```yaml
+Timezone Offset: 3600            # Seconds from UTC
+# Examples:
+# 3600 = UTC+1 (CET)
+# 7200 = UTC+2 (CEST) 
+# -21600 = UTC-6 (CST)
+# 0 = UTC
+```
+
+**Note**: DST (Daylight Saving Time) adjusts automatically based on timezone.
+
+#### Update Channel Selection
+```yaml
+Update Channel: 0/1              # 0=Stable, 1=Snapshot
+Auto Check Updates: true/false   # Currently disabled due to ongoing refactoring
+```
+
+**Update Channel Details:**
+- **Stable (0)**: Only stable, thoroughly tested releases
+  - **Recommended**: For production use and most users
+  - **Frequency**: Every few weeks to months
+  - **Quality**: Extensively tested, minimal risk
   
-  ```
-  dtuGateway_12345678/timestamp
+- **Snapshot (1)**: Latest development builds
+  - **For**: Advanced users and testers  
+  - **Frequency**: Multiple times per week
+  - **Quality**: May contain bugs, use with caution
+  - **Benefits**: Access to latest features and improvements
 
-  dtuGateway_12345678/grid/U
-  dtuGateway_12345678/grid/I
-  dtuGateway_12345678/grid/P
-  dtuGateway_12345678/grid/dailyEnergy
-  dtuGateway_12345678/grid/totalEnergy
-  
-  dtuGateway_12345678/pv0/U
-  dtuGateway_12345678/pv0/I
-  dtuGateway_12345678/pv0/P
-  dtuGateway_12345678/pv0/dailyEnergy
-  dtuGateway_12345678/pv0/totalEnergy
-  
-  dtuGateway_12345678/pv1/U
-  dtuGateway_12345678/pv1/I
-  dtuGateway_12345678/pv1/P
-  dtuGateway_12345678/pv1/dailyEnergy
-  dtuGateway_12345678/pv1/totalEnergy
+**Update Behavior:**
+- **Currently**: Manual updates only via web interface
+- **Auto-check**: Temporarily disabled during ongoing refactoring
+- **Manual process**: Check for updates → Download → Flash via web interface
+- **Safety**: All updates require manual confirmation (never automatic)
+- **Future**: Automatic update notifications will be re-enabled after refactoring
 
-  dtuGateway_12345678/inverter/PowerLimit
-  dtuGateway_12345678/inverter/Temp
-  dtuGateway_12345678/inverter/WifiRSSI
-  dtuGateway_12345678/inverter/cloudPause
-  dtuGateway_12345678/inverter/dtuConnectState
-  dtuGateway_12345678/inverter/dtuConnectionOnline
-  dtuGateway_12345678/inverter/PowerLimitSet // <-- this topic (extended with ../set) will be subscribed to get the power limit to set from your broker
-  dtuGateway_12345678/inverter/inverterControlStateOn
-  dtuGateway_12345678/inverter/warningsActive
-  dtuGateway_12345678/inverter/RebootMi
-  dtuGateway_12345678/inverter/RebootDtu
+#### Security Settings
+```bash
+# Via serial console only (115200 baud):
+protectSettings 1                # Enable settings protection
+protectSettings 0                # Disable settings protection
+```
 
-  ```
-  </details>
+### Remote Display Configuration
+Use one dtuGateway as display for another:
 
-- Home Assistant Auto Discovery
-  - you can set HomeAssistant Auto Discovery, if you want to auto configure the dtuGateway for your HA installation 
-  - switch to ON means - with every restart/ reconnection of the dtuGateway the so called config messages will be published for HA and HA will configure (or update) all the given entities of dtuGateway incl. the set value for PowerLimit
-  - switch to OFF means - all the config messages will be deleted and therefore the dtuGateway will be removed from HA (base publishing of data will be remain the same, if MQTT is activated)
-  - detail note:
-    - if you use the default main topic e.g. `dtuGateway_<ESP chip id>` then config and state topic will be placed at the same standard HA auto discovery path, e.g. for panel 0 voltage
-      - config: `homeassistant/sensor/dtuGateway_12345678/pv0_U/config`
-      - state: `homeassistant/sensor/dtuGateway_12345678/pv0_U/state`
-      - set: `homeassistant/number/dtuGateway_12345678/inverter_PowerLimitSet/set`
-    - if you choose another location for the main topic path (let's assume 'myDTU_1') then it will looks like this on your broker, e.g.
-      - config: `homeassistant/sensor/dtuGateway_12345678/pv0_U/config`
-      - state: `myDTU_1/pv0/U` - this path will be integrated in the config message and with this HA will be informed to get the data value from right location
-      - set: `myDTU_1/inverter/PowerLimitSet/set`
+1. **Main gateway**: Configure normally with DTU connection
+2. **Display gateway**: 
+   - Enable "run as remote summary display"
+   - Configure MQTT to same broker as main gateway
+   - Set main topic to match main gateway
+3. **Result**: Display gateway shows main gateway's data
 
-## known bugs
-- sometimes out-of-memory resets with instant reboots (rare after some hours or more often after some days)
+### Solar Monitor Setup
+Aggregate multiple solar sources on one display:
 
-## installation
-### hardware
-- EPS32 based board
-- optional display SSH1106 OLED 1,3" 128x64 (e.g. [link](https://de.aliexpress.com/item/32881408326.html)):
-  - connect SSH1106 driven OLED display (128x64) with your ESP32 board (VCC, GND, SCK, SCL)
-  - pinning for different boards (display connector to ESPxx board pins)
+1. **Enable monitor mode**: Check "run as remote summary display"
+2. **Configure MQTT**: Set broker connecting all sources
+3. **Set data path**: Configure main topic for aggregated data
+4. **Data format**: Sources publish to:
+   - `<main-topic>/PV_Power_Sum/state` (current power)
+   - `<main-topic>/PV_Energy_Sum_Day/state` (daily energy)
 
-    | dev board                                        | ESP family | VCC  | GND |        SCK       |       SDA        |      tested    |
-    |--------------------------------------------------|------------|:----:|:---:|:----------------:|:----------------:|:--------------:|
-    | ESP-WROOM-32 NodeMCU-32S                         | ESP32      | 3.3V | GND | D22/GPIO22/SCL   | D21/GPIO21/SDA   |   OK           |
-    | ESP32 S3                                         | ESP32      | 3.3V | GND | D22/GPIO22/SCL   | D21/GPIO21/SDA   |   not tested   |
+### Custom MQTT Topics
+Override default topic structure:
+```yaml
+Main Topic: custom_solar_123     # Instead of dtuGateway_XXXXX
+HA Auto Discovery: ON/OFF        # HomeAssistant integration
+TLS Connection: ON/OFF           # Secure MQTT (ESP32 only)
+```
 
-- optional display GC9A01 round TFT 1,28" 240x240 (e.g. [link](https://de.aliexpress.com/i/1005006190625792.html)):
-  - connect GC9A01 driven round TFT display (240x240) with your ESP32 board (VCC, GND, SCL, SDA, DC, CS, RST, BLK)
-  - pinning for different boards (display connector to ESPxx board pins)
-  - BLK = backlight control - will be served with PWM via GPIO 4
+### Performance Tuning
+```yaml
+# Optimize for your setup:
+DTU Data Cycle: 31-300           # Faster updates = more DTU stress
+Cloud Pause Time: 0-60           # Coordinate with Hoymiles cloud
+Connection Retries: 3-10         # DTU connection attempts
+Wi-Fi Power: 20.5dBm             # Reduce if interference issues
+```
 
-    | dev board                                        | ESP family | VCC  | GND |        SCL       |       SDA       |        DC         |       CS            |     RST       |     BKL (opt)  |     tested     |
-    |--------------------------------------------------|------------|:----:|:---:|:----------------:|:---------------:|:-----------------:|:-------------------:|:-------------:|:--------------:|:--------------:|
-    | ESP-WROOM-32 NodeMCU-32S                         | ESP32      | 3.3V | GND | D18/GPIO18/SCK   | D23/GPIO23/MOSI | D2/GPIO2/HSPI_WP0 | D15/GPIO15/HSPI_CS0 |   3V3[^1]     |    D4/GPIO04   |   OK           |
-    | ESP32 S3                                         | ESP32      | 3.3V | GND | D18/GPIO18/SCK   | D23/GPIO23/MOSI | D2/GPIO2/HSPI_WP0 | D15/GPIO15/HSPI_CS0 |   3V3[^1]     |    D4/GPIO04   |   not tested   |
-    [^1]: reset pin of display currently not in use therefore directly pulled up to 3,3 V
+---
 
-### first installation to the ESP device
+## Developer Information
 
-#### example for ESP32
-see also https://github.com/ohAnd/dtuGateway/discussions/35#discussioncomment-10519821
-1. download the preferred release as binary (see below)
-2. [only once] flash the esp32 board with the [esp download tool](https://www.espressif.com/en/support/download/other-tools)
-   1. get the needed bin files (see at doc/esp32_factoryFlash)
-      1. [bootloader.bin](doc/esp32_factoryFlash/bootloader.bin)
-      2. [partions.bin](doc/esp32_factoryFlash/partitions.bin)
-      3. [boot_app0.bin](doc/esp32_factoryFlash/boot_app0.bin)
-      4. current [release](https://github.com/ohAnd/dtuGateway/releases/latest) or [snapshot](https://github.com/ohAnd/dtuGateway/releases/latest)
-   2. select inside the flash tool the files 1.1 - 1.4 and set the following start adresses
-      1. bootloader.bin => 0x1000
-      2. partionions.bin => 0x8000
-      3. boot_app0.bin => 0xE000
-      4. firmware => 0x10000
-   3. SPI speed 40 MHz
-   5. SPI Mode QIO
-   6. select your COM port and baudrate = 921600
-   8. press start ;-)
-3. all further updates are done by [OTA](###-regarding-base-framework) or [webupdate](###-update)
+### Build Environment
+**Fully automated with GitHub Actions**
+- **Develop branch**: Latest development code with new features
+- **Automatic builds**: Every push to `develop` triggers snapshot release
+- **Snapshot releases**: Available for testing before stable release
+- **Stable releases**: Thoroughly tested production releases
 
-*hint: You can also use the esptool.py as described shortly here https://github.com/ohAnd/dtuGateway/discussions/46#discussion-7106516 by @netzbasteln*
+#### 🔄 **Development Workflow**
+1. **Issue Creation**: Start with a GitHub issue describing the feature/bug
+2. **Feature Branch**: Create issue-based branch from latest `develop` using GitHub's "Create a branch" button
+3. **Development**: Implement changes in the feature branch (e.g., `feature/123-add-new-display-support`)
+4. **Pull Request**: Submit PR from feature branch → `develop` branch
+5. **Review & Merge**: Code review, testing, then merge to `develop`
+6. **Auto-build**: GitHub Actions automatically builds and creates snapshot release
+7. **Community Testing**: Snapshot available for testing and feedback
+8. **Stable Release**: After validation period, `develop` → `main` for stable release
 
-#### first setup with access point
-> prerequisite:
-If you have directly attached a display, then in factory mode the used display is unknown. Default is OLED Display. To get the TFT running in factory mode, a change with each reboot is implemented. Means if you are powering on the first time the OLED will be chosen internally. The next power up the TFT will be chosen. And so on. So the 'first start' screen will be shown until the Wi-Fi settings will be changed over the webinterface.
+#### 📡 **Updates**
+- **Manual updates**: Check for updates via web interface
+- **OTA support**: Over-the-air updates when available
+- **Future enhancement**: Automatic update notifications planned
+- **Manual control**: All updates require user confirmation
 
-1. connect with the AP dtuGateway_<chipID> (on smartphone sometimes you have to accept the connection explicitly with the knowledge there is no internet connectivity)
-2. open the website http://192.168.4.1 (or http://dtuGateway.local) for the first configuration
-3. choose your Wi-Fi
-4. type in the Wi-Fi password - save
-5. in webfrontend setting your DTU IP address within your local network (currently the user and password for dtu are not needed, for later integration relevant for a direct connection to the dtu over their access point)
-6. then you can configure your needed binding
-   1. openhab -> set the IP of your openhab instance and the prefix for the dtu items according to your configured item file in openhab
-   2. MQTT -> set the IP and port (e.g. 192.178.0.42:1883) of your MQTT broker and the user and password that your hacve for this instance
-7. after this one time configuration, the connection to the dtu should be established and the data displayed in the webfrontend and (if connected on the display) according to your setup transmitted to the target instance
+### Local Development Setup
 
-#### return to factory mode
-1. connect your ESP with serial (115200 baud) in a COM terminal
-2. check if you receive some debug data from the device
-3. type in `resetToFactory 1`
-4. response of the device will be `reinitialize UserConfig data and reboot ...`
-5. after reboot the device starting again in AP mode for first setup
+#### Prerequisites
+```bash
+# Install PlatformIO
+pip install platformio
 
-### update
-Via the web ui you can select the firmware file and start the update process.
+# Clone repository
+git clone https://github.com/ohAnd/dtuGateway.git
+cd dtuGateway
+```
 
-## releases
-### main
-latest release - changes will documented by commit messages
-https://github.com/ohAnd/dtuGateway/releases/latest
+#### Build Requirements
+```bash
+# Create version file (required for local builds)
+echo "localDev" > include/buildnumber.txt
 
+# Build for ESP32
+pio run -e esp32
 
-![GitHub Downloads (all assets, latest release)](https://img.shields.io/github/downloads/ohand/dtuGateway/latest/total)
-![GitHub (Pre-)Release Date](https://img.shields.io/github/release-date/ohand/dtuGateway)
-![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/ohand/dtuGateway/main_build.yml)
+# Upload to device
+pio run -e esp32 -t upload
 
-### snapshot
-snapshot with latest build
-https://github.com/ohAnd/dtuGateway/releases/tag/snapshot
+# Monitor serial output
+pio device monitor
+```
 
-![GitHub Downloads (all assets, specific tag)](https://img.shields.io/github/downloads/ohand/dtuGateway/snapshot/total)
-![GitHub (Pre-)Release Date](https://img.shields.io/github/release-date-pre/ohand/dtuGateway)
-![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/ohand/dtuGateway/dev_build.yml)
+#### Project Structure
+```
+dtuGateway/
+├── src/                     # Main source code
+│   ├── dtuGateway.ino      # Main firmware file
+│   ├── Config.cpp          # Configuration management
+│   ├── dtuInterface.cpp    # DTU communication
+│   └── mqttHandler.cpp     # MQTT functionality
+├── include/                # Header files and web assets
+│   ├── web/               # Web interface files
+│   ├── proto/             # Protocol buffer definitions
+│   └── base/              # Base functionality
+├── platformio.ini         # Build configuration
+└── doc/                   # Documentation and assets
+```
 
-## troubleshooting
+### API Development
+The device exposes REST endpoints for integration:
 
-- if the config file is corrupted due to whatever reason with unexpected behavior - connect with serial terminal and type in the command `resetToFactory 1` - the config file be rewritten with the default values
-- if in the first startup mode a wrong ssid/ password was entered, then also `resetToFactory 1` 
+```http
+GET /api/data.json          # Real-time solar data
+GET /api/info.json          # System information  
+GET /style.css              # Web interface styles
+GET /jquery.min.js          # JavaScript dependencies
+POST /config                # Configuration updates
+```
 
-## experiences with the hoymiles HMS-800W-2T
+### Contributing
+We welcome contributions and testing from the community!
 
-### set values - frequency
-(not fully investigated yet)
+#### 🧪 **Testing New Features**
+1. **Download snapshot release**: Get latest development build
+2. **Test thoroughly**: Check all functions you use regularly  
+3. **Report issues**: Use [GitHub Issues](https://github.com/ohAnd/dtuGateway/issues) with detailed logs
+4. **Share feedback**: Discuss in [GitHub Discussions](https://github.com/ohAnd/dtuGateway/discussions)
 
-If there to much requests of setting the power limit minutes later the connection is broken and cannot be directly established again - with current experience the dtu resets itself after ~ 30 min and is accessable again.
+#### 💻 **Code Contributions**
+1. **Create/Find Issue**: Start with a GitHub issue describing the feature or bug
+2. **Fork** the repository to your GitHub account
+3. **Create Feature Branch**: 
+   - Use GitHub's "Create a branch" button on the issue page
+   - Branch from latest `develop` (not `main`)
+   - Use descriptive names: `feature/issue-number-description` or `bugfix/issue-number-description`
+4. **Develop & Test**: 
+   - Make changes in your feature branch
+   - Test locally with PlatformIO: `pio run -e esp32`
+   - Ensure code follows project conventions
+5. **Pull Request**:
+   - Submit PR from your feature branch → `develop` branch
+   - Reference the original issue in PR description
+   - Include testing details and any breaking changes
+6. **Review Process**: Maintainer review, community feedback, automated testing
+7. **Merge**: After approval, branch gets merged into `develop` and triggers snapshot build
 
-With the manual login to dtu access point and forcing the storing of local Wi-Fi connect data again, then dtu is back online and accessable in your local network. (This is a possible feature that can be implemented in future - needed protocol sequence has to be investigated)
+#### 📋 **Reporting Issues**
+When reporting bugs, please include:
+- **Device info**: ESP32 model, display type
+- **Firmware version**: Stable or snapshot with version number
+- **Serial logs**: Connect via USB and capture debug output (115200 baud)
+- **Steps to reproduce**: Detailed description of the issue
+- **Configuration**: Relevant settings (remove sensitive data)
 
-[2024-03-24] 
-- lot of single updates for power setting within few seconds (< 2-3) without any reading of values (e.g. realdata) -> it seems this creating no problems
-- therefore current setup -> no time limit for power setting, but reading data only every 31 seconds is running fine
-- sometimes hanging or full shutdown/ break of DTU will be prevented by sending an active reboot request to dtu (hanging detection at this time over grid voltage, should be changing at least within 10 consecutive incoming data)
-- with this setup: now the device is running for days without any stops (overall system point of view: target settings will be performed everytime, read data will be available, no manual steps needed to recover the dtu connection)
+### Protocol Details
+- **DTU Communication**: Protocol Buffers over HTTP
+- **Data Format**: JSON REST API and MQTT
+- **Update Mechanism**: OTA via HTTP with checksum verification
+- **Configuration**: JSON storage in ESP32 flash filesystem
 
+### ESP8266 Legacy Support
+Older ESP8266 version maintained at:
+https://github.com/ohAnd/dtuGateway/tree/esp8266_maintenance
 
-### hoymiles cloud update
-- every 15 min (0,15,30,45) -> timestamp update
-- after 7 min 40 s update of graph data (if Wi-Fi not reachable, also reset of Wi-Fi AP)
-- if there is at these points an active connection to the dtu and current data will be requested, the update to the cloud will be interrupted and no current data for this point in time will be stored in the cloud
+**Limitations**: Basic functionality only, no advanced features.
 
-### sources
+### Version History
+- **v2.x**: ESP32 with advanced features, displays, TLS
+- **v1.x**: ESP8266 basic functionality (maintenance only)
+- **Snapshot**: Latest development features
 
-- https://github.com/henkwiedig/Hoymiles-DTU-Proto
-- https://github.com/suaveolent/hoymiles-wifi/tree/main
-- https://github.com/tbnobody/OpenDTU/discussions/1430
+### Known Limitations
+- **Memory**: Occasional resets after extended operation (days/weeks)
+- **DTU Stability**: ~31 second minimum polling to avoid DTU hangs
+- **TLS**: Only available on ESP32 platform
+- **Display**: Factory mode alternates display types until configured
 
-## build environment
+### Release Process
+1. **Development**: Features added to `develop` branch
+2. **Testing**: Snapshot releases for community testing
+3. **Validation**: Stable operation across different setups
+4. **Release**: Tagged stable release with documentation
+5. **Distribution**: Automatic binary builds via GitHub Actions
 
-fully covered with github actions
+### Support Channels
+- **Documentation**: This README and inline code comments
+- **Community**: [GitHub Discussions](https://github.com/ohAnd/dtuGateway/discussions)
+- **Bug Reports**: [GitHub Issues](https://github.com/ohAnd/dtuGateway/issues)
+- **Development**: Pull requests welcome with tests
 
-building on push to develop and serving as a snapshot release with direct connection to the device - available updates will be locally checked and offered to the user for installation 
+---
 
-hint: referring to [Error Build in platform.io - buildnumber file not found #6](https://github.com/ohAnd/dtuGateway/issues/6) for local building: 
-> For automatic versioning there is a file called ../include/buildnumber.txt expected. With the content "localDev" or versionnumber e.g. "1.0.0" in first line. (File is blocked by .gitignore for GitHub actions to run.)
+## ESP8266 Legacy Version
 
+**Note**: The project originally supported ESP8266, but due to memory and feature limitations, a maintenance branch is available for basic functionality only.
 
+### ESP8266 Branch
+**Repository**: [esp8266_maintenance](https://github.com/ohAnd/dtuGateway/tree/esp8266_maintenance)
 
-### platformio
-- https://docs.platformio.org/en/latest/core/installation/methods/installer-script.html#local-download-macos-linux-windows
+**Features available**:
+- ✅ Basic DTU connection and data reading
+- ✅ Simple web interface  
+- ✅ Basic MQTT publishing
+- ✅ openHAB integration
 
-### hints for workflow
-- creating dev release (https://blog.derlin.ch/how-to-create-nightly-releases-with-github-actions)
+**Not available on ESP8266**:
+- ❌ TLS/SSL connections
+- ❌ Advanced display support
+- ❌ Home Assistant auto-discovery
+- ❌ OTA updates
+- ❌ Advanced configuration options
+
+### Migration to ESP32
+**Recommended**: Upgrade to ESP32 for full feature set and continued development support.
+
+**Benefits of ESP32**:
+- More memory and processing power
+- TLS support for secure MQTT
+- Advanced display options with night mode
+- Home Assistant auto-discovery
+- OTA updates and recovery options
+- Active development and new features
+
+---
+
+*Thank you for choosing dtuGateway! 🌞⚡ Transform your solar setup into a smart, connected system.*
+
+---
+
+## 📝 About This Documentation
+
+This user-friendly README was created collaboratively between the project maintainer and GitHub Copilot to provide better onboarding and support for dtuGateway users. The goal was to transform technical documentation into an accessible, step-by-step guide that helps users successfully set up and integrate their solar monitoring system.
+
+**Feedback welcome!** If you find areas for improvement or have suggestions for making this documentation even better, please share them in [GitHub Discussions](https://github.com/ohAnd/dtuGateway/discussions).
