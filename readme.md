@@ -862,8 +862,8 @@ Display Orientation: 0-270       # Rotation angle (TFT only)
 Brightness Day: 150              # Day brightness (0-255)
 Brightness Night: 30             # Night brightness (0-255)
 Night Mode: true/false           # Enable scheduled dimming
-Night Mode Start: 1320           # Minutes from midnight (22:00)
-Night Mode End: 360              # Minutes from midnight (06:00)
+Night Mode Start: 1320           # Minutes from local midnight (22:00)
+Night Mode End: 360              # Minutes from local midnight (06:00)
 Night Clock: true/false          # Show clock during night mode
 Offline Trigger: true/false      # Night mode when DTU offline
 TFT Seconds Ring: true/false     # Show red seconds ring (TFT)
@@ -879,7 +879,7 @@ Timezone Offset: 3600            # Seconds from UTC
 # 0 = UTC
 ```
 
-**Note**: DST (Daylight Saving Time) adjusts automatically based on timezone.
+**Note**: DST (Daylight Saving Time) adjusts automatically based on timezone. Night mode times are automatically adjusted for DST - set times in local time and the system will handle DST transitions.
 
 #### Update Channel Selection
 ```yaml

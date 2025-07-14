@@ -537,7 +537,15 @@ void configureTimezone() {
 String getCurrentTimeString() {
   struct tm timeinfo;
   if (!getLocalTime(&timeinfo)) {
-    return timeClient.getFormattedTime(); // fallback to NTPClient
+    // fallback to NTPClient - format time with timezone offset
+    // Note: this doesn't handle DST automatically, but provides reasonable fallback
+    time_t utcTime = timeClient.getEpochTime();
+    time_t localTime = utcTime + userConfig.timezoneOffest;
+    struct tm* ptm = gmtime(&localTime);
+    
+    char timeString[32];
+    strftime(timeString, sizeof(timeString), "%H:%M:%S", ptm);
+    return String(timeString);
   }
   
   char timeString[32];
@@ -549,9 +557,21 @@ String getCurrentTimeString() {
 time_t getCurrentTimestamp() {
   struct tm timeinfo;
   if (!getLocalTime(&timeinfo)) {
-    return timeClient.getEpochTime(); // fallback to NTPClient
+    // fallback to NTPClient with timezone offset applied
+    // Note: this doesn't handle DST automatically, but provides reasonable fallback
+    time_t utcTime = timeClient.getEpochTime();
+    
+    // Apply timezone offset - this is basic fallback without DST
+    return utcTime + userConfig.timezoneOffest;
   }
-  return mktime(&timeinfo);
+  
+  // mktime() gives us UTC timestamp from local time
+  // But night mode expects "local timestamp" (UTC + timezone offset)
+  // So we add the timezone offset including DST
+  time_t utcTimestamp = mktime(&timeinfo);
+  int offsetWithDST = userConfig.timezoneOffest + (timeinfo.tm_isdst > 0 ? 3600 : 0);
+  
+  return utcTimestamp + offsetWithDST;
 }
 
 // check if currently in DST
