@@ -39,6 +39,7 @@ struct baseDataStruct
 
   unsigned long dtuGWstarttime = 0;
   unsigned long currentNTPtime = 0;
+  unsigned long currentNTPtimeUTC = 0;
   String currentNTPtimeFormatted = "not set";
 
   unsigned long dtuNextUpdateCounterSeconds = 1704063600;

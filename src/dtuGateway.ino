@@ -127,13 +127,13 @@ boolean checkWifiTask()
   if (WiFi.status() != WL_CONNECTED && !wifi_connecting) // start connecting wifi
   {
     // reconnect counter - and reset to default
-    reconnects[reconnectsCnt++] = platformData.currentNTPtime;
+    reconnects[reconnectsCnt++] = platformData.currentNTPtimeUTC;
     if (reconnectsCnt >= 25)
     {
       reconnectsCnt = 0;
       Serial.println(F("CheckWifi:\t  no Wifi connection after 25 tries!"));
       // after 20 reconnects inner 7 min - write defaults
-      if ((platformData.currentNTPtime - reconnects[0]) < (WIFI_RETRY_TIME_SECONDS * 1000)) //
+      if ((platformData.currentNTPtimeUTC - reconnects[0]) < (WIFI_RETRY_TIME_SECONDS * 1000)) //
       {
         Serial.println(F("CheckWifi:\t no Wifi connection after 5 tries and inner 5 minutes"));
       }
@@ -784,7 +784,7 @@ void updateValuesToMqtt(boolean haAutoDiscovery = false)
 {
   Serial.println("MQTT:\t\t publish data (HA autoDiscovery = " + String(haAutoDiscovery) + ")");
   std::map<std::string, std::string> keyValueStore;
-  keyValueStore["time_stamp"] = getTimeStringByTimestamp(platformData.currentNTPtime).c_str();
+  keyValueStore["time_stamp"] = getTimeStringByTimestamp(platformData.currentNTPtimeUTC).c_str();
   // grid
   keyValueStore["grid_U"] = String(dtuGlobalData.grid.voltage).c_str();
   keyValueStore["grid_I"] = String(dtuGlobalData.grid.current).c_str();
@@ -1376,7 +1376,7 @@ void loop()
     previousMillis100ms = currentMillis;
     // -------->
     // led blink code only 5 min after startup
-    if ((platformData.currentNTPtime - platformData.dtuGWstarttime) < 300)
+    if ((platformData.currentNTPtimeUTC - platformData.dtuGWstarttime) < 300)
     {
       blinkCodeTask();
     }
@@ -1468,6 +1468,7 @@ void loop()
     }
 
     platformData.currentNTPtime = getCurrentTimestamp();
+    platformData.currentNTPtimeUTC = timeClient.getEpochTime();
     platformData.currentNTPtimeFormatted = getCurrentTimeString();
   }
 
