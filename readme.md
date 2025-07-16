@@ -35,6 +35,7 @@
 - [Home Assistant (MQTT)](#home-assistant-mqtt)
 - [openHAB](#openhab)
 - [MQTT Broker](#mqtt-broker)
+- [OpenDTU Compatibility](#opendtu-compatible-topic-structure)
 - [JSON API](#json-api)
 
 ### Support & Advanced
@@ -85,6 +86,7 @@ dtuGateway provides a reliable, dedicated gateway to your Hoymiles DTU where no 
 - **🔗 openHAB**: Direct REST API integration with configurable items
 - **📡 MQTT**: Full broker support with TLS encryption
 - **🌐 JSON API**: Direct HTTP access for custom integrations
+- **🔄 OpenDTU Compatible**: Drop-in replacement with OpenDTU MQTT topic structure
 
 ### 🎛️ **Remote Control**
 - **Power limiting**: Set inverter output from 0-100% remotely
@@ -378,13 +380,59 @@ Special TFT mode for monitoring multiple solar sources:
 
 ## Home Assistant (MQTT)
 
-### Automatic Setup
+### Automatic Setup (Standard Mode)
 1. **Enable MQTT** in dtuGateway web interface
 2. **Configure broker**: IP, port, username, password
 3. **Enable auto-discovery**: Toggle "HomeAssistant Auto Discovery"
 4. **Restart dtuGateway**: Devices appear automatically in HA
 
-### What You Get
+### OpenDTU Mode Setup
+**Important**: Home Assistant auto-discovery is **not available** in OpenDTU mode.
+
+For OpenDTU topic structure compatibility:
+1. **Enable OpenDTU mode** in MQTT settings
+2. **Manual sensor configuration** required in Home Assistant
+3. **Use OpenDTU topic structure** in your configuration.yaml
+
+#### Manual Home Assistant Configuration (OpenDTU Mode)
+```yaml
+# Example sensors for OpenDTU topic structure
+mqtt:
+  sensor:
+    - name: "Solar Power"
+      state_topic: "your-topic-prefix/0/power"
+      unit_of_measurement: "W"
+      device_class: "power"
+      
+    - name: "Solar Daily Energy" 
+      state_topic: "your-topic-prefix/0/yieldday"
+      unit_of_measurement: "kWh"
+      device_class: "energy"
+      
+    - name: "Panel 1 Power"
+      state_topic: "your-topic-prefix/1/power" 
+      unit_of_measurement: "W"
+      device_class: "power"
+      
+    - name: "Panel 2 Power"
+      state_topic: "your-topic-prefix/2/power"
+      unit_of_measurement: "W" 
+      device_class: "power"
+      
+    - name: "Inverter Temperature"
+      state_topic: "your-topic-prefix/0/temperatur"
+      unit_of_measurement: "°C"
+      device_class: "temperature"
+      
+    - name: "Power Limit"
+      state_topic: "your-topic-prefix/status/limit_relative"
+      unit_of_measurement: "%"
+```
+
+### Standard Mode Auto-Discovery
+### Standard Mode Auto-Discovery
+
+**What You Get** (with auto-discovery enabled in standard mode):
 **Sensors automatically created:**
 - `sensor.dtugateway_xxxxx_grid_power` - Current grid power
 - `sensor.dtugateway_xxxxx_pv0_power` - Panel 1 power  
@@ -489,7 +537,73 @@ Broker Settings:
   Main Topic: dtuGateway_12345678
 ```
 
-### Published Topics
+### OpenDTU Compatible Topic Structure
+
+**NEW: OpenDTU Compatibility Mode** 🔄
+
+dtuGateway can publish data using OpenDTU-compatible MQTT topic structure, making it a drop-in replacement for existing OpenDTU setups.
+
+#### Enable OpenDTU Mode
+1. **Web Interface**: Navigate to MQTT settings
+2. **Enable Option**: Check "OpenDTU Topics Structure"  
+3. **Important**: Home Assistant auto-discovery is automatically disabled in OpenDTU mode
+4. **Restart**: Device restarts to apply new topic structure
+
+#### OpenDTU Topic Mapping
+When OpenDTU mode is enabled, dtuGateway publishes to these topics:
+
+```
+your-topic-prefix/
+├── 0/                          # Grid/AC output data
+│   ├── power                   # Grid power (W)
+│   ├── voltage                 # Grid voltage (V)
+│   ├── current                 # Grid current (A)
+│   ├── frequency               # Grid frequency (Hz)
+│   ├── yieldday                # Daily energy (kWh)
+│   ├── yieldtotal              # Total energy (kWh)
+│   └── temperatur              # Inverter temperature (°C)
+├── 1/                          # PV Panel 1 data
+│   ├── power                   # Panel 1 power (W)
+│   ├── voltage                 # Panel 1 voltage (V)
+│   ├── current                 # Panel 1 current (A)
+│   ├── yieldday                # Panel 1 daily energy (kWh)
+│   └── yieldtotal              # Panel 1 total energy (kWh)
+├── 2/                          # PV Panel 2 data
+│   ├── power                   # Panel 2 power (W)
+│   ├── voltage                 # Panel 2 voltage (V)
+│   ├── current                 # Panel 2 current (A)
+│   ├── yieldday                # Panel 2 daily energy (kWh)
+│   └── yieldtotal              # Panel 2 total energy (kWh)
+├── status/
+│   └── limit_relative          # Current power limit (%)
+└── dtu/
+    └── rssi                    # DTU Wi-Fi signal strength
+```
+
+#### Compatibility Benefits
+- **Drop-in replacement**: Use existing OpenDTU dashboards and automation
+- **Standard structure**: Compatible with OpenDTU-based Home Assistant integrations
+- **Familiar topics**: Same topic names as OpenDTU for easy migration
+- **Existing tools**: Works with existing OpenDTU monitoring tools
+
+#### Migration from OpenDTU
+1. **Same main topic**: Use your existing OpenDTU main topic prefix
+2. **Update device**: Flash dtuGateway firmware to your ESP32
+3. **Enable OpenDTU mode**: Check the option in MQTT settings
+4. **Keep automations**: Your existing Home Assistant automations continue working
+5. **Dashboard compatibility**: Existing OpenDTU dashboards work unchanged
+
+#### Important Notes
+- **Home Assistant Auto-Discovery**: Automatically disabled in OpenDTU mode (not compatible)
+- **Manual HA Setup**: Configure Home Assistant sensors manually using OpenDTU topic structure
+- **No discovery conflicts**: Prevents topic structure conflicts between modes
+- **Standard vs OpenDTU**: Choose one topic structure, not both simultaneously
+
+### Standard dtuGateway Topics (Default Mode)
+### Standard dtuGateway Topics (Default Mode)
+
+When using the standard topic structure (default), dtuGateway publishes to:
+
 ```
 dtuGateway_12345678/
 ├── timestamp                    # Last update timestamp
@@ -939,7 +1053,14 @@ Override default topic structure:
 Main Topic: custom_solar_123     # Instead of dtuGateway_XXXXX
 HA Auto Discovery: ON/OFF        # HomeAssistant integration
 TLS Connection: ON/OFF           # Secure MQTT (ESP32 only)
+OpenDTU Topics: ON/OFF           # Use OpenDTU-compatible topic structure
 ```
+
+**OpenDTU Mode Effects:**
+- **Topic Structure**: Changes to OpenDTU-compatible format
+- **Auto-Discovery**: Automatically disabled (not compatible with OpenDTU topics)
+- **Migration**: Enables drop-in replacement for existing OpenDTU setups
+- **Manual Setup**: Requires manual Home Assistant sensor configuration
 
 ### Performance Tuning
 ```yaml

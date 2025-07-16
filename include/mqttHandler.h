@@ -80,6 +80,7 @@ public:
     void setUseTLS(bool useTLS);
     void setConfiguration(const char *broker, int port, const char *user, const char *password, bool useTLS, const char *sensorUniqueName, const char *mainTopicPath, bool autoDiscovery, const char * ipAddress);
     void setMainTopic(String mainTopicPath);
+    void setTopicStructure(bool openDtuStructure=false);
 
     void setRemoteDisplayData(boolean remoteDisplayActive, boolean remoteSummaryDisplayActive);
 
@@ -105,6 +106,7 @@ private:
     const char* espURL;
     String mqttMainTopicPath;
     String gw_ipAddress;
+    bool useOpenDTUStructure = false;
         
     WiFiClient wifiClient;
     WiFiClientSecure wifiClientSecure;
@@ -123,6 +125,7 @@ private:
     
     void reconnect();
     boolean initiateDiscoveryMessages(bool autoDiscoveryRemove=false);
+    String mapTopic(const String& baseTopic); // Mapping function
 };
 
 extern MQTTHandler mqttHandler;
