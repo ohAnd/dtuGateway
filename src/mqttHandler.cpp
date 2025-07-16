@@ -335,31 +335,31 @@ String MQTTHandler::mapTopic(const String &baseTopic)
     if (useOpenDTUStructure)
     {
         // OpenDTU-like structure mapping
-        if (baseTopic == "grid_power")
+        if (baseTopic == "grid_P")
             return "/0/power";
-        if (baseTopic == "grid_current")
+        if (baseTopic == "grid_I")
             return "/0/current";
-        if (baseTopic == "grid_voltage")
+        if (baseTopic == "grid_U")
             return "/0/voltage";
         if (baseTopic == "grid_dailyEnergy")
             return "/0/yieldday";
         if (baseTopic == "grid_totalEnergy")
             return "/0/yieldtotal";
-        if (baseTopic == "pv0_power")
+        if (baseTopic == "pv0_P")
             return "/1/power";
-        if (baseTopic == "pv0_current")
+        if (baseTopic == "pv0_I")
             return "/1/current";
-        if (baseTopic == "pv0_voltage")
+        if (baseTopic == "pv0_U")
             return "/1/voltage";
         if (baseTopic == "pv0_dailyEnergy")
             return "/1/yieldday";
         if (baseTopic == "pv0_totalEnergy")
             return "/1/yieldtotal";
-        if (baseTopic == "pv1_power")
+        if (baseTopic == "pv1_P")
             return "/2/power";
-        if (baseTopic == "pv1_current")
+        if (baseTopic == "pv1_I")
             return "/2/current";
-        if (baseTopic == "pv1_voltage")
+        if (baseTopic == "pv1_U")
             return "/2/voltage";
         if (baseTopic == "pv1_dailyEnergy")
             return "/2/yieldday";
@@ -371,8 +371,22 @@ String MQTTHandler::mapTopic(const String &baseTopic)
             return "/0/temperatur";
         if (baseTopic == "inverter_PowerLimit")
             return "/status/limit_relative";
+        if (baseTopic == "inverter_PowerLimitSet")
+            return "/dtuGW_special/limit_relative_set";
         if (baseTopic == "inverter_WifiRSSI")
-            return "dtu/rssi";
+            return "/radio/rssi";
+        if (baseTopic == "time_stamp")
+            return "/status/last_update";
+        if (baseTopic == "inverter_cloudPause")
+            return "/dtuGW_special/cloud_pause";
+        if (baseTopic == "inverter_dtuConnectState")
+            return "/dtuGW_special/dtu_connect_state";
+        if (baseTopic == "inverter_dtuConnectionOnline")
+            return "/dtuGW_special/dtu_connection_online";
+        if (baseTopic == "inverter_inverterControlStateOn")
+            return "/dtuGW_special/inverter_control_state_on";
+        if (baseTopic == "inverter_warningsActive")
+            return "/dtuGW_special/warnings_active";        
     }
 
     // if no specific mapping is found - return the base topic as is
