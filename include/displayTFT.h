@@ -20,7 +20,11 @@
 #define SPECIAL_BLUE 0x24ae
 
 struct DisplayDataTFT {
-    int16_t totalPower=0;      // indicate current power (W)
+    uint16_t totalPower=0;               // indicate current power (W)
+    uint16_t totalPowerLast=0;           // indicate last power (W)
+    uint16_t totalPowerMax=0;            // indicate max power today (W)
+    uint32_t totalPowerMaxTimestamp = 0;
+
     float totalYieldDay=0.0f;   // indicate day yield (Wh)
     float totalYieldTotal=0.0f; // indicate total yield (kWh)
     const char *formattedTime=nullptr;
@@ -29,6 +33,7 @@ struct DisplayDataTFT {
     uint8_t rssiGW=0;
     uint8_t rssiDTU=0;
     boolean remoteDisplayActive = false;
+    boolean remoteSummaryDisplayActive = false;
 };
 
 class DisplayTFT {
@@ -38,14 +43,19 @@ class DisplayTFT {
         void renderScreen(String time, String version);
         void drawFactoryMode(String version, String apName, String ip);
         void drawUpdateMode(String text,String text2="", boolean blank=true);
-        void setRemoteDisplayMode(bool remoteDisplayActive);
+        void setRemoteDisplayMode(bool remoteDisplayActive, bool remoteSummaryDisplayActive);
     private:
         void drawScreen(String version, String time);
+        void drawScreen_RemoteSummary(String version, String time);
         void drawHeader(String version);
         void drawFooter(String time);
 
         void drawMainDTUOnline(bool pause=false);
         void drawMainDTUOffline();
+        
+        void drawMainSummary();
+        void drawHeaderSummary(String version);
+        void drawFooterSummary(String time);
 
         void checkChangedValues();
 

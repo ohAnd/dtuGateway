@@ -46,6 +46,34 @@ void MQTTHandler::subscribedMessageArrived(char *topic, byte *payload, unsigned 
             instance->lastPowerLimitSet.setValue = setLimit;
             instance->lastPowerLimitSet.update = true;
         }
+        else if (String(topic) == instance->mqttMainTopicPath + "/inverter/RebootMi/set")
+        {
+
+            int gotReboot = (incommingMessage).toInt();
+            if (gotReboot == 1)
+            {
+                // instance->rebootMi.reboot = true;
+                instance->rebootDevices.rebootMi = true;
+            }
+        }
+        else if (String(topic) == instance->mqttMainTopicPath + "/inverter/RebootDtu/set")
+        {
+
+            int gotReboot = (incommingMessage).toInt();
+            if (gotReboot == 1)
+            {
+                instance->rebootDevices.rebootDtu = true;
+            }
+        }
+        else if (String(topic) == instance->mqttMainTopicPath + "/inverter/RebootDtuGw/set")
+        {
+
+            int gotReboot = (incommingMessage).toInt();
+            if (gotReboot == 1)
+            {
+                instance->rebootDevices.rebootDtuGw = true;
+            }
+        }
         else
         {
             // Serial.println("MQTT: received message for topic: " + String(topic) + " - value: " + incommingMessage);
@@ -136,6 +164,19 @@ void MQTTHandler::subscribedMessageArrived(char *topic, byte *payload, unsigned 
                 }
                 instance->lastRemoteInverterData.updateReceived = true;
             }
+            // summery display data
+            else if (String(topic) == instance->mqttMainTopicPath + "/PV_Power_Sum/state" && instance->lastRemoteInverterData.remoteSummaryDisplayActive)
+            {
+                instance->lastRemoteInverterData.grid.power = incommingMessage.toFloat();
+                // Serial.println("MQTT: received message for Summary Power: " + String(instance->lastRemoteInverterData.grid.power));
+                instance->lastRemoteInverterData.updateReceived = true;
+            }
+            else if (String(topic) == instance->mqttMainTopicPath + "/PV_Energy_Sum_Day/state" && instance->lastRemoteInverterData.remoteSummaryDisplayActive)
+            {
+                instance->lastRemoteInverterData.grid.dailyEnergy = incommingMessage.toFloat();
+                // Serial.println("MQTT: received message for Summary day energy: " + String(instance->lastRemoteInverterData.grid.dailyEnergy));
+                instance->lastRemoteInverterData.updateReceived = true;
+            }
             else
             {
                 Serial.println("MQTT: received message for unknown topic: " + String(topic));
@@ -161,6 +202,15 @@ RemoteInverterData MQTTHandler::getRemoteInverterData()
     RemoteInverterData lastReceive = lastRemoteInverterData;
     lastRemoteInverterData.updateReceived = false;
     return lastReceive;
+}
+
+RebootDevices MQTTHandler::getRebootDevices()
+{
+    RebootDevices reboot = rebootDevices;
+    rebootDevices.rebootMi = false; // reset reboot mi
+    rebootDevices.rebootDtu = false; // reset reboot dtu
+    rebootDevices.rebootDtuGw = false; // reset reboot dtu gateway
+    return reboot;
 }
 
 void MQTTHandler::setup()
@@ -196,6 +246,8 @@ void MQTTHandler::publishDiscoveryMessage(const char *entity, const char *entity
         entityType = "number";
     else if (String(deviceClass).indexOf("running") > -1)
         entityType = "binary_sensor";
+    else if (String(entity).indexOf("Reboot") > -1)
+        entityType = "button";
     String uniqueID = String(deviceGroupName) + "_" + String(entity);
     String entityGroup = String(entity).substring(0, String(entity).indexOf("_"));
     String entityName = String(entity).substring(String(entity).indexOf("_") + 1);
@@ -221,7 +273,13 @@ void MQTTHandler::publishDiscoveryMessage(const char *entity, const char *entity
         doc["min"] = 0;
         doc["max"] = 100;
     }
-    doc["state_topic"] = stateTopicPath;
+
+    if (entityType == "button") {
+        doc["command_topic"] = commandTopicPath;
+        doc["payload_press"] = "1";
+    } else {
+        doc["state_topic"] = stateTopicPath;
+    }
 
     if (deviceClass != NULL)
     {
@@ -272,18 +330,95 @@ void MQTTHandler::publishDiscoveryMessage(const char *entity, const char *entity
     }
 }
 
+String MQTTHandler::mapTopic(const String &baseTopic)
+{
+    if (useOpenDTUStructure)
+    {
+        // OpenDTU-like structure mapping
+        if (baseTopic == "grid_P")
+            return "/0/power";
+        if (baseTopic == "grid_I")
+            return "/0/current";
+        if (baseTopic == "grid_U")
+            return "/0/voltage";
+        if (baseTopic == "grid_dailyEnergy")
+            return "/0/yieldday";
+        if (baseTopic == "grid_totalEnergy")
+            return "/0/yieldtotal";
+        if (baseTopic == "pv0_P")
+            return "/1/power";
+        if (baseTopic == "pv0_I")
+            return "/1/current";
+        if (baseTopic == "pv0_U")
+            return "/1/voltage";
+        if (baseTopic == "pv0_dailyEnergy")
+            return "/1/yieldday";
+        if (baseTopic == "pv0_totalEnergy")
+            return "/1/yieldtotal";
+        if (baseTopic == "pv1_P")
+            return "/2/power";
+        if (baseTopic == "pv1_I")
+            return "/2/current";
+        if (baseTopic == "pv1_U")
+            return "/2/voltage";
+        if (baseTopic == "pv1_dailyEnergy")
+            return "/2/yieldday";
+        if (baseTopic == "pv1_totalEnergy")
+            return "/2/yieldtotal";
+        if (baseTopic == "grid_Freq")
+            return "/0/frequency";
+        if (baseTopic == "inverter_Temp")
+            return "/0/temperatur";
+        if (baseTopic == "inverter_PowerLimit")
+            return "/status/limit_relative";
+        if (baseTopic == "inverter_PowerLimitSet")
+            return "/dtuGW_special/limit_relative_set";
+        if (baseTopic == "inverter_WifiRSSI")
+            return "/radio/rssi";
+        if (baseTopic == "time_stamp")
+            return "/status/last_update";
+        if (baseTopic == "inverter_cloudPause")
+            return "/dtuGW_special/cloud_pause";
+        if (baseTopic == "inverter_dtuConnectState")
+            return "/dtuGW_special/dtu_connect_state";
+        if (baseTopic == "inverter_dtuConnectionOnline")
+            return "/dtuGW_special/dtu_connection_online";
+        if (baseTopic == "inverter_inverterControlStateOn")
+            return "/dtuGW_special/inverter_control_state_on";
+        if (baseTopic == "inverter_warningsActive")
+            return "/dtuGW_special/warnings_active";        
+    }
+
+    // if no specific mapping is found - return the base topic as is
+    return "not_mapped";
+}
+
 void MQTTHandler::publishStandardData(String entity, String value)
 {
-    String entityType = "sensor";
-    if (String(entity).indexOf("PowerLimitSet") > -1)
+    String stateTopicPath = "";
+    if (useOpenDTUStructure)
     {
-        entityType = "number";
+        String openDtuTopic = mapTopic(entity);
+        if (stateTopicPath == "not_mapped")
+        {
+            Serial.println("MQTT:\t\t openDTUtopic - no mapping for '" + entity + "' - no transmit to MQTT broker");
+            return;
+        }
+        stateTopicPath = mqttMainTopicPath + openDtuTopic;
+        Serial.println("MQTT:\t\t openDTUtopic - publish '" + entity + "' to: " + stateTopicPath + " - value: " + value);
     }
-    String stateTopicPath = "homeassistant/" + entityType + "/" + String(deviceGroupName) + "/" + String(entity) + "/state";
-    entity.replace("_", "/");
-    if (String(deviceGroupName) != mqttMainTopicPath || !autoDiscoveryActive)
-        stateTopicPath = String(mqttMainTopicPath) + "/" + entity;
-
+    else
+    {
+        String entityType = "sensor";
+        if (String(entity).indexOf("PowerLimitSet") > -1)
+        {
+            entityType = "number";
+        }
+        stateTopicPath = "homeassistant/" + entityType + "/" + String(deviceGroupName) + "/" + String(entity) + "/state";
+        entity.replace("_", "/");
+        if (String(deviceGroupName) != mqttMainTopicPath || !autoDiscoveryActive)
+            stateTopicPath = String(mqttMainTopicPath) + "/" + entity;
+    }
     client.publish(stateTopicPath.c_str(), value.c_str(), true);
 }
 
@@ -324,6 +459,9 @@ boolean MQTTHandler::initiateDiscoveryMessages(bool autoDiscoveryRemove)
 
             publishDiscoveryMessage("inverter_PowerLimit", "power limit", "%", autoDiscoveryRemove, NULL, "power_factor"); //"mdi:car-speed-limiter"
             publishDiscoveryMessage("inverter_PowerLimitSet", "power limit set", "%", autoDiscoveryRemove, "mdi:car-speed-limiter", "power_factor");
+            publishDiscoveryMessage("inverter_RebootMi", "Reboot Micro Inverter", NULL, autoDiscoveryRemove, "mdi:restart", "restart", true);
+            publishDiscoveryMessage("inverter_RebootDtu", "Reboot DTU", NULL, autoDiscoveryRemove, "mdi:restart", "restart", true);
+            publishDiscoveryMessage("inverter_RebootDtuGw", "Reboot DTU Gateway", NULL, autoDiscoveryRemove, "mdi:restart", "restart", true);
 
             publishDiscoveryMessage("inverter_Temp", "Inverter temperature", "°C", autoDiscoveryRemove, NULL, "temperature", true); //"mdi:thermometer"
             publishDiscoveryMessage("inverter_WifiRSSI", "WiFi strength", "%", autoDiscoveryRemove, "mdi:wifi", NULL, true);
@@ -355,7 +493,14 @@ void MQTTHandler::reconnect()
         if (client.connect(deviceGroupName, mqtt_user, mqtt_password))
         {
             Serial.println("\nMQTT:\t\t Attempting connection is now connected");
-            if (lastRemoteInverterData.remoteDisplayActive)
+            if (lastRemoteInverterData.remoteSummaryDisplayActive)
+            {
+                client.subscribe((mqttMainTopicPath + "/PV_Power_Sum/state").c_str());
+                Serial.println("MQTT:\t\t subscribe to: " + (mqttMainTopicPath + "/PV_Power_Sum/state"));
+                client.subscribe((mqttMainTopicPath + "/PV_Energy_Sum_Day/state").c_str());
+                Serial.println("MQTT:\t\t subscribe to: " + (mqttMainTopicPath + "/PV_Energy_Sum_Day/state"));
+            }
+            else if (lastRemoteInverterData.remoteDisplayActive)
             {
                 client.subscribe((mqttMainTopicPath + "/grid/P").c_str());
                 Serial.println("MQTT:\t\t subscribe to: " + (mqttMainTopicPath + "/grid/P"));
@@ -415,6 +560,15 @@ void MQTTHandler::reconnect()
                 client.subscribe(topic.c_str());
                 Serial.println("MQTT:\t\t subscribe to: " + topic);
                 topic = "homeassistant/number/" + instance->mqttMainTopicPath + "/inverter_PowerLimitSet/set";
+                client.subscribe(topic.c_str());
+                Serial.println("MQTT:\t\t subscribe to: " + topic);
+                topic = mqttMainTopicPath + "/inverter/RebootMi/set";
+                client.subscribe(topic.c_str());
+                Serial.println("MQTT:\t\t subscribe to: " + topic);
+                topic = mqttMainTopicPath + "/inverter/RebootDtu/set";
+                client.subscribe(topic.c_str());
+                Serial.println("MQTT:\t\t subscribe to: " + topic);
+                topic = mqttMainTopicPath + "/inverter/RebootDtuGw/set";
                 client.subscribe(topic.c_str());
                 Serial.println("MQTT:\t\t subscribe to: " + topic);
 
@@ -505,11 +659,29 @@ void MQTTHandler::setMainTopic(String mainTopicPath)
     mqttMainTopicPath = mainTopicPath;
 }
 
-void MQTTHandler::setRemoteDisplayData(boolean remoteDisplayActive)
+void MQTTHandler::setTopicStructure(bool openDtuStructure)
+{
+    stopConnection();
+    if (openDtuStructure)
+    {
+        autoDiscoveryActive = false;
+        useOpenDTUStructure = true;
+        Serial.println("MQTT:\t\t set topic structure to openDTU structure");
+    }
+    else
+    {
+        useOpenDTUStructure = false;
+        Serial.println("MQTT:\t\t set topic structure to standard structure");
+    }
+}
+
+void MQTTHandler::setRemoteDisplayData(boolean remoteDisplayActive, boolean remoteSummaryDisplayActive)
 {
     Serial.println("MQTT:\t\t ... set remote display data to: " + String(remoteDisplayActive));
+    Serial.println("MQTT:\t\t ... set summary remote display data to: " + String(remoteSummaryDisplayActive));
     stopConnection();
     instance->lastRemoteInverterData.remoteDisplayActive = remoteDisplayActive;
+    instance->lastRemoteInverterData.remoteSummaryDisplayActive = remoteSummaryDisplayActive;
 }
 
 // Setter method to combine all settings

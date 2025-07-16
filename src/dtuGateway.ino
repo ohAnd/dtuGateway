@@ -13,6 +13,7 @@
 
 #include <WiFiUdp.h>
 #include <NTPClient.h>
+#include <time.h>
 
 // #include <ArduinoJson.h>
 
@@ -82,6 +83,14 @@ int wifiTimeoutLong = WIFI_RETRY_TIME_SECONDS;
 #define LED_BLINK_ON HIGH
 #define LED_BLINK_OFF LOW
 #warning "Compiling for ESP32"
+#elif CONFIG_IDF_TARGET_ESP32S3
+#undef LED_BLINK
+#undef LED_BLINK_ON
+#undef LED_BLINK_OFF
+#define LED_BLINK 2
+#define LED_BLINK_ON HIGH
+#define LED_BLINK_OFF LOW
+#warning "Compiling for ESP32_S3"
 #endif
 
 #define BLINK_NORMAL_CONNECTION 0    // 1 Hz blip - normal connection and running
@@ -97,7 +106,7 @@ UserConfigManager configManager;
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP); // By default 'pool.ntp.org' is used with 60 seconds update interval
 
-DTUwebserver dtuWebServer;
+DTUwebserver* dtuWebServer;
 
 // // OTA
 // #if defined(ESP8266)
@@ -118,13 +127,13 @@ boolean checkWifiTask()
   if (WiFi.status() != WL_CONNECTED && !wifi_connecting) // start connecting wifi
   {
     // reconnect counter - and reset to default
-    reconnects[reconnectsCnt++] = platformData.currentNTPtime;
+    reconnects[reconnectsCnt++] = platformData.currentNTPtimeUTC;
     if (reconnectsCnt >= 25)
     {
       reconnectsCnt = 0;
       Serial.println(F("CheckWifi:\t  no Wifi connection after 25 tries!"));
       // after 20 reconnects inner 7 min - write defaults
-      if ((platformData.currentNTPtime - reconnects[0]) < (WIFI_RETRY_TIME_SECONDS * 1000)) //
+      if ((platformData.currentNTPtimeUTC - reconnects[0]) < (WIFI_RETRY_TIME_SECONDS * 1000)) //
       {
         Serial.println(F("CheckWifi:\t no Wifi connection after 5 tries and inner 5 minutes"));
       }
@@ -209,7 +218,7 @@ boolean scanNetworksResult()
     }
     platformData.wifiFoundNetworks = platformData.wifiFoundNetworks + "]";
     WiFi.scanDelete();
-    dtuWebServer.setWifiScanIsRunning(false);
+    dtuWebServer->setWifiScanIsRunning(false);
     return true;
   }
   else
@@ -483,9 +492,115 @@ boolean scanNetworksResult()
 //   strcpy(updateInfo.updateStateText, "error");
 // }
 
+// timezone configuration with automatic DST switching
+void configureTimezone() {
+  // POSIX timezone strings for common European regions
+  // Format: STD offset DST,start_rule,end_rule
+  // where offset is hours west of UTC (negative for east of UTC)
+  
+  const char* timezoneStrings[] = {
+    "CET-1CEST,M3.5.0,M10.5.0/3",     // Central European Time (Germany, France, etc.)
+    "EET-2EEST,M3.5.0/3,M10.5.0/4",   // Eastern European Time (Finland, Romania, etc.)
+    "WET0WEST,M3.5.0/1,M10.5.0",      // Western European Time (UK, Portugal)
+    "EST5EDT,M3.2.0,M11.1.0",         // US Eastern Time
+    "CST6CDT,M3.2.0,M11.1.0",         // US Central Time
+    "MST7MDT,M3.2.0,M11.1.0",         // US Mountain Time
+    "PST8PDT,M3.2.0,M11.1.0"          // US Pacific Time
+  };
+  
+  // Select timezone based on user config or default to Central European Time
+  int timezoneIndex = 0; // Default to CET
+  
+  // You can extend this to read from userConfig in the future
+  // For now, auto-detect based on current timezone offset
+  int offsetHours = userConfig.timezoneOffest / 3600;
+  switch(offsetHours) {
+    case 0:  timezoneIndex = 2; break; // WET (UK, Portugal)
+    case 1:  timezoneIndex = 0; break; // CET (Germany, France, etc.)
+    case 2:  timezoneIndex = 1; break; // EET (Finland, Romania, etc.)
+    case -5: timezoneIndex = 3; break; // EST (US Eastern)
+    case -6: timezoneIndex = 4; break; // CST (US Central)
+    case -7: timezoneIndex = 5; break; // MST (US Mountain)
+    case -8: timezoneIndex = 6; break; // PST (US Pacific)
+    default: timezoneIndex = 0; break; // Default to CET
+  }
+  
+  // Configure timezone with automatic DST
+  configTime(0, 0, "pool.ntp.org", "time.nist.gov");
+  setenv("TZ", timezoneStrings[timezoneIndex], 1);
+  tzset();
+  
+  Serial.println("TIMEZONE:\t configured for automatic DST switching: " + String(timezoneStrings[timezoneIndex]));
+}
+
+// get current time with automatic DST consideration
+String getCurrentTimeString() {
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo)) {
+    // fallback to NTPClient - format time with timezone offset
+    // Note: this doesn't handle DST automatically, but provides reasonable fallback
+    time_t utcTime = timeClient.getEpochTime();
+    time_t localTime = utcTime + userConfig.timezoneOffest;
+    struct tm* ptm = gmtime(&localTime);
+    
+    char timeString[32];
+    strftime(timeString, sizeof(timeString), "%H:%M:%S", ptm);
+    return String(timeString);
+  }
+  
+  char timeString[32];
+  strftime(timeString, sizeof(timeString), "%H:%M:%S", &timeinfo);
+  return String(timeString);
+}
+
+// get timestamp with automatic DST consideration
+time_t getCurrentTimestamp() {
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo)) {
+    // fallback to NTPClient with timezone offset applied
+    // Note: this doesn't handle DST automatically, but provides reasonable fallback
+    time_t utcTime = timeClient.getEpochTime();
+    
+    // Apply timezone offset - this is basic fallback without DST
+    return utcTime + userConfig.timezoneOffest;
+  }
+  
+  // mktime() gives us UTC timestamp from local time
+  // But night mode expects "local timestamp" (UTC + timezone offset)
+  // So we add the timezone offset including DST
+  time_t utcTimestamp = mktime(&timeinfo);
+  int offsetWithDST = userConfig.timezoneOffest + (timeinfo.tm_isdst > 0 ? 3600 : 0);
+  
+  return utcTimestamp + offsetWithDST;
+}
+
+// check if currently in DST
+bool isDST() {
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo)) {
+    return false; // fallback
+  }
+  return timeinfo.tm_isdst > 0;
+}
+
 // APIs (non REST)
 String getTimeStringByTimestamp(unsigned long timestamp)
 {
+  // Use the new timezone-aware time functions when possible
+  time_t currentTime = getCurrentTimestamp();
+  
+  // If the timestamp is current (within 1 hour), use timezone-aware formatting
+  if (abs((long)(timestamp - currentTime)) < 3600) {
+    struct tm timeinfo;
+    time_t ts = timestamp;
+    localtime_r(&ts, &timeinfo);
+    
+    char buf[32];
+    strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S%z", &timeinfo);
+    return String(buf);
+  }
+  
+  // Fallback to original method for historical timestamps
   UnixTime stamp(1);
   char buf[32];
   stamp.getDateTime(timestamp - 3600);
@@ -669,7 +784,7 @@ void updateValuesToMqtt(boolean haAutoDiscovery = false)
 {
   Serial.println("MQTT:\t\t publish data (HA autoDiscovery = " + String(haAutoDiscovery) + ")");
   std::map<std::string, std::string> keyValueStore;
-  keyValueStore["time_stamp"] = getTimeStringByTimestamp(platformData.currentNTPtime).c_str();
+  keyValueStore["time_stamp"] = getTimeStringByTimestamp(platformData.currentNTPtimeUTC).c_str();
   // grid
   keyValueStore["grid_U"] = String(dtuGlobalData.grid.voltage).c_str();
   keyValueStore["grid_I"] = String(dtuGlobalData.grid.current).c_str();
@@ -770,10 +885,20 @@ void setup()
     return;
   }
 
-  if (configManager.loadConfig(userConfig))
+  if (configManager.loadConfig(userConfig)) {
     configManager.printConfigdata();
-  else
+    if(userConfig.webServerPort == 0) {
+      userConfig.webServerPort = 80; // default port for webserver
+      Serial.println(F("Webserver port in config is 0 - set to default: 80"));
+    } else {
+      Serial.println("Webserver will be start with port: " + String(userConfig.webServerPort));
+    }
+    dtuWebServer = new DTUwebserver(userConfig.webServerPort);
+  }
+  else {
     Serial.println(F("Failed to load user config"));
+    dtuWebServer = new DTUwebserver();
+  }
   // ------- user config loaded --------------------------------------------
 
   // init display according to userConfig
@@ -785,7 +910,7 @@ void setup()
   else if (userConfig.displayConnected == 1)
   {
     displayTFT.setup();
-    displayTFT.setRemoteDisplayMode(userConfig.remoteDisplayActive);
+    displayTFT.setRemoteDisplayMode(userConfig.remoteDisplayActive, userConfig.remoteSummaryDisplayActive);
   }
 
   if (userConfig.wifiAPstart)
@@ -825,7 +950,7 @@ void setup()
     ("dtu_" + String(platformData.chipID)).toCharArray(userConfig.mqttBrokerMainTopic, sizeof(userConfig.mqttBrokerMainTopic));
     configManager.saveConfig(userConfig);
 
-    dtuWebServer.start();
+    dtuWebServer->start();
   }
   else
   {
@@ -859,23 +984,34 @@ void startServices()
     MDNS.addService("http", "tcp", 80);
     Serial.println("MDNS:\t\t ready! Open http://" + platformData.espUniqueName + ".local in your browser");
 
-    // ntp time - offset in summertime 7200 else 3600
+    // ntp time - configure timezone with automatic DST switching
+    configureTimezone();
     timeClient.begin();
-    timeClient.setTimeOffset(userConfig.timezoneOffest);
+    timeClient.setTimeOffset(0); // offset handled by timezone configuration
     // get first time
     timeClient.update();
     platformData.dtuGWstarttime = timeClient.getEpochTime();
     Serial.print(F("NTPclient:\t got time from time server: "));
     Serial.println(String(platformData.dtuGWstarttime));
+    Serial.println("TIMEZONE:\t current DST status: " + String(isDST() ? "DST active" : "Standard time"));
+    Serial.println("TIMEZONE:\t local time: " + getCurrentTimeString());
 
-    dtuWebServer.start();
+    dtuWebServer->start();
 
-    if (!userConfig.remoteDisplayActive)
+    if (!userConfig.remoteDisplayActive && !userConfig.remoteSummaryDisplayActive)
       dtuInterface.setup(userConfig.dtuHostIpDomain);
 
     mqttHandler.setConfiguration(userConfig.mqttBrokerIpDomain, userConfig.mqttBrokerPort, userConfig.mqttBrokerUser, userConfig.mqttBrokerPassword, userConfig.mqttUseTLS, (platformData.espUniqueName).c_str(), userConfig.mqttBrokerMainTopic, userConfig.mqttHAautoDiscoveryON, ((platformData.dtuGatewayIP).toString()).c_str());
     mqttHandler.setup();
-    mqttHandler.setRemoteDisplayData(userConfig.remoteDisplayActive);
+    mqttHandler.setRemoteDisplayData(userConfig.remoteDisplayActive, userConfig.remoteSummaryDisplayActive);
+    
+    mqttHandler.setTopicStructure(userConfig.mqttOpenDTUtopics);
+    // autodiscovery for home assistant with opendtu topics not implemented yet
+    if(userConfig.mqttOpenDTUtopics && userConfig.mqttHAautoDiscoveryON) {
+      mqttHandler.setAutoDiscovery(false);
+      userConfig.mqttHAautoDiscoveryON = false;
+      configManager.saveConfig(userConfig);
+    }
   }
   else
   {
@@ -892,7 +1028,7 @@ void blinkCodeTask()
   ledCycle++;
   if (blinkCode == BLINK_NORMAL_CONNECTION) // Blip every 5 sec
   {
-    ledOffCount = 2;  // 200 ms
+    ledOffCount = 2;  // 200 ms 
     ledOffReset = 50; // 5000 ms
   }
   else if (blinkCode == BLINK_WAITING_NEXT_TRY_DTU) // 0,5 Hz
@@ -1095,6 +1231,15 @@ void getSerialCommand(String cmd, String value)
       dtuInterface.requestRestartDevice();
     }
   }
+  else if (cmd == "rebootMi") // cmd: 'rebootMi 1'
+  {
+    Serial.print(F(" rebootMi "));
+    if (val == 1)
+    {
+      Serial.println(F(" request Mi reboot at DTUinterface ... "));
+      dtuInterface.requestRestartMi();
+    }
+  }
   else if (cmd == "dtuInverter") // cmd: 'dtuInverter 1' or 'dtuInverter 0'
   {
     Serial.print(F(" dtu inverter "));
@@ -1136,6 +1281,21 @@ void getSerialCommand(String cmd, String value)
     configManager.printConfigdata();
     Serial.println(F("restart the device to make the changes take effect"));
     ESP.restart();
+  }
+  else if (cmd == "protectSettings")
+  {
+    Serial.print(F(" 'protectSettings' to "));
+    if (val == 1)
+    {
+      userConfig.protectSettings = true;
+      Serial.print(F(" 'ACTIVE' - settings can not be changed over web interface"));
+    }
+    else
+    {
+      userConfig.protectSettings = false;
+      Serial.print(F(" 'NOT ACTIVE' - settings can be changed over web interface"));
+    }
+    configManager.saveConfig(userConfig);
   }
   else
   {
@@ -1212,9 +1372,9 @@ void loop()
     {
       // display tasks every 50ms = 20Hz
       if (userConfig.displayConnected == 0)
-        displayOLED.renderScreen(timeClient.getFormattedTime(), String(platformData.fwVersion));
+        displayOLED.renderScreen(getCurrentTimeString(), String(platformData.fwVersion));
       else if (userConfig.displayConnected == 1)
-        displayTFT.renderScreen(timeClient.getFormattedTime(), String(platformData.fwVersion));
+        displayTFT.renderScreen(getCurrentTimeString(), String(platformData.fwVersion));
     }
   }
 
@@ -1224,7 +1384,7 @@ void loop()
     previousMillis100ms = currentMillis;
     // -------->
     // led blink code only 5 min after startup
-    if ((platformData.currentNTPtime - platformData.dtuGWstarttime) < 300)
+    if ((platformData.currentNTPtimeUTC - platformData.dtuGWstarttime) < 300)
     {
       blinkCodeTask();
     }
@@ -1247,12 +1407,36 @@ void loop()
         dtuGlobalData.powerLimitSetUpdate = true;
         Serial.println("\nMQTT:\t changed powerset value to '" + String(dtuGlobalData.powerLimitSet) + "'");
       }
+      
+      RebootDevices RebootDevices = mqttHandler.getRebootDevices();
+      if (RebootDevices.rebootMi == true)
+      {
+        dtuGlobalData.rebootMi = true;
+        Serial.println("\nMQTT:\t reboot Microinverter");
+      }
+      if (RebootDevices.rebootDtu == true)
+      {
+        dtuGlobalData.rebootDtu = true;
+        Serial.println("\nMQTT:\t reboot DTU");
+      }
+      if (RebootDevices.rebootDtuGw == true)
+      {
+        dtuGlobalData.rebootDtuGw = true;
+        Serial.println("\nMQTT:\t reboot DTU Gateway");
+      }      
+
       if (dtuGlobalData.powerLimitSetUpdate)
       {
         mqttHandler.publishStandardData("inverter_PowerLimitSet", String(dtuGlobalData.powerLimitSet));
         // postMessageToOpenhab(String(userConfig.openItemPrefix) + "_PowerLimitSet", (String)dtuGlobalData.powerLimit);
         dtuGlobalData.powerLimitSetUpdate = false;
       }
+      if (dtuGlobalData.rebootMi)
+        mqttHandler.publishStandardData("inverter_RebootMi", String(1));
+      if (dtuGlobalData.rebootDtu)
+        mqttHandler.publishStandardData("inverter_RebootDtu", String(1));
+      if (dtuGlobalData.rebootDtuGw)
+        mqttHandler.publishStandardData("inverter_RebootDtuGw", String(1));
 
       RemoteInverterData remoteData = mqttHandler.getRemoteInverterData();
       if (remoteData.updateReceived == true)
@@ -1291,8 +1475,9 @@ void loop()
       }
     }
 
-    platformData.currentNTPtime = timeClient.getEpochTime() < (12 * 60 * 60) ? (12 * 60 * 60) : timeClient.getEpochTime();
-    platformData.currentNTPtimeFormatted = timeClient.getFormattedTime();
+    platformData.currentNTPtime = getCurrentTimestamp();
+    platformData.currentNTPtimeUTC = timeClient.getEpochTime();
+    platformData.currentNTPtimeFormatted = getCurrentTimeString();
   }
 
   // short task
@@ -1339,14 +1524,14 @@ void loop()
       if (dtuConnection.dtuActiveOffToCloudUpdate)
         blinkCode = BLINK_PAUSE_CLOUD_UPDATE;
 
-      if (userConfig.openhabActive && !userConfig.remoteDisplayActive)
+      if (userConfig.openhabActive && !userConfig.remoteDisplayActive && !userConfig.remoteSummaryDisplayActive)
         getPowerSetDataFromOpenHab();
 
       // direct request of new powerLimit
       if (dtuGlobalData.powerLimitSet != 101 &&
           dtuGlobalData.uptodate &&
           dtuConnection.dtuConnectState == DTU_STATE_CONNECTED &&
-          !userConfig.remoteDisplayActive)
+          !userConfig.remoteDisplayActive && !userConfig.remoteSummaryDisplayActive)
       {
         if (!(dtuGlobalData.powerLimitSet == 1 && dtuGlobalData.inverterControl.stateOn) &&
             ((dtuGlobalData.powerLimitSet != dtuGlobalData.powerLimit && dtuGlobalData.inverterControl.stateOn) ||
@@ -1359,6 +1544,22 @@ void loop()
           if (dtuGlobalData.currentTimestamp - dtuGlobalData.lastRespTimestamp < (userConfig.dtuUpdateTime * 2))
             platformData.dtuNextUpdateCounterSeconds = dtuGlobalData.currentTimestamp - userConfig.dtuUpdateTime + 5;
         }
+      }
+      if (dtuGlobalData.rebootMi) {
+          dtuGlobalData.rebootMi = false;
+          Serial.println("----- ----- reboot mi ----- ----- ");
+          dtuInterface.requestRestartMi();
+      }
+      if (dtuGlobalData.rebootDtu) {
+          dtuGlobalData.rebootDtu = false;
+          Serial.println("----- ----- reboot dtu ----- ----- ");
+          dtuInterface.requestRestartDevice();
+      }
+      if (dtuGlobalData.rebootDtuGw) {
+          dtuGlobalData.rebootDtuGw = false;
+          Serial.println("----- ----- reboot dtu gw ----- ----- ");
+          platformData.rebootRequested = true;
+          platformData.rebootRequestedInSec = 3;
       }
     }
 
@@ -1375,8 +1576,8 @@ void loop()
   if (currentMillis - previousMillis5000ms >= interval5000ms)
   {
     Serial.printf(">>>>> %02is task - state --> ", int(interval5000ms));
-    Serial.print("local: " + dtuInterface.getTimeStringByTimestamp(dtuGlobalData.currentTimestamp));
-    Serial.println(" --- NTP: " + timeClient.getFormattedTime() + " ---> dtuConnState: " + String(dtuConnection.dtuConnectState));
+    Serial.print("local: " + getTimeStringByTimestamp(dtuGlobalData.currentTimestamp));
+    Serial.println(" --- NTP: " + getCurrentTimeString() + " ---> dtuConnState: " + String(dtuConnection.dtuConnectState));
 
     previousMillis5000ms = currentMillis;
     // -------->
@@ -1411,14 +1612,14 @@ void loop()
   if (currentMillis - platformData.dtuNextUpdateCounterSeconds >= userConfig.dtuUpdateTime)
   {
     Serial.printf(">>>>> %02is task - state --> ", int(userConfig.dtuUpdateTime));
-    Serial.print("local: " + dtuInterface.getTimeStringByTimestamp(dtuGlobalData.currentTimestamp));
-    Serial.println(" --- NTP: " + timeClient.getFormattedTime() + "\n");
+    Serial.print("local: " + getTimeStringByTimestamp(dtuGlobalData.currentTimestamp));
+    Serial.println(" --- NTP: " + getCurrentTimeString() + "\n");
 
     platformData.dtuNextUpdateCounterSeconds = currentMillis;
     // -------->
 
     // requesting data from DTU
-    if (WiFi.status() == WL_CONNECTED && !userConfig.remoteDisplayActive)
+    if (WiFi.status() == WL_CONNECTED && !userConfig.remoteDisplayActive && !userConfig.remoteSummaryDisplayActive)
       dtuInterface.getDataUpdate();
   }
 
@@ -1434,6 +1635,16 @@ void loop()
     if (WiFi.status() == WL_CONNECTED)
     {
       timeClient.update();
+      // Check DST status every hour and log if it changed
+      static bool lastDSTstatus = false;
+      static bool firstDSTcheck = true;
+      bool currentDSTstatus = isDST();
+      
+      if (firstDSTcheck || (lastDSTstatus != currentDSTstatus)) {
+        Serial.println("TIMEZONE:\t DST status: " + String(currentDSTstatus ? "DST active (summer time)" : "Standard time (winter time)"));
+        lastDSTstatus = currentDSTstatus;
+        firstDSTcheck = false;
+      }
     }
   }
 }

@@ -117,10 +117,16 @@ void UserConfigManager::printConfigdata()
     Serial.print(F("\n--------------------------------------\n"));
     Serial.print(F("Configuration loaded from config file: '/userconfig.json'\n"));
 
+    Serial.print(F("settings protected: \t\t"));
+    Serial.println(userConfig.protectSettings);
+
     Serial.print(F("wifi ssid: \t\t\t"));
     Serial.println(userConfig.wifiSsid);
     Serial.print(F("wifi pass: \t\t\t"));
     Serial.println(userConfig.wifiPassword);
+
+    Serial.print(F("webServer Port: \t\t\t"));
+    Serial.println(userConfig.webServerPort);
 
     Serial.println(F("\ndtu"));
     Serial.print(F("update time: \t\t\t"));
@@ -153,6 +159,8 @@ void UserConfigManager::printConfigdata()
     Serial.println(userConfig.mqttBrokerPassword);
     Serial.print(F("topic: \t\t\t\t"));
     Serial.println(userConfig.mqttBrokerMainTopic);
+    Serial.print(F("openDTU topics: \t\t\t"));
+    Serial.println(userConfig.mqttOpenDTUtopics);
     Serial.print(F("binding active: \t\t\t"));
     Serial.println(userConfig.mqttActive);
     Serial.print(F("HA autoDiscovery: \t\t"));
@@ -160,6 +168,9 @@ void UserConfigManager::printConfigdata()
 
     Serial.print(F("\nremoteDisplay: \t\t\t"));
     Serial.println(userConfig.remoteDisplayActive);
+
+    Serial.print(F("\nremoteSummaryDisplay: \t\t"));
+    Serial.println(userConfig.remoteSummaryDisplayActive);
 
     Serial.println(F("\ndisplay"));
     Serial.print(F("connected type: \t\t\t"));
@@ -200,6 +211,8 @@ JsonDocument UserConfigManager::mappingStructToJson(const UserConfig &config)
 
     doc["wifi"]["ssid"] = config.wifiSsid;
     doc["wifi"]["pass"] = config.wifiPassword;
+    
+    doc["webServer"]["port"] = config.webServerPort;
 
     doc["dtu"]["hostIP"] = config.dtuHostIpDomain;
     doc["dtu"]["cloudPauseActive"] = config.dtuCloudPauseActive;
@@ -219,9 +232,11 @@ JsonDocument UserConfigManager::mappingStructToJson(const UserConfig &config)
     doc["mqtt"]["user"] = config.mqttBrokerUser;
     doc["mqtt"]["pass"] = config.mqttBrokerPassword;
     doc["mqtt"]["mainTopic"] = config.mqttBrokerMainTopic;
+    doc["mqtt"]["openDTUtopics"] = config.mqttOpenDTUtopics;
     doc["mqtt"]["HAautoDiscoveryON"] = config.mqttHAautoDiscoveryON;
 
     doc["remoteDisplay"]["Active"] = config.remoteDisplayActive;
+    doc["remoteSummaryDisplay"]["Active"] = config.remoteSummaryDisplayActive;
 
     doc["display"]["type"] = config.displayConnected;
     doc["display"]["orientation"] = config.displayOrientation;
@@ -237,6 +252,7 @@ JsonDocument UserConfigManager::mappingStructToJson(const UserConfig &config)
     doc["local"]["selectedUpdateChannel"] = config.selectedUpdateChannel;
     doc["local"]["wifiAPstart"] = config.wifiAPstart;
     doc["local"]["timezoneOffest"] = config.timezoneOffest;
+    doc["local"]["protectSettings"] = config.protectSettings;
 
     return doc;
 }
@@ -245,6 +261,8 @@ void UserConfigManager::mappingJsonToStruct(JsonDocument doc)
 {
     String(doc["wifi"]["ssid"].as<String>()).toCharArray(userConfig.wifiSsid, sizeof(userConfig.wifiSsid));
     String(doc["wifi"]["pass"].as<String>()).toCharArray(userConfig.wifiPassword, sizeof(userConfig.wifiPassword));
+
+    userConfig.webServerPort = doc["webServer"]["port"].as<int>();
 
     String(doc["dtu"]["hostIP"].as<String>()).toCharArray(userConfig.dtuHostIpDomain, sizeof(userConfig.dtuHostIpDomain));
     userConfig.dtuCloudPauseActive = doc["dtu"]["cloudPauseActive"].as<bool>();
@@ -264,9 +282,11 @@ void UserConfigManager::mappingJsonToStruct(JsonDocument doc)
     String(doc["mqtt"]["user"].as<String>()).toCharArray(userConfig.mqttBrokerUser, sizeof(userConfig.mqttBrokerUser));
     String(doc["mqtt"]["pass"].as<String>()).toCharArray(userConfig.mqttBrokerPassword, sizeof(userConfig.mqttBrokerPassword));
     String(doc["mqtt"]["mainTopic"].as<String>()).toCharArray(userConfig.mqttBrokerMainTopic, sizeof(userConfig.mqttBrokerMainTopic));
+    userConfig.mqttOpenDTUtopics = doc["mqtt"]["openDTUtopics"].as<bool>();
     userConfig.mqttHAautoDiscoveryON = doc["mqtt"]["HAautoDiscoveryON"].as<bool>();
 
     userConfig.remoteDisplayActive = doc["remoteDisplay"]["Active"].as<bool>();
+    userConfig.remoteSummaryDisplayActive = doc["remoteSummaryDisplay"]["Active"].as<bool>();
 
     userConfig.displayConnected = doc["display"]["type"];
     userConfig.displayOrientation = doc["display"]["orientation"];
@@ -282,6 +302,7 @@ void UserConfigManager::mappingJsonToStruct(JsonDocument doc)
     userConfig.selectedUpdateChannel = doc["local"]["selectedUpdateChannel"];
     userConfig.wifiAPstart = doc["local"]["wifiAPstart"];
     userConfig.timezoneOffest = doc["local"]["timezoneOffest"];
+    userConfig.protectSettings = doc["local"]["protectSettings"].as<bool>();
 
     return;
 }
@@ -300,7 +321,7 @@ String UserConfigManager::createWebPage(bool updated)
 
     const String endHtml = F("</form></div></body><script>function reset(){var url=window.location.href;if(url.indexOf('?')>0){url=url.substring(0,url.indexOf('?'));}url+='?reset=true';window.location.replace(url);}window.onload=createEntryFields;");
     const String endHtml2 = F("function createEntryFields(){var form=document.getElementsByTagName('form')[0];for(var key in mainTopicValue){var topic=mainTopicValue[key];var topicInfo=document.createElement('div');topicInfo.innerHTML='<label><h4>'+key+'</h4></label>';form.appendChild(topicInfo);for(var subKey in topic){var input=document.createElement('input');input.name=key+'.'+subKey;input.className='form-control';input.type='text';input.value=topic[subKey];var label=document.createElement('label');label.innerHTML=subKey;var div=document.createElement('div');div.className='form-group row';var div2=document.createElement('div');div2.className='col-2';div2.appendChild(label);var div3=document.createElement('div');div3.className='col-10';div3.appendChild(input);div.appendChild(div2);div.appendChild(div3);form.appendChild(div);}}var div=document.createElement('div');div.className='form-group row';div.innerHTML='<div class=\"col-12\"><button class=\"btn btn-primary\" type=\"submit\">Save</button></div>';form.appendChild(div);}</script></html>");
-
+    
     String result = beginHtml;
 
     if (updated)

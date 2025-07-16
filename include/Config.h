@@ -10,11 +10,14 @@
 
 struct UserConfig
 {
+    boolean protectSettings       = false;  // protect settings from changes
     char wifiSsid[64]             = "mySSID";
     char wifiPassword[64]         = "myPassword";
     
     char dtuSsid[64]              = "DTUBI-12345678";
     char dtuPassword[64]          = "dtubiPassword";
+
+    uint16_t webServerPort        = 80;
 
     char dtuHostIpDomain[128]     = "192.168.0.254";
     int dtuCloudPauseTime         = 40;
@@ -30,11 +33,13 @@ struct UserConfig
     boolean mqttUseTLS            = false;
     char mqttBrokerUser[64]       = "dtuuser";
     char mqttBrokerPassword[64]   = "dtupass";
-    char mqttBrokerMainTopic[32]  = "dtu_12345678";
+    char mqttBrokerMainTopic[64]  = "dtu_12345678";
+    boolean mqttOpenDTUtopics     = false;
     boolean mqttHAautoDiscoveryON = false;
     boolean mqttActive            = false;
 
     boolean remoteDisplayActive   = false;  // remote display to get data from mqtt
+    boolean remoteSummaryDisplayActive   = false;  // remote summary display to get data from mqtt
     
     uint8_t displayConnected      = 0;      // OLED default
     uint16_t displayOrientation   = 0;      // OLED 0,180 degrees - TFT 0,90,180,270 degrees
@@ -49,7 +54,7 @@ struct UserConfig
 
     boolean wifiAPstart           = true;
     int selectedUpdateChannel     = 0;      // 0 - release 1 - snapshot
-    int timezoneOffest            = 7200;   // default CEST
+    int timezoneOffest            = 3600;   // default CEST
 };
 
 extern UserConfig userConfig;

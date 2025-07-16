@@ -27,6 +27,13 @@ struct PowerLimitSet {
     boolean update = false;
 };
 
+
+struct RebootDevices {
+    boolean rebootMi = false;
+    boolean rebootDtu = false;
+    boolean rebootDtuGw = false;
+};
+
 struct RemoteBaseData
 {
   float current = 0;
@@ -51,6 +58,7 @@ struct RemoteInverterData
   uint32_t respTimestamp = 1704063600;     // init with start time stamp > 0
   boolean updateReceived = false;
   boolean remoteDisplayActive = false;
+  boolean remoteSummaryDisplayActive = false;
   boolean inverterControlStateOn = true;
   uint8_t warningsActive = 0;
 };
@@ -72,13 +80,16 @@ public:
     void setUseTLS(bool useTLS);
     void setConfiguration(const char *broker, int port, const char *user, const char *password, bool useTLS, const char *sensorUniqueName, const char *mainTopicPath, bool autoDiscovery, const char * ipAddress);
     void setMainTopic(String mainTopicPath);
+    void setTopicStructure(bool openDtuStructure=false);
 
-    void setRemoteDisplayData(boolean remoteDisplayActive);
+    void setRemoteDisplayData(boolean remoteDisplayActive, boolean remoteSummaryDisplayActive);
 
     void requestMQTTconnectionReset(boolean autoDiscoveryRemoveRequested);
 
     PowerLimitSet getPowerLimitSet();
     RemoteInverterData getRemoteInverterData();
+    RebootDevices getRebootDevices();
+
     void stopConnection(boolean full=false);
 
     static void subscribedMessageArrived(char *topic, byte *payload, unsigned int length);
@@ -95,6 +106,7 @@ private:
     const char* espURL;
     String mqttMainTopicPath;
     String gw_ipAddress;
+    bool useOpenDTUStructure = false;
         
     WiFiClient wifiClient;
     WiFiClientSecure wifiClientSecure;
@@ -109,9 +121,11 @@ private:
 
     PowerLimitSet lastPowerLimitSet;
     RemoteInverterData lastRemoteInverterData;
+    RebootDevices rebootDevices;
     
     void reconnect();
     boolean initiateDiscoveryMessages(bool autoDiscoveryRemove=false);
+    String mapTopic(const String& baseTopic); // Mapping function
 };
 
 extern MQTTHandler mqttHandler;

@@ -4,9 +4,10 @@ boolean wifiScanIsRunning = false;
 
 size_t content_len;
 
-DTUwebserver::DTUwebserver()
+DTUwebserver::DTUwebserver(uint16_t port)
+    : serverPort(port), asyncDtuWebServer(port) // Initialize AsyncWebServer with the given port
 {
-    // Constructor implementation
+    
 }
 
 DTUwebserver::~DTUwebserver()
@@ -78,6 +79,10 @@ void DTUwebserver::start()
 
     // direct settings
     asyncDtuWebServer.on("/updatePowerLimit", handleUpdatePowerLimit);
+    asyncDtuWebServer.on("/rebootMi", handleRebootMi);
+    asyncDtuWebServer.on("/rebootDtu", handleRebootDtu);
+    asyncDtuWebServer.on("/rebootDtuGw", handleRebootDtuGw);
+    
     asyncDtuWebServer.on("/getWifiNetworks", handleGetWifiNetworks);
 
     // api GETs
@@ -211,6 +216,13 @@ void DTUwebserver::handleConfigPage(AsyncWebServerRequest *request)
 {
     JsonDocument doc;
     bool gotUserChanges = false;
+    if(userConfig.protectSettings)
+    {
+        Serial.println(F("WEB:\t\t handleConfigPage - got user changes but settings are protected"));
+        request->send(403, "text/plain", "Settings are protected. Please disable protection per serial console command 'protectSettings 0' to change settings.");
+        return;
+    }
+
     if (request->params() && request->hasParam("local.wifiAPstart", true))
     {
         if (request->getParam("local.wifiAPstart", true)->value() == "false")
@@ -251,7 +263,7 @@ void DTUwebserver::handleDataJson(AsyncWebServerRequest *request)
 {
     String JSON = "{";
     JSON = JSON + "\"localtime\": " + String(dtuGlobalData.currentTimestamp) + ",";
-    JSON = JSON + "\"ntpStamp\": " + String(platformData.currentNTPtime - userConfig.timezoneOffest) + ",";
+    JSON = JSON + "\"ntpStamp\": " + String(platformData.currentNTPtimeUTC) + ",";
 
     JSON = JSON + "\"lastResponse\": " + dtuGlobalData.lastRespTimestamp + ",";
     JSON = JSON + "\"dtuConnState\": " + dtuConnection.dtuConnectState + ",";
@@ -303,6 +315,7 @@ void DTUwebserver::handleInfojson(AsyncWebServerRequest *request)
     JSON = JSON + "\"chipType\": \"" + platformData.chipType + "\",";
     JSON = JSON + "\"host\": \"" + platformData.espUniqueName + "\",";
     JSON = JSON + "\"initMode\": " + userConfig.wifiAPstart + ",";
+    JSON = JSON + "\"protectSettings\": " + String(userConfig.protectSettings) + ",";
 
     JSON = JSON + "\"firmware\": {";
     JSON = JSON + "\"version\": \"" + String(platformData.fwVersion) + "\",";
@@ -339,7 +352,8 @@ void DTUwebserver::handleInfojson(AsyncWebServerRequest *request)
     JSON = JSON + "\"dtuResetRequested\": " + dtuGlobalData.dtuResetRequested + ",";
     JSON = JSON + "\"dtuCloudPause\": " + userConfig.dtuCloudPauseActive + ",";
     JSON = JSON + "\"dtuCloudPauseTime\": " + userConfig.dtuCloudPauseTime + ",";
-    JSON = JSON + "\"dtuRemoteDisplay\": " + userConfig.remoteDisplayActive;
+    JSON = JSON + "\"dtuRemoteDisplay\": " + userConfig.remoteDisplayActive + ",";
+    JSON = JSON + "\"dtuRemoteSummaryDisplay\": " + userConfig.remoteSummaryDisplayActive;
     JSON = JSON + "},";
 
     JSON = JSON + "\"wifiConnection\": {";
@@ -360,7 +374,7 @@ void DTUwebserver::handleDtuInfoJson(AsyncWebServerRequest *request)
 {
     String JSON = "{";
     JSON = JSON + "\"localtime\": " + String(dtuGlobalData.currentTimestamp) + ",";
-    JSON = JSON + "\"ntpStamp\": " + String(platformData.currentNTPtime - userConfig.timezoneOffest) + ",";
+    JSON = JSON + "\"ntpStamp\": " + String(platformData.currentNTPtimeUTC) + ",";
 
     JSON = JSON + "\"warningsLastUpdate\": " + String(dtuGlobalData.warnDataLastTimestamp) + ",";
     JSON = JSON + "\"warnings\": ";
@@ -396,6 +410,12 @@ void DTUwebserver::handleDtuInfoJson(AsyncWebServerRequest *request)
 // user config
 void DTUwebserver::handleUpdateWifiSettings(AsyncWebServerRequest *request)
 {
+    if (userConfig.protectSettings)
+    {
+        Serial.println(F("WEB:\t\t handleUpdateWifiSettings - got user changes but settings are protected"));
+        request->send(403, "text/plain", "Settings are protected. Please disable protection per serial console command 'protectSettings 0' to change settings.");
+        return;
+    }
     if (request->hasParam("wifiSSIDsend", true) && request->hasParam("wifiPASSsend", true))
     {
         String wifiSSIDUser = request->getParam("wifiSSIDsend", true)->value(); // server.arg("wifiSSIDsend"); // retrieve message from webserver
@@ -448,19 +468,28 @@ void DTUwebserver::handleUpdateWifiSettings(AsyncWebServerRequest *request)
 
 void DTUwebserver::handleUpdateDtuSettings(AsyncWebServerRequest *request)
 {
+    if (userConfig.protectSettings)
+    {
+        Serial.println(F("WEB:\t\t handleUpdateDtuSettings - got user changes but settings are protected"));
+        request->send(403, "text/plain", "Settings are protected. Please disable protection per serial console command 'protectSettings 0' to change settings.");
+        return;
+    }
     if (request->hasParam("dtuHostIpDomainSend", true) &&
         request->hasParam("dtuDataCycleSend", true) &&
         request->hasParam("dtuCloudPauseSend", true) &&
-        request->hasParam("remoteDisplayActiveSend", true))
+        request->hasParam("remoteDisplayActiveSend", true) &&
+        request->hasParam("remoteSummaryDisplayActiveSend", true))
     {
         String dtuHostIpDomainUser = request->getParam("dtuHostIpDomainSend", true)->value(); // retrieve message from webserver
         String dtuDataCycle = request->getParam("dtuDataCycleSend", true)->value();           // retrieve message from webserver
         String dtuCloudPause = request->getParam("dtuCloudPauseSend", true)->value();         // retrieve message from webserver
 
         String remoteDisplayActive = request->getParam("remoteDisplayActiveSend", true)->value(); // retrieve message from webserver
+        String remoteSummaryDisplayActive = request->getParam("remoteSummaryDisplayActiveSend", true)->value(); // retrieve message from webserver
 
         Serial.println("WEB:\t\t handleUpdateDtuSettings - got dtu ip: " + dtuHostIpDomainUser + "- got dtuDataCycle: " + dtuDataCycle + "- got dtu dtuCloudPause: " + dtuCloudPause);
         Serial.println("WEB:\t\t handleUpdateDtuSettings - got remoteDisplayActive: " + remoteDisplayActive);
+        Serial.println("WEB:\t\t handleUpdateDtuSettings - got remoteSummaryDisplayActive: " + remoteSummaryDisplayActive);
 
         dtuHostIpDomainUser.toCharArray(userConfig.dtuHostIpDomain, sizeof(userConfig.dtuHostIpDomain));
         userConfig.dtuUpdateTime = dtuDataCycle.toInt();
@@ -482,6 +511,18 @@ void DTUwebserver::handleUpdateDtuSettings(AsyncWebServerRequest *request)
             platformData.rebootRequested = true;
         }
         userConfig.remoteDisplayActive = remoteDisplayActiveBool;
+
+        boolean remoteSummaryDisplayActiveBool = false;
+        if (remoteSummaryDisplayActive == "1")
+            remoteSummaryDisplayActiveBool = true;
+        else
+            remoteSummaryDisplayActiveBool = false;
+        if (remoteSummaryDisplayActiveBool != userConfig.remoteSummaryDisplayActive)
+        {
+            platformData.rebootRequestedInSec = 3;
+            platformData.rebootRequested = true;
+        }
+        userConfig.remoteSummaryDisplayActive = remoteSummaryDisplayActiveBool;
 
         configManager.saveConfig(userConfig);
 
@@ -506,6 +547,12 @@ void DTUwebserver::handleUpdateDtuSettings(AsyncWebServerRequest *request)
 
 void DTUwebserver::handleUpdateBindingsSettings(AsyncWebServerRequest *request)
 {
+    if (userConfig.protectSettings)
+    {
+        Serial.println(F("WEB:\t\t handleUpdateBindingsSettings - got user changes but settings are protected"));
+        request->send(403, "text/plain", "Settings are protected. Please disable protection per serial console command 'protectSettings 0' to change settings.");
+        return;
+    }
     if (request->hasParam("openhabHostIpDomainSend", true) &&
         request->hasParam("openhabPrefixSend", true) &&
         request->hasParam("openhabActiveSend", true) &&
@@ -653,6 +700,78 @@ void DTUwebserver::handleUpdatePowerLimit(AsyncWebServerRequest *request)
     {
         request->send(400, "text/plain", "handleUpdatePowerLimit - ERROR requested without the expected params");
         Serial.println(F("WEB:\t\t handleUpdatePowerLimit - ERROR without the expected params"));
+    }
+}
+
+void DTUwebserver::handleRebootMi(AsyncWebServerRequest *request)
+{
+    if (request->hasParam("rebootMi", true))
+    {
+        Serial.println("WEB:\t\t handleRebootMi");
+
+        dtuGlobalData.rebootMi = true;
+
+        Serial.println("WEB:\t\t got Reboot Mi");
+
+        String JSON = "{";
+        JSON = JSON + "\"RebootMi\": true";
+        JSON = JSON + "}";
+
+        request->send(200, "application/json", JSON);
+        Serial.println("WEB:\t\t handleRebootMi - send JSON: " + String(JSON));
+    }
+    else
+    {
+        request->send(400, "text/plain", "handleRebootMi - ERROR requested without the expected params");
+        Serial.println(F("WEB:\t\t handleRebootMi - ERROR without the expected params"));
+    }
+}
+
+void DTUwebserver::handleRebootDtu(AsyncWebServerRequest *request)
+{
+    if (request->hasParam("rebootDtu", true))
+    {
+        Serial.println("WEB:\t\t handleRebootDtu");
+
+        dtuGlobalData.rebootDtu = true;
+
+        Serial.println("WEB:\t\t got Reboot DTU");
+
+        String JSON = "{";
+        JSON = JSON + "\"RebootDtu\": true";
+        JSON = JSON + "}";
+
+        request->send(200, "application/json", JSON);
+        Serial.println("WEB:\t\t handleRebootDtu - send JSON: " + String(JSON));
+    }
+    else
+    {
+        request->send(400, "text/plain", "handleRebootDtu - ERROR requested without the expected params");
+        Serial.println(F("WEB:\t\t handleRebootDtu - ERROR without the expected params"));
+    }
+}
+
+void DTUwebserver::handleRebootDtuGw(AsyncWebServerRequest *request)
+{
+    if (request->hasParam("rebootDtuGw", true))
+    {
+        Serial.println("WEB:\t\t handleRebootDtuGw");
+
+        dtuGlobalData.rebootDtuGw = true;
+
+        Serial.println("WEB:\t\t got Reboot DTU Gateway");
+
+        String JSON = "{";
+        JSON = JSON + "\"RebootDtuGw\": true";
+        JSON = JSON + "}";
+
+        request->send(200, "application/json", JSON);
+        Serial.println("WEB:\t\t handleRebootDtuGw - send JSON: " + String(JSON));
+    }
+    else
+    {
+        request->send(400, "text/plain", "handleRebootDtuGw - ERROR requested without the expected params");
+        Serial.println(F("WEB:\t\t handleRebootDtuGw - ERROR without the expected params"));
     }
 }
 
