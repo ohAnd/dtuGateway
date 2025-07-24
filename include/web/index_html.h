@@ -1759,6 +1759,12 @@ static const char *index_html PROGMEM = R"=====(
                     data1Text = "maximum frequency";
                     data1Value = (warning.data1 / 100).toFixed(2) + " Hz";
                 }
+                else if (warning.message.toLowerCase().includes('frequency below')) {
+                    data0Text = "measured frequency";
+                    data0Value = (warning.data0 / 100).toFixed(2) + " Hz";
+                    data1Text = "minimum frequency";
+                    data1Value = (warning.data1 / 100).toFixed(2) + " Hz";
+                }
 
                 let warningRow = `
                 <div class="warningRow" style="display: flex; justify-content: space-between; ${!activeWarning ? `color: grey;` : ''}">
