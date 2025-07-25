@@ -12,6 +12,7 @@
 |---------------|--------------|
 | ESP32 board + Hoymiles HMS-xxxW-2T | Real-time solar data in your smart home |
 | 5 minutes setup | Power monitoring, remote control, automatic updates |
+| Any smartphone/tablet/laptop | Zero-configuration setup with universal captive portal |
 
 **Ready to start?** → [5-Minute Setup Guide](#5-minute-setup)
 
@@ -66,10 +67,11 @@ dtuGateway provides a reliable, dedicated gateway to your Hoymiles DTU where no 
 
 ### Our Solution
 - ✅ **Dedicated reliable gateway**: ESP32-based bridge with automatic DTU recovery
-- ✅ **Multiple APIs provided**: MQTT, REST JSON, openHAB integration where none existed
+- ✅ **Multiple APIs provided**: MQTT, REST JSON, openHAB integration where none existed  
 - ✅ **Consistent data delivery**: Real-time monitoring with guaranteed updates
 - ✅ **Remote control capabilities**: Power limiting and inverter management via API
 - ✅ **Set-and-forget operation**: Automatic recovery from DTU connection issues
+- ✅ **Zero-configuration setup**: Universal captive portal works on any device without manual browser navigation
 
 ---
 
@@ -101,6 +103,7 @@ dtuGateway provides a reliable, dedicated gateway to your Hoymiles DTU where no 
 - **Remote monitoring**: Act as display for another dtuGateway
 
 ### 🔧 **Professional Features**
+- **Universal captive portal**: Automatic configuration page detection on Android, iOS, and Windows devices
 - **OTA updates**: Manual firmware updates via web interface
 - **Factory reset**: Easy recovery from any configuration issues
 - **Warning system**: Real-time DTU alerts and error monitoring
@@ -186,7 +189,11 @@ Using [ESP Download Tool](https://www.espressif.com/en/support/download/other-to
 
 ### Step 3: Initial Configuration
 1. **Connect to setup Wi-Fi**: `dtuGateway_XXXXXX`
-2. **Open browser**: Navigate to `http://192.168.4.1`
+2. **Automatic captive portal**: Your device should automatically open the configuration page
+   - **Android**: Automatic redirect notification appears
+   - **iOS/iPad**: "Sign in to Wi-Fi" popup opens browser automatically  
+   - **Windows**: Automatic browser popup with configuration page
+   - **Manual access**: Navigate to `http://192.168.4.1` or `http://dtugateway.local` if automatic detection fails
 3. **Configure network**:
    - Select your home Wi-Fi
    - Enter Wi-Fi password
@@ -279,6 +286,11 @@ esptool.py --chip esp32 --baud 921600 --before default_reset --after hard_reset 
 - **No display**: Starts access point immediately
 - **LED indicator**: Built-in LED shows activity status
 - **Serial output**: 115200 baud for debugging (optional)
+- **Captive portal**: Universal cross-platform automatic configuration detection
+  - **Android**: Shows "Sign in to network" notification with automatic redirect
+  - **iOS/iPad**: Displays "Sign in to Wi-Fi" popup that opens configuration page
+  - **Windows**: Automatic browser popup with configuration interface
+  - **Manual access**: Navigate to `http://192.168.4.1` if automatic detection doesn't work
 
 ### Factory Reset
 If something goes wrong:
@@ -295,6 +307,10 @@ If something goes wrong:
 - **Network**: `dtuGateway_<ChipID>`
 - **URL**: `http://192.168.4.1` or `http://dtuGateway.local`
 - **Password**: None (open network)
+- **Captive Portal**: Automatic configuration page detection
+  - **Cross-platform compatibility**: Works with Android, iOS, Windows, and macOS
+  - **Automatic detection**: Most devices show captive portal popup automatically
+  - **Manual fallback**: Direct browser navigation if automatic detection fails
 
 ### Connected Mode (After Setup)
 - **URL**: `http://<device-ip>` (check your router for IP)
@@ -821,6 +837,13 @@ Post your inverter model and setup photos in [GitHub Discussions](https://github
 - **Check**: LED should blink during startup
 - **Note**: On mobile, accept "no internet" connection warning
 
+**Problem**: Captive portal not opening automatically
+- **Android**: Look for "Sign in to network" notification, tap to open
+- **iOS/iPad**: Check for "Sign in to Wi-Fi" popup, tap to configure
+- **Windows**: Wait for automatic browser popup (may take 10-30 seconds)
+- **Manual**: Open browser and navigate to `http://192.168.4.1`
+- **Alternative**: Try `http://dtugateway.local` (if device supports mDNS)
+
 **Problem**: DTU connection fails
 - **Check**: DTU IP address is correct in settings
 - **Test**: Ping DTU IP from same network: `ping 192.168.1.100`
@@ -1192,6 +1215,11 @@ When reporting bugs, please include:
 - **Data Format**: JSON REST API and MQTT
 - **Update Mechanism**: OTA via HTTP with checksum verification
 - **Configuration**: JSON storage in ESP32 flash filesystem
+- **Captive Portal**: Universal cross-platform detection with comprehensive endpoint coverage
+  - **DNS Server**: Redirects all DNS queries to ESP32 AP IP (192.168.4.1)
+  - **Platform Detection**: Automatic handling of Android, iOS, Windows, and macOS captive portal probes
+  - **Endpoint Coverage**: `/generate_204`, `/hotspot-detect.html`, `/connecttest.txt`, `/wpad.dat`, `/autodiscover/autodiscover.xml`
+  - **Fallback Handling**: Graceful redirect to configuration page for unrecognized requests
 
 ### ESP8266 Legacy Support
 Older ESP8266 version maintained at:
