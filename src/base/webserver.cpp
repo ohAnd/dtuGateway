@@ -39,90 +39,37 @@ void DTUwebserver::backgroundTask(DTUwebserver *instance)
 
 void DTUwebserver::start()
 {
-    // Check if LittleFS is available
-    if (!LittleFS.begin()) {
-        Serial.println(F("WEB:\t\t ERROR: LittleFS not available, skipping file creation"));
-    } else {
-        Serial.println(F("WEB:\t\t LittleFS available, creating static files"));
-        
-        // Create index.html with error checking
-        {
-            File f = LittleFS.open("/index.html", "w");
-            if (!f) {
-                Serial.println(F("WEB:\t\t ERROR: Could not create /index.html"));
-            } else {
-                size_t written = f.print(index_html);
-                f.close();
-                Serial.println("WEB:\t\t Created /index.html (" + String(written) + " bytes)");
-            }
-        }
-        
-        // Create style.css with error checking  
-        {
-            File f = LittleFS.open("/style.css", "w");
-            if (!f) {
-                Serial.println(F("WEB:\t\t ERROR: Could not create /style.css"));
-            } else {
-                size_t written = f.print(style_css);
-                f.close();
-                Serial.println("WEB:\t\t Created /style.css (" + String(written) + " bytes)");
-            }
-        }
-        
-        // Create jquery.min.js with error checking
-        {
-            File f = LittleFS.open("/jquery.min.js", "w");
-            if (!f) {
-                Serial.println(F("WEB:\t\t ERROR: Could not create /jquery.min.js"));
-            } else {
-                size_t written = f.print(jquery_min_js);
-                f.close();
-                Serial.println("WEB:\t\t Created /jquery.min.js (" + String(written) + " bytes)");
-            }
-        }
-        
-        // Check available space
-        size_t total = LittleFS.totalBytes();
-        size_t used = LittleFS.usedBytes();
-        Serial.println("WEB:\t\t LittleFS space: " + String(used) + "/" + String(total) + " bytes used");
-    }
+    // Initialize the web server and define routes as before
+    Serial.println(F("WEB:\t\t setup webserver - serving static content from PROGMEM"));
     
-    // Set up static file serving - serve files directly from LittleFS
+    // Set up static file serving - serve directly from PROGMEM with caching
+    // Note: Using deprecated beginResponse_P because newer beginResponse() doesn't serve PROGMEM files correctly
+    // This is a known limitation of ESPAsyncWebServer library - warnings can be ignored until library is fixed
     asyncDtuWebServer.on("/jquery.min.js", HTTP_GET, [](AsyncWebServerRequest *request) {
-        if (LittleFS.exists("/jquery.min.js")) {
-            request->send(LittleFS, "/jquery.min.js", "application/javascript");
-        } else {
-            Serial.println(F("WEB:\t\t jquery.min.js not found in LittleFS"));
-            request->send(404, "text/plain", "File not found");
-        }
+        AsyncWebServerResponse *response = request->beginResponse_P(200, "application/javascript", jquery_min_js);
+        response->addHeader("Cache-Control", "public, max-age=31536000"); // Cache for 1 year
+        response->addHeader("ETag", "\"jquery-3.6.0\"");
+        request->send(response);
     });
     
     asyncDtuWebServer.on("/style.css", HTTP_GET, [](AsyncWebServerRequest *request) {
-        if (LittleFS.exists("/style.css")) {
-            request->send(LittleFS, "/style.css", "text/css");
-        } else {
-            Serial.println(F("WEB:\t\t style.css not found in LittleFS"));
-            request->send(404, "text/plain", "File not found");
-        }
+        AsyncWebServerResponse *response = request->beginResponse_P(200, "text/css", style_css);
+        response->addHeader("Cache-Control", "public, max-age=86400"); // Cache for 1 day
+        response->addHeader("ETag", "\"style-v1\"");
+        request->send(response);
     });
     
-    // index.html is handled by handleRoot which redirects to /index.html
+    // index.html is handled by / which redirects to /index.html
     asyncDtuWebServer.on("/index.html", HTTP_GET, [](AsyncWebServerRequest *request) {
-        if (LittleFS.exists("/index.html")) {
-            request->send(LittleFS, "/index.html", "text/html");
-        } else {
-            Serial.println(F("WEB:\t\t index.html not found in LittleFS"));
-            request->send(404, "text/plain", "File not found");
-        }
+        AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", index_html);
+        response->addHeader("Cache-Control", "no-cache"); // Don't cache main page for config updates
+        request->send(response);
     });
     
-    
-    // Initialize the web server and define routes as before
-    Serial.println(F("WEB:\t\t setup webserver"));
     // base web pages
-    asyncDtuWebServer.on("/", HTTP_GET, handleRoot);
-    // asyncDtuWebServer.on("/jquery.min.js", HTTP_GET, handleJqueryMinJs);
-    // asyncDtuWebServer.on("/style.css", HTTP_GET, handleCSS);
+    asyncDtuWebServer.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
+        request->redirect("/index.html");
+    });
 
     // user config requests
     asyncDtuWebServer.on("/updateWifiSettings", handleUpdateWifiSettings);
@@ -246,24 +193,6 @@ void DTUwebserver::stop()
     asyncDtuWebServer.end(); // Stop the web server
     webServerTimer.detach(); // Stop the timer
 }
-
-// base pages
-void DTUwebserver::handleRoot(AsyncWebServerRequest *request)
-{
-    Serial.println(F("WEB:\t\t handleRoot"));
-    // request->send(200, "text/html", INDEX_HTML);
-    request->redirect("/index.html");
-}
-// void DTUwebserver::handleCSS(AsyncWebServerRequest *request)
-// {
-//     Serial.println(F("WEB:\t\t handleCSS"));
-//     request->send(LittleFS, "/style.css", "text/css");
-// }
-// void DTUwebserver::handleJqueryMinJs(AsyncWebServerRequest *request)
-// {
-//     Serial.println(F("WEB:\t\t handleJqueryMinJs"));
-//     request->send(200, "text/html", JQUERY_MIN_JS);
-// }
 
 // ota update
 void DTUwebserver::handleDoUpdate(AsyncWebServerRequest *request, const String &filename, size_t index, uint8_t *data, size_t len, bool final)
