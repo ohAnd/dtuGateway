@@ -507,25 +507,25 @@ dtu_12345678/inverter/RebootMi/set       # Reboot inverter
 Number inverter_PowerLimitSet "Power Limit Set [%d %%]"
 
 // Grid data
-Number inverter_Grid_U "Grid Voltage [%.1f V]"
-Number inverter_Grid_I "Grid Current [%.2f A]"
-Number inverter_Grid_P "Grid Power [%.0f W]"
-Number inverter_PV_E_day "Daily Energy [%.3f kWh]"
-Number inverter_PV_E_total "Total Energy [%.3f kWh]"
+Number inverterGrid_U "Grid Voltage [%.1f V]"
+Number inverterGrid_I "Grid Current [%.2f A]"
+Number inverterGrid_P "Grid Power [%.0f W]"
+Number inverterPV_E_day "Daily Energy [%.3f kWh]"
+Number inverterPV_E_total "Total Energy [%.3f kWh]"
 
 // Panel 1 data  
-Number inverter_PV1_U "PV1 Voltage [%.1f V]"
-Number inverter_PV1_I "PV1 Current [%.2f A]"
-Number inverter_PV1_P "PV1 Power [%.0f W]"
-Number inverter_PV1_E_day "PV1 Daily Energy [%.3f kWh]"
-Number inverter_PV1_E_total "PV1 Total Energy [%.3f kWh]"
+Number inverterPV1_U "PV1 Voltage [%.1f V]"
+Number inverterPV1_I "PV1 Current [%.2f A]"
+Number inverterPV1_P "PV1 Power [%.0f W]"
+Number inverterPV1_E_day "PV1 Daily Energy [%.3f kWh]"
+Number inverterPV1_E_total "PV1 Total Energy [%.3f kWh]"
 
 // Panel 2 data
-Number inverter_PV2_U "PV2 Voltage [%.1f V]"
-Number inverter_PV2_I "PV2 Current [%.2f A]"
-Number inverter_PV2_P "PV2 Power [%.0f W]"
-Number inverter_PV2_E_day "PV2 Daily Energy [%.3f kWh]"
-Number inverter_PV2_E_total "PV2 Total Energy [%.3f kWh]"
+Number inverterPV2_U "PV2 Voltage [%.1f V]"
+Number inverterPV2_I "PV2 Current [%.2f A]"
+Number inverterPV2_P "PV2 Power [%.0f W]"
+Number inverterPV2_E_day "PV2 Daily Energy [%.3f kWh]"
+Number inverterPV2_E_total "PV2 Total Energy [%.3f kWh]"
 
 // Inverter status
 Number inverter_Temp "Inverter Temperature [%.1f °C]"
