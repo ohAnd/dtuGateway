@@ -39,35 +39,37 @@ void DTUwebserver::backgroundTask(DTUwebserver *instance)
 
 void DTUwebserver::start()
 {
-    {
-        File f = LittleFS.open("/index.html", "w");
-        assert(f);
-        f.print(index_html);
-        f.close();
-    }
-    {
-        File f = LittleFS.open("/style.css", "w");
-        assert(f);
-        f.print(style_css);
-        f.close();
-    }
-    // {
-    //     File f = LittleFS.open("/jquery.min.js", "w");
-    //     assert(f);
-    //     f.print(jquery_min_js);
-    //     f.close();
-    // }
-    // asyncDtuWebServer.serveStatic("/jquery.min.js", LittleFS, "/jquery.min.js");
-    asyncDtuWebServer.serveStatic("/index.html", LittleFS, "/index.html");
-    asyncDtuWebServer.serveStatic("/style.css", LittleFS, "/style.css");
-    
-
     // Initialize the web server and define routes as before
-    Serial.println(F("WEB:\t\t setup webserver"));
+    Serial.println(F("WEB:\t\t setup webserver - serving static content from PROGMEM"));
+    
+    // Set up static file serving - serve directly from PROGMEM with caching
+    // Note: Using deprecated beginResponse_P because newer beginResponse() doesn't serve PROGMEM files correctly
+    // This is a known limitation of ESPAsyncWebServer library - warnings can be ignored until library is fixed
+    asyncDtuWebServer.on("/jquery.min.js", HTTP_GET, [](AsyncWebServerRequest *request) {
+        AsyncWebServerResponse *response = request->beginResponse_P(200, "application/javascript", jquery_min_js);
+        response->addHeader("Cache-Control", "public, max-age=31536000"); // Cache for 1 year
+        response->addHeader("ETag", "\"jquery-3.6.0\"");
+        request->send(response);
+    });
+    
+    asyncDtuWebServer.on("/style.css", HTTP_GET, [](AsyncWebServerRequest *request) {
+        AsyncWebServerResponse *response = request->beginResponse_P(200, "text/css", style_css);
+        response->addHeader("Cache-Control", "public, max-age=86400"); // Cache for 1 day
+        response->addHeader("ETag", "\"style-v1\"");
+        request->send(response);
+    });
+    
+    // index.html is handled by / which redirects to /index.html
+    asyncDtuWebServer.on("/index.html", HTTP_GET, [](AsyncWebServerRequest *request) {
+        AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", index_html);
+        response->addHeader("Cache-Control", "no-cache"); // Don't cache main page for config updates
+        request->send(response);
+    });
+    
     // base web pages
-    asyncDtuWebServer.on("/", HTTP_GET, handleRoot);
-    // asyncDtuWebServer.on("/jquery.min.js", HTTP_GET, handleJqueryMinJs);
-    // asyncDtuWebServer.on("/style.css", HTTP_GET, handleCSS);
+    asyncDtuWebServer.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
+        request->redirect("/index.html");
+    });
 
     // user config requests
     asyncDtuWebServer.on("/updateWifiSettings", handleUpdateWifiSettings);
@@ -99,6 +101,84 @@ void DTUwebserver::start()
                          { handleDoUpdate(request, filename, index, data, len, final); });
     asyncDtuWebServer.on("/updateState", HTTP_GET, handleUpdateProgress);
 
+    // Captive Portal Detection Endpoints
+    // Android captive portal detection - redirect to captive portal
+    asyncDtuWebServer.on("/generate_204", HTTP_GET, [](AsyncWebServerRequest *request) { 
+        Serial.println(F("WEB:\t\t serving Android generate_204 - redirecting to captive portal"));
+        request->redirect("http://192.168.4.1/");
+    });
+    
+    // Additional Android endpoints
+    asyncDtuWebServer.on("/gen_204", HTTP_GET, [](AsyncWebServerRequest *request) { 
+        Serial.println(F("WEB:\t\t serving Android gen_204 - redirecting to captive portal"));
+        request->redirect("http://192.168.4.1/");
+    });
+    
+    // Windows captive portal detection
+    asyncDtuWebServer.on("/connecttest.txt", HTTP_GET, [](AsyncWebServerRequest *request) { 
+        Serial.println(F("WEB:\t\t serving Windows connecttest.txt - redirecting to captive portal"));
+        request->redirect("http://192.168.4.1/");
+    });
+    
+    // Windows proxy auto-discovery (WPAD) - frequently requested by Windows
+    asyncDtuWebServer.on("/wpad.dat", HTTP_GET, [](AsyncWebServerRequest *request) {
+        Serial.println(F("WEB:\t\t serving Windows wpad.dat - redirecting to captive portal"));
+        request->redirect("http://192.168.4.1/");
+    });
+    
+    // Exchange autodiscovery - often requested by Windows
+    asyncDtuWebServer.on("/autodiscover/autodiscover.xml", HTTP_GET, [](AsyncWebServerRequest *request) {
+        Serial.println(F("WEB:\t\t serving Windows autodiscover.xml - redirecting to captive portal"));
+        request->redirect("http://192.168.4.1/");
+    });
+    
+    // Microsoft Office 365 autodiscover
+    asyncDtuWebServer.on("/Autodiscover/Autodiscover.xml", HTTP_GET, [](AsyncWebServerRequest *request) {
+        Serial.println(F("WEB:\t\t serving Windows Autodiscover.xml - redirecting to captive portal"));
+        request->redirect("http://192.168.4.1/");
+    });
+    
+    // Additional Windows captive portal endpoints
+    asyncDtuWebServer.on("/msftconnecttest.txt", HTTP_GET, [](AsyncWebServerRequest *request) {
+        Serial.println(F("WEB:\t\t serving Windows msftconnecttest.txt - redirecting to captive portal"));
+        request->redirect("http://192.168.4.1/");
+    });
+    
+    asyncDtuWebServer.on("/ncsi.txt", HTTP_GET, [](AsyncWebServerRequest *request) {
+        Serial.println(F("WEB:\t\t serving Windows ncsi.txt - redirecting to captive portal"));
+        request->redirect("http://192.168.4.1/");
+    });
+    
+    // Common browser requests
+    asyncDtuWebServer.on("/favicon.ico", HTTP_GET, [](AsyncWebServerRequest *request) {
+        Serial.println(F("WEB:\t\t serving favicon.ico - redirecting to captive portal"));
+        request->redirect("http://192.168.4.1/");
+    });
+    
+    // iOS/macOS captive portal detection
+    asyncDtuWebServer.on("/hotspot-detect.html", HTTP_GET, [](AsyncWebServerRequest *request) {
+        Serial.println(F("WEB:\t\t serving iOS hotspot-detect.html"));
+        // request->send(200, "text/html", "<html><body>Success</body></html>");
+        request->redirect("http://192.168.4.1/");
+    });
+    
+    asyncDtuWebServer.on("/library/test/success.html", HTTP_GET, [](AsyncWebServerRequest *request) {
+        Serial.println(F("WEB:\t\t serving iOS library/test/success.html"));
+        request->send(200, "text/html", "<html><body>Success</body></html>");
+    });
+    
+    // Additional iOS endpoints
+    asyncDtuWebServer.on("/success.txt", HTTP_GET, [](AsyncWebServerRequest *request) {
+        Serial.println(F("WEB:\t\t serving iOS success.txt"));
+        request->send(200, "text/plain", "Success");
+    });
+    
+    // Apple's CaptiveNetworkSupport 
+    asyncDtuWebServer.on("/bag", HTTP_GET, [](AsyncWebServerRequest *request) {
+        Serial.println(F("WEB:\t\t serving iOS bag endpoint"));
+        request->send(200, "text/html", "<html><body>Success</body></html>");
+    });
+
     asyncDtuWebServer.onNotFound(notFound);
 
     asyncDtuWebServer.begin(); // Start the web server
@@ -113,24 +193,6 @@ void DTUwebserver::stop()
     asyncDtuWebServer.end(); // Stop the web server
     webServerTimer.detach(); // Stop the timer
 }
-
-// base pages
-void DTUwebserver::handleRoot(AsyncWebServerRequest *request)
-{
-    Serial.println(F("WEB:\t\t handleRoot"));
-    // request->send(200, "text/html", INDEX_HTML);
-    request->redirect("/index.html");
-}
-// void DTUwebserver::handleCSS(AsyncWebServerRequest *request)
-// {
-//     Serial.println(F("WEB:\t\t handleCSS"));
-//     request->send(LittleFS, "/style.css", "text/css");
-// }
-// void DTUwebserver::handleJqueryMinJs(AsyncWebServerRequest *request)
-// {
-//     Serial.println(F("WEB:\t\t handleJqueryMinJs"));
-//     request->send(200, "text/html", JQUERY_MIN_JS);
-// }
 
 // ota update
 void DTUwebserver::handleDoUpdate(AsyncWebServerRequest *request, const String &filename, size_t index, uint8_t *data, size_t len, bool final)
@@ -447,7 +509,7 @@ void DTUwebserver::handleUpdateWifiSettings(AsyncWebServerRequest *request)
 
         String JSON = "{";
         JSON = JSON + "\"wifiSSIDUser\": \"" + userConfig.wifiSsid + "\",";
-        JSON = JSON + "\"wifiPassUser\": \"" + userConfig.wifiPassword + "\",";
+        JSON = JSON + "\"wifiPassUser\": \"" + userConfig.wifiPassword + "\"";
         JSON = JSON + "}";
 
         request->send(200, "application/json", JSON);
@@ -838,5 +900,27 @@ void DTUwebserver::handleUpdateInfoRequest(AsyncWebServerRequest *request)
 
 void DTUwebserver::notFound(AsyncWebServerRequest *request)
 {
-    request->send(404, "text/plain", "Not found");
+    String path = request->url();
+    Serial.println("WEB:\t\t notFound - request for: " + path);
+    
+    // Simple captive portal redirect for AP mode
+    if (WiFi.getMode() == WIFI_AP || WiFi.getMode() == WIFI_AP_STA)
+    {
+        // For iOS devices - return success page
+        if (path.indexOf("apple.com") >= 0 || 
+            path.indexOf("captive.apple.com") >= 0 ||
+            path.indexOf("appleiphonecell.com") >= 0) {
+            Serial.println("WEB:\t\t notFound - iOS captive portal URL detected");
+            request->send(200, "text/html", "<html><body>Success</body></html>");
+        } else {
+            // For other devices - redirect to main page
+            Serial.println("WEB:\t\t notFound - redirecting to main page");
+            request->redirect("/");
+        }
+    }
+    else
+    {
+        // Normal mode - return 404
+        request->send(404, "text/plain", "Not found");
+    }
 }

@@ -8,10 +8,9 @@ static const char *index_html PROGMEM = R"=====(
     <meta name="viewport"
         content="user-scalable=no, initial-scale=1, maximum-scale=1, minimum-scale=1, width=device-width">
     <link rel="stylesheet" type="text/css" href="style.css">
-    <!-- <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css"> -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
-    <!-- <script src="jquery.min.js"></script> -->
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="jquery.min.js"></script>
+    <!-- <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script> -->
 </head>
 
 <body>
@@ -740,7 +739,7 @@ static const char *index_html PROGMEM = R"=====(
             } else {
                 // enable save button
                 $('#btnSaveWifiSettings').css('opacity', '1');
-                $('#btnSaveWifiSettings').attr('onclick', "changeWIFIdata()");
+                $('#btnSaveWifiSettings').attr('onclick', "changeWifiData()");
                 $('#btnSaveDtuSettings').css('opacity', '1');
                 $('#btnSaveDtuSettings').attr('onclick', "changeDtuData()");
                 $('#btnSaveBindingsSettings').css('opacity', '1');
@@ -1753,11 +1752,29 @@ static const char *index_html PROGMEM = R"=====(
                     data1Text = "minimal voltage";
                     data1Value = (warning.data1 / 10).toFixed(2) + " V";
                 }
-                else if (warning.message.toLowerCase().includes('frequency above')) {
+                else if (warning.message.toLowerCase().includes('overvoltage')) {
+                    data0Text = "measured voltage";
+                    data0Value = (warning.data0 / 10).toFixed(2) + " V";
+                    data1Text = "maximum voltage";
+                    data1Value = (warning.data1 / 10).toFixed(2) + " V";
+                }
+                else if (warning.message.toLowerCase().includes('overfrequency')) {
                     data0Text = "measured frequency";
                     data0Value = (warning.data0 / 100).toFixed(2) + " Hz";
                     data1Text = "maximum frequency";
                     data1Value = (warning.data1 / 100).toFixed(2) + " Hz";
+                }
+                else if (warning.message.toLowerCase().includes('underfrequency')) {
+                    data0Text = "measured frequency";
+                    data0Value = (warning.data0 / 100).toFixed(2) + " Hz";
+                    data1Text = "minimum frequency";
+                    data1Value = (warning.data1 / 100).toFixed(2) + " Hz";
+                }
+                else if (warning.message.toLowerCase().includes('over temperature')) {
+                    data0Text = "measured temperature";
+                    data0Value = (warning.data0 / 100).toFixed(2) + " °C";
+                    data1Text = "maximum temperature";
+                    data1Value = (warning.data1 / 100).toFixed(2) + " °C";
                 }
 
                 let warningRow = `

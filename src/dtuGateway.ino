@@ -18,6 +18,7 @@
 // #include <ArduinoJson.h>
 
 #include <base/webserver.h>
+#include <DNSServer.h>
 #include <base/platformData.h>
 
 #include <display.h>
@@ -106,7 +107,8 @@ UserConfigManager configManager;
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP); // By default 'pool.ntp.org' is used with 60 seconds update interval
 
-DTUwebserver* dtuWebServer;
+DTUwebserver *dtuWebServer;
+DNSServer dnsServer;
 
 // // OTA
 // #if defined(ESP8266)
@@ -497,7 +499,7 @@ void configureTimezone() {
   // POSIX timezone strings for common European regions
   // Format: STD offset DST,start_rule,end_rule
   // where offset is hours west of UTC (negative for east of UTC)
-  
+
   const char* timezoneStrings[] = {
     "CET-1CEST,M3.5.0,M10.5.0/3",     // Central European Time (Germany, France, etc.)
     "EET-2EEST,M3.5.0/3,M10.5.0/4",   // Eastern European Time (Finland, Romania, etc.)
@@ -507,10 +509,10 @@ void configureTimezone() {
     "MST7MDT,M3.2.0,M11.1.0",         // US Mountain Time
     "PST8PDT,M3.2.0,M11.1.0"          // US Pacific Time
   };
-  
+
   // Select timezone based on user config or default to Central European Time
   int timezoneIndex = 0; // Default to CET
-  
+
   // You can extend this to read from userConfig in the future
   // For now, auto-detect based on current timezone offset
   int offsetHours = userConfig.timezoneOffest / 3600;
@@ -524,17 +526,21 @@ void configureTimezone() {
     case -8: timezoneIndex = 6; break; // PST (US Pacific)
     default: timezoneIndex = 0; break; // Default to CET
   }
-  
+
   // Configure timezone with automatic DST
   configTime(0, 0, "pool.ntp.org", "time.nist.gov");
   setenv("TZ", timezoneStrings[timezoneIndex], 1);
   tzset();
-  
+
   Serial.println("TIMEZONE:\t configured for automatic DST switching: " + String(timezoneStrings[timezoneIndex]));
 }
 
 // get current time with automatic DST consideration
 String getCurrentTimeString() {
+  if(userConfig.wifiAPstart || WiFi.status() != WL_CONNECTED) {
+    // If AP mode is started, we cannot use NTPClient
+    return timeClient.getFormattedTime() + "*";
+  }
   struct tm timeinfo;
   if (!getLocalTime(&timeinfo)) {
     // fallback to NTPClient - format time with timezone offset
@@ -542,12 +548,12 @@ String getCurrentTimeString() {
     time_t utcTime = timeClient.getEpochTime();
     time_t localTime = utcTime + userConfig.timezoneOffest;
     struct tm* ptm = gmtime(&localTime);
-    
+
     char timeString[32];
     strftime(timeString, sizeof(timeString), "%H:%M:%S", ptm);
     return String(timeString);
   }
-  
+
   char timeString[32];
   strftime(timeString, sizeof(timeString), "%H:%M:%S", &timeinfo);
   return String(timeString);
@@ -555,22 +561,26 @@ String getCurrentTimeString() {
 
 // get timestamp with automatic DST consideration
 time_t getCurrentTimestamp() {
+  if(userConfig.wifiAPstart || WiFi.status() != WL_CONNECTED) {
+    // If AP mode is started, we cannot use NTPClient
+    return timeClient.getEpochTime() + userConfig.timezoneOffest;
+  }
   struct tm timeinfo;
   if (!getLocalTime(&timeinfo)) {
     // fallback to NTPClient with timezone offset applied
     // Note: this doesn't handle DST automatically, but provides reasonable fallback
     time_t utcTime = timeClient.getEpochTime();
-    
+
     // Apply timezone offset - this is basic fallback without DST
     return utcTime + userConfig.timezoneOffest;
   }
-  
+
   // mktime() gives us UTC timestamp from local time
   // But night mode expects "local timestamp" (UTC + timezone offset)
   // So we add the timezone offset including DST
   time_t utcTimestamp = mktime(&timeinfo);
   int offsetWithDST = userConfig.timezoneOffest + (timeinfo.tm_isdst > 0 ? 3600 : 0);
-  
+
   return utcTimestamp + offsetWithDST;
 }
 
@@ -588,18 +598,18 @@ String getTimeStringByTimestamp(unsigned long timestamp)
 {
   // Use the new timezone-aware time functions when possible
   time_t currentTime = getCurrentTimestamp();
-  
+
   // If the timestamp is current (within 1 hour), use timezone-aware formatting
   if (abs((long)(timestamp - currentTime)) < 3600) {
     struct tm timeinfo;
     time_t ts = timestamp;
     localtime_r(&ts, &timeinfo);
-    
+
     char buf[32];
     strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S%z", &timeinfo);
     return String(buf);
   }
-  
+
   // Fallback to original method for historical timestamps
   UnixTime stamp(1);
   char buf[32];
@@ -922,6 +932,13 @@ void setup()
 
     // Connect to Wi-Fi as AP
     WiFi.mode(WIFI_AP);
+
+    // Configure AP with specific IP settings for better captive portal compatibility
+    IPAddress local_IP(192, 168, 4, 1);
+    IPAddress gateway(192, 168, 4, 1);
+    IPAddress subnet(255, 255, 255, 0);
+    WiFi.softAPConfig(local_IP, gateway, subnet);
+
     WiFi.softAP(platformData.espUniqueName);
     Serial.println("\n +++ serving access point with SSID: '" + platformData.espUniqueName + "' +++\n");
 
@@ -932,7 +949,27 @@ void setup()
 
     MDNS.begin("dtuGateway");
     MDNS.addService("http", "tcp", 80);
+
+    // Start DNS server for captive portal with error handling
+    dnsServer.stop(); // Make sure it's stopped first
+    delay(100);
+    bool dnsStarted = dnsServer.start(53, "*", WiFi.softAPIP());
+    if (dnsStarted)
+    {
+      Serial.println(F("DNS server started successfully for captive portal"));
+    }
+    else
+    {
+      Serial.println(F("Failed to start DNS server - will retry"));
+      delay(500);
+      dnsStarted = dnsServer.start(53, "*", WiFi.softAPIP());
+      if (dnsStarted)
+      {
+        Serial.println(F("DNS server started on retry"));
+      }
+    }
     Serial.println(F("Ready! Open http://dtuGateway.local in your browser"));
+    Serial.println("Or connect to AP '" + platformData.espUniqueName + "' and navigate to " + WiFi.softAPIP().toString());
 
     // display - change every reboot in first start mode
     if (userConfig.displayConnected == 0)
@@ -1004,7 +1041,7 @@ void startServices()
     mqttHandler.setConfiguration(userConfig.mqttBrokerIpDomain, userConfig.mqttBrokerPort, userConfig.mqttBrokerUser, userConfig.mqttBrokerPassword, userConfig.mqttUseTLS, (platformData.espUniqueName).c_str(), userConfig.mqttBrokerMainTopic, userConfig.mqttHAautoDiscoveryON, ((platformData.dtuGatewayIP).toString()).c_str());
     mqttHandler.setup();
     mqttHandler.setRemoteDisplayData(userConfig.remoteDisplayActive, userConfig.remoteSummaryDisplayActive);
-    
+
     mqttHandler.setTopicStructure(userConfig.mqttOpenDTUtopics);
     // autodiscovery for home assistant with opendtu topics not implemented yet
     if(userConfig.mqttOpenDTUtopics && userConfig.mqttHAautoDiscoveryON) {
@@ -1028,7 +1065,7 @@ void blinkCodeTask()
   ledCycle++;
   if (blinkCode == BLINK_NORMAL_CONNECTION) // Blip every 5 sec
   {
-    ledOffCount = 2;  // 200 ms 
+    ledOffCount = 2;  // 200 ms
     ledOffReset = 50; // 5000 ms
   }
   else if (blinkCode == BLINK_WAITING_NEXT_TRY_DTU) // 0,5 Hz
@@ -1336,10 +1373,11 @@ void loop()
   // check for wifi networks scan results
   scanNetworksResult();
 
-#if defined(ESP8266)
-  // serving domain name
-  MDNS.update();
-#endif
+  // DNS server for captive portal in AP mode
+  if (userConfig.wifiAPstart)
+  {
+    dnsServer.processNextRequest();
+  }
 
   // runner for mqttClient to hold a already etablished connection
   if (userConfig.mqttActive && WiFi.status() == WL_CONNECTED)
@@ -1407,7 +1445,7 @@ void loop()
         dtuGlobalData.powerLimitSetUpdate = true;
         Serial.println("\nMQTT:\t changed powerset value to '" + String(dtuGlobalData.powerLimitSet) + "'");
       }
-      
+
       RebootDevices RebootDevices = mqttHandler.getRebootDevices();
       if (RebootDevices.rebootMi == true)
       {
@@ -1423,7 +1461,7 @@ void loop()
       {
         dtuGlobalData.rebootDtuGw = true;
         Serial.println("\nMQTT:\t reboot DTU Gateway");
-      }      
+      }
 
       if (dtuGlobalData.powerLimitSetUpdate)
       {
@@ -1546,20 +1584,20 @@ void loop()
         }
       }
       if (dtuGlobalData.rebootMi) {
-          dtuGlobalData.rebootMi = false;
-          Serial.println("----- ----- reboot mi ----- ----- ");
-          dtuInterface.requestRestartMi();
+        dtuGlobalData.rebootMi = false;
+        Serial.println("----- ----- reboot mi ----- ----- ");
+        dtuInterface.requestRestartMi();
       }
       if (dtuGlobalData.rebootDtu) {
-          dtuGlobalData.rebootDtu = false;
-          Serial.println("----- ----- reboot dtu ----- ----- ");
-          dtuInterface.requestRestartDevice();
+        dtuGlobalData.rebootDtu = false;
+        Serial.println("----- ----- reboot dtu ----- ----- ");
+        dtuInterface.requestRestartDevice();
       }
       if (dtuGlobalData.rebootDtuGw) {
-          dtuGlobalData.rebootDtuGw = false;
-          Serial.println("----- ----- reboot dtu gw ----- ----- ");
-          platformData.rebootRequested = true;
-          platformData.rebootRequestedInSec = 3;
+        dtuGlobalData.rebootDtuGw = false;
+        Serial.println("----- ----- reboot dtu gw ----- ----- ");
+        platformData.rebootRequested = true;
+        platformData.rebootRequestedInSec = 3;
       }
     }
 
@@ -1611,7 +1649,7 @@ void loop()
   // mid task
   if (currentMillis - platformData.dtuNextUpdateCounterSeconds >= userConfig.dtuUpdateTime)
   {
-    Serial.printf(">>>>> %02is task - state --> ", int(userConfig.dtuUpdateTime));
+    Serial.printf(">>>>>> %02is task - state --> ", int(userConfig.dtuUpdateTime));
     Serial.print("local: " + getTimeStringByTimestamp(dtuGlobalData.currentTimestamp));
     Serial.println(" --- NTP: " + getCurrentTimeString() + "\n");
 
@@ -1632,14 +1670,14 @@ void loop()
 
     previousMillisLong = currentMillis;
     // -------->
-    if (WiFi.status() == WL_CONNECTED)
+    if (!userConfig.wifiAPstart && WiFi.status() == WL_CONNECTED)
     {
       timeClient.update();
       // Check DST status every hour and log if it changed
       static bool lastDSTstatus = false;
       static bool firstDSTcheck = true;
       bool currentDSTstatus = isDST();
-      
+
       if (firstDSTcheck || (lastDSTstatus != currentDSTstatus)) {
         Serial.println("TIMEZONE:\t DST status: " + String(currentDSTstatus ? "DST active (summer time)" : "Standard time (winter time)"));
         lastDSTstatus = currentDSTstatus;
