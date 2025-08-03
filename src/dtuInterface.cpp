@@ -1868,19 +1868,59 @@ boolean DTUInterface::readRespCommandGetAlarms(pb_istream_t istream)
     // };
 
     std::map<int, std::string> warningCodeMap = {
-        {72, "[text not known]"},                      // -> https://github.com/ohAnd/dtuGateway/issues/81#issuecomment-3013403830
-        {78, "Grid frequency above limit"},            // 1101 0000
-        {143, "Grid undervoltage"},                    // undervoltage grid - data0 3 = 0.3V, data1 1840 = undervoltage limit 184 V
-        {145, "Grid frequency below limit"},           // seen 145,112 with no data  - during no AC voltage (plugged off)
-        {147, "Grid - no voltage"},                    // no voltage grid - data0 3 = 0.3V, data1 0 = 0 Hz grid frequency
-        {148, "[text not known]"},                     // seen 148,32 with data0 3051, data1 0
-        {208, "[text not known]"},                     // 1101 0000
-        {124, "inverter shut down by remote control"}, // 0111 1100
-        {209, "PV0 no input voltage"},                 // 1101 0001
-        {216, "PV0 Undervoltage"},                     // 1101 1000
-        {210, "PV1 no input voltage"},                 // 1101 0010
-        {218, "PV1 Undervoltage"},                     // 1101 1010
-        {223, "[text not known]"},                     // -> https://github.com/ohAnd/dtuGateway/issues/81#issue-3084216551
+        // General inverter alarms
+        {121, "Over temperature"},
+        {124, "Shut down by remote control"},
+        {125, "Grid configuration parameter error"},
+        {127, "Firmware error"},
+        {129, "Abnormal bias"},
+        {130, "Offline"},
+        
+        // Grid-related alarms (141-149)
+        {141, "[Grid] Grid overvoltage"},
+        {142, "[Grid] 10 min value grid overvoltage"},
+        {143, "[Grid] Grid undervoltage"},
+        {144, "[Grid] Grid overfrequency"},
+        {145, "[Grid] Grid underfrequency"},
+        {146, "[Grid] Rapid grid frequency change rate"},
+        {147, "[Grid] Power grid outage"},
+        {148, "[Grid] Grid disconnection"},
+        {149, "[Grid] Island detected"},
+        
+        // MPPT and PV input alarms (205-218)
+        {205, "[MPPT-A] Input overvoltage"},
+        {206, "[MPPT-B] Input overvoltage"},
+        {207, "[MPPT-A] Input undervoltage"},
+        {208, "[MPPT-B] Input undervoltage"},
+        {209, "[PV-1] No input"},
+        {210, "[PV-2] No input"},
+        {213, "[MPPT-A] PV-1 & PV-2 abnormal wiring"},
+        {214, "[MPPT-B] PV-3 & PV-4 abnormal wiring"},
+        {215, "[PV-1] Input overvoltage"},
+        {216, "[PV-1] Input undervoltage"},
+        {217, "[PV-2] Input overvoltage"},
+        {218, "[PV-2] Input undervoltage"},
+        
+        // Device failure codes (301-314)
+        {301, "[Device] Device failure 301"},
+        {302, "[Device] Device failure 302"},
+        {303, "[Device] Device failure 303"},
+        {304, "[Device] Device failure 304"},
+        {305, "[Device] Device failure 305"},
+        {306, "[Device] Device failure 306"},
+        {307, "[Device] Device failure 307"},
+        {308, "[Device] Device failure 308"},
+        {309, "[Device] Device failure 309"},
+        {310, "[Device] Device failure 310"},
+        {311, "[Device] Device failure 311"},
+        {312, "[Device] Device failure 312"},
+        {313, "[Device] Device failure 313"},
+        {314, "[Device] Device failure 314"},
+        
+        // Legacy codes from your current implementation (keeping for compatibility)
+        {72, "[Legacy] Grid frequency above limit"},  // Your current code - might be older firmware
+        {78, "[Legacy] Grid frequency above limit"},  // Your current code - might be older firmware
+        {223, "[Unknown] Unknown warning code 223"}, // From your GitHub issue
     };
 
     uint8_t warningActiveCount = 0;
