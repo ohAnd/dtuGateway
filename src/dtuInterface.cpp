@@ -819,7 +819,7 @@ void DTUInterface::readRespRealDataNew(pb_istream_t istream)
         dtuGlobalData.pv1.voltage = calcValue(pvData1.voltage);
         dtuGlobalData.pv1.power = calcValue(pvData1.power);
         dtuGlobalData.pv1.dailyEnergy = calcValue(pvData1.energy_daily, 1000);
-        if (pvData0.energy_total != 0)
+        if (pvData1.energy_total != 0)
         {
             dtuGlobalData.pv1.totalEnergy = calcValue(pvData1.energy_total, 1000);
         }
