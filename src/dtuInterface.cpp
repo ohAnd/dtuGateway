@@ -265,8 +265,16 @@ void DTUInterface::txrxStateObserver()
         dtuConnection.dtuTxRxStateLast = dtuConnection.dtuTxRxState;
         dtuConnection.dtuTxRxStateLastChange = millis();
     }
-    else if (millis() - dtuConnection.dtuTxRxStateLastChange > 15000 && dtuConnection.dtuTxRxState != DTU_TXRX_STATE_IDLE)
+    else if (millis() - dtuConnection.dtuTxRxStateLastChange > 30000 && dtuConnection.dtuTxRxState != DTU_TXRX_STATE_IDLE)
     {
+        // Check WiFi quality before forcing disconnect
+        if (WiFi.RSSI() < -75) {
+            Serial.println(F("DTUinterface:\t [[stateObserver]] - timeout with poor WiFi signal - attempting WiFi reconnect"));
+            WiFi.reconnect();
+            dtuConnection.dtuTxRxStateLastChange = millis(); // Reset timer
+            return;
+        }
+        
         Serial.println(F("DTUinterface:\t [[stateObserver]] - timeout - reset txrx state to DTU_TXRX_STATE_IDLE"));
         dtuConnection.dtuTxRxState = DTU_TXRX_STATE_IDLE;
         dtuInterface.disconnect(DTU_STATE_OFFLINE);
@@ -1518,7 +1526,7 @@ boolean DTUInterface::writeReqCommandInverterTurnOff()
     // Serial.println("");
 
     Serial.println(F("DTUinterface:\t writeReqCommandInverterTurnOff --- send request to DTU ..."));
-    dtuConnection.dtuTxRxState = DTU_TXRX_STATE_WAIT_INVERTER_TURN_OFF;
+       dtuConnection.dtuTxRxState = DTU_TXRX_STATE_WAIT_INVERTER_TURN_OFF;
     client->write((const char *)message, 10 + stream.bytes_written);
     // set global inverter state to off - will be checked by warnings update
     dtuGlobalData.inverterControl.stateOn = false;
