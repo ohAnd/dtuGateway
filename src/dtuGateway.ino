@@ -1644,6 +1644,9 @@ void loop()
     // dtuConnection.dtuConnectionOnline = true;
     // dtuConnection.dtuConnectState = DTU_STATE_CONNECTED;
     // dtuGlobalData.inverterControl.stateOn = false;
+
+    // Request device info periodically
+    dtuInterface.requestDeviceInfoPeriodically();
   }
 
   // mid task
