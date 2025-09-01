@@ -874,7 +874,7 @@ static const char *index_html PROGMEM = R"=====(
             var wifiDTUPercent = Math.round(data.dtuConnection.dtuRssi);
             $('#rssitext_dtu').html(wifiDTUPercent + '%');
 
-            $('#firmware').html("fw version: " + data.firmware.version);
+            $('#firmware').html("fw version: " + data.firmware.version + "<br><span style=\"font-size: smaller;\">DTU: " + data.dtuConnection.firmware.dtu_version_string + " | MI: " + data.dtuConnection.firmware.inverter_version_string + "</span>");
             $('#chipType').html("controller architecture type: " + data.chipType);
 
             if (data.firmware.selectedUpdateChannel == 0) { $("#relChanStable").addClass("selected"); $("#relChanSnapshot").removeClass("selected"); }

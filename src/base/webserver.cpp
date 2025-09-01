@@ -415,7 +415,32 @@ void DTUwebserver::handleInfojson(AsyncWebServerRequest *request)
     JSON = JSON + "\"dtuCloudPause\": " + userConfig.dtuCloudPauseActive + ",";
     JSON = JSON + "\"dtuCloudPauseTime\": " + userConfig.dtuCloudPauseTime + ",";
     JSON = JSON + "\"dtuRemoteDisplay\": " + userConfig.remoteDisplayActive + ",";
-    JSON = JSON + "\"dtuRemoteSummaryDisplay\": " + userConfig.remoteSummaryDisplayActive;
+    JSON = JSON + "\"dtuRemoteSummaryDisplay\": " + userConfig.remoteSummaryDisplayActive + ",";
+
+    // ADD FIRMWARE SECTION
+    JSON = JSON + "\"firmware\": {";
+    if (dtuGlobalData.dtuFirmwareVersionValid)
+    {
+        JSON = JSON + "\"dtu_version\": " + String(dtuGlobalData.dtuFirmwareVersion) + ",";
+        JSON = JSON + "\"dtu_version_string\": \"" + DTUInterface::formatDtuVersion(dtuGlobalData.dtuFirmwareVersion) + "\",";
+    }
+    else
+    {
+        JSON = JSON + "\"dtu_version\": null,";
+        JSON = JSON + "\"dtu_version_string\": \"--\",";
+    }
+
+    if (dtuGlobalData.inverterFirmwareVersionValid)
+    {
+        JSON = JSON + "\"inverter_version\": " + String(dtuGlobalData.inverterFirmwareVersion) + ",";
+        JSON = JSON + "\"inverter_version_string\": \"" + DTUInterface::formatPvSoftwareVersion(dtuGlobalData.inverterFirmwareVersion) + "\"";
+    }
+    else
+    {
+        JSON = JSON + "\"inverter_version\": null,";
+        JSON = JSON + "\"inverter_version_string\": \"--\"";
+    }
+    JSON = JSON + "}";
     JSON = JSON + "},";
 
     JSON = JSON + "\"wifiConnection\": {";

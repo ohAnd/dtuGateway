@@ -22,6 +22,7 @@
 #include "GetConfig.pb.h"
 #include "CommandPB.pb.h"
 #include "AlarmData.pb.h"
+#include "APPInformationData.pb.h"
 #include "CRC16.h"
 #include "dtuConst.h"
 
@@ -60,6 +61,7 @@
 #define DTU_TXRX_STATE_WAIT_PERFORMANCE_DATA_MODE 9
 #define DTU_TXRX_STATE_WAIT_REQUEST_ALARMS 10
 #define DTU_TXRX_STATE_WAIT_RESTARTMI 11
+#define DTU_TXRX_STATE_WAIT_APP_INFORMATION 12
 #define DTU_TXRX_STATE_ERROR 99
 
 
@@ -133,6 +135,11 @@ struct inverterData
   warnDataBlock warnData[WARN_DATA_MAX_ENTRIES];
   uint32_t warnDataLastTimestamp = 0;
   uint8_t warningsActive = 0;
+  // Firmware version information
+  uint32_t dtuFirmwareVersion = 0;           // DTU firmware version
+  uint32_t inverterFirmwareVersion = 0;      // Inverter firmware version
+  bool dtuFirmwareVersionValid = false;      // Flag if DTU firmware version is valid
+  bool inverterFirmwareVersionValid = false; // Flag if inverter firmware version is valid
 };
 
 extern inverterData dtuGlobalData;
@@ -163,6 +170,13 @@ public:
     String getTimeStringByTimestamp(unsigned long timestamp);
     void printDataAsTextToSerial();
     void printDataAsJsonToSerial();  
+
+    void requestDeviceInfoPeriodically();
+    
+    // Static utility functions for formatting firmware versions
+    static String formatDtuVersion(uint32_t version);         // DTU version formatting
+    static String formatPvHardwareVersion(uint32_t version);  // PV hardware version formatting
+    static String formatPvSoftwareVersion(uint32_t version);  // PV software version formatting
 
 private:
     Ticker keepAliveTimer; // Timer to send keep-alive messages
@@ -198,7 +212,10 @@ private:
 
     void writeReqRealDataNew();
     void readRespRealDataNew(pb_istream_t istream);
-    
+
+    boolean writeReqAppInformation();
+    boolean readRespAppInformation(pb_istream_t istream);
+
     void writeReqGetConfig();
     void readRespGetConfig(pb_istream_t istream);
     
@@ -235,6 +252,8 @@ private:
     float gridVoltHist[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
     uint8_t gridVoltCnt = 0;
     unsigned long lastSwOff = 0;
+    unsigned long lastAppInfoRequest = 0;  // Track last device info request time
+    bool initialAppInfoRequested = false;  // Track if initial device info has been requested
 
     static float calcValue(int32_t value, int32_t divider = 10);
 };
