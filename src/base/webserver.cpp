@@ -418,7 +418,7 @@ void DTUwebserver::handleInfojson(AsyncWebServerRequest *request)
     JSON = JSON + "\"dtuRemoteSummaryDisplay\": " + userConfig.remoteSummaryDisplayActive + ",";
 
     // ADD FIRMWARE SECTION
-    JSON = JSON + "\"firmware\": {";
+    JSON = JSON + "\"deviceData\": {";
     if (dtuGlobalData.dtuFirmwareVersionValid)
     {
         JSON = JSON + "\"dtu_version\": " + String(dtuGlobalData.dtuFirmwareVersion) + ",";
@@ -429,16 +429,35 @@ void DTUwebserver::handleInfojson(AsyncWebServerRequest *request)
         JSON = JSON + "\"dtu_version\": null,";
         JSON = JSON + "\"dtu_version_string\": \"--\",";
     }
+    JSON = JSON + "\"dtu_serial\": \"" + String(dtuGlobalData.device_serial_number_dtu) + "\",";
 
     if (dtuGlobalData.inverterFirmwareVersionValid)
     {
         JSON = JSON + "\"inverter_version\": " + String(dtuGlobalData.inverterFirmwareVersion) + ",";
-        JSON = JSON + "\"inverter_version_string\": \"" + DTUInterface::formatPvSoftwareVersion(dtuGlobalData.inverterFirmwareVersion) + "\"";
+        JSON = JSON + "\"inverter_version_string\": \"" + DTUInterface::formatPvSoftwareVersion(dtuGlobalData.inverterFirmwareVersion) + "\",";
     }
     else
     {
         JSON = JSON + "\"inverter_version\": null,";
-        JSON = JSON + "\"inverter_version_string\": \"--\"";
+        JSON = JSON + "\"inverter_version_string\": \"--\",";
+    }
+
+    if (dtuGlobalData.inverterModelValid)
+    {
+        JSON = JSON + "\"inverter_model\": \"" + dtuGlobalData.inverterModel + "\",";
+    }
+    else
+    {
+        JSON = JSON + "\"inverter_model\": \"--\",";
+    }
+    char serial_display[16];
+    if (DTUInterface::format_serial_for_display(dtuGlobalData.device_serial_number_inverter, serial_display, sizeof(serial_display)) > 0)
+    {
+        JSON = JSON + "\"inverter_serial\": \"" + String(serial_display) + "\"";
+    }
+    else
+    {
+        JSON = JSON + "\"inverter_serial\": \"--\"";
     }
     JSON = JSON + "}";
     JSON = JSON + "},";

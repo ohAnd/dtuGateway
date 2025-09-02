@@ -874,7 +874,7 @@ static const char *index_html PROGMEM = R"=====(
             var wifiDTUPercent = Math.round(data.dtuConnection.dtuRssi);
             $('#rssitext_dtu').html(wifiDTUPercent + '%');
 
-            $('#firmware').html("fw version: " + data.firmware.version + "<br><span style=\"font-size: smaller;\">DTU: " + data.dtuConnection.firmware.dtu_version_string + " | MI: " + data.dtuConnection.firmware.inverter_version_string + "</span>");
+            $('#firmware').html("fw version: " + data.firmware.version + "<br><span style=\"font-size: smaller;\">DTU: " + data.dtuConnection.deviceData.dtu_version_string + " | MI: " + data.dtuConnection.deviceData.inverter_version_string + "</span>");
             $('#chipType').html("controller architecture type: " + data.chipType);
 
             if (data.firmware.selectedUpdateChannel == 0) { $("#relChanStable").addClass("selected"); $("#relChanSnapshot").removeClass("selected"); }
@@ -886,11 +886,16 @@ static const char *index_html PROGMEM = R"=====(
             checkValueUpdate('#dtu_reboots_no', data.dtuConnection.dtuResetRequested);
 
             var gridP = ((isNaN(cacheData.pv0.p)) ? "--.-" : (cacheData.grid.p).toFixed(0));
+
+            let inverter_model = data.dtuConnection.deviceData.inverter_model;
+            if(inverter_model == "--") {
+                inverter_model = "HMS-xxxW-xT";
+            }
             if (data.dtuConnection.dtuRemoteDisplay) {
-                $("#titleHeader").text("Hoymiles HMS-800W-2T - Remote Display");
+                $("#titleHeader").text("Hoymiles " + inverter_model + " - Remote Display");
                 $("#title").text(gridP + "W - dtuGateway - Remote Display");
             } else {
-                $("#titleHeader").text("Hoymiles HMS-800W-2T - Gateway");
+                $("#titleHeader").text("Hoymiles " + inverter_model + " - Gateway");
                 $("#title").text(gridP + "W - dtuGateway");
             }
 

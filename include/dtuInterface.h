@@ -130,7 +130,8 @@ struct inverterData
   boolean uptodate = false;
   boolean updateReceived = false;
   int dtuResetRequested = 0;
-  char device_serial_number[16] = "";
+  char device_serial_number_dtu[16] = "";
+  int64_t device_serial_number_inverter = 0;
   inverterCtrl inverterControl;
   warnDataBlock warnData[WARN_DATA_MAX_ENTRIES];
   uint32_t warnDataLastTimestamp = 0;
@@ -140,6 +141,9 @@ struct inverterData
   uint32_t inverterFirmwareVersion = 0;      // Inverter firmware version
   bool dtuFirmwareVersionValid = false;      // Flag if DTU firmware version is valid
   bool inverterFirmwareVersionValid = false; // Flag if inverter firmware version is valid
+  // Inverter model information
+  String inverterModel = "";                 // Inverter model name (e.g., "HMS-800W-2T")
+  bool inverterModelValid = false;           // Flag if inverter model is valid
 };
 
 extern inverterData dtuGlobalData;
@@ -177,6 +181,10 @@ public:
     static String formatDtuVersion(uint32_t version);         // DTU version formatting
     static String formatPvHardwareVersion(uint32_t version);  // PV hardware version formatting
     static String formatPvSoftwareVersion(uint32_t version);  // PV software version formatting
+    
+    // Inverter model detection from serial number
+    static String getInverterModelFromIntSerial(int64_t serialNumber);
+    static int format_serial_for_display(int64_t serial_int, char* display_str, size_t max_len);
 
 private:
     Ticker keepAliveTimer; // Timer to send keep-alive messages

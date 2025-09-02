@@ -83,7 +83,7 @@ dtuGateway provides a reliable, dedicated gateway to your Hoymiles DTU where no 
 - **Real-time metrics**: Power (W), voltage (V), current (A) for both PV panels and grid
 - **Energy tracking**: Daily and total energy counters (kWh) 
 - **System health**: Inverter temperature, Wi-Fi signal strength, warnings
-- **Device information**: Automatic DTU and inverter firmware/hardware version detection (available via REST API)
+- **Device information**: Automatic DTU and inverter firmware/hardware version detection plus model identification and serial number extraction (available via REST API)
 - **Automatic timezone/DST**: Built-in daylight saving time handling
 
 ### 🏠 **Smart Home Ready**
@@ -126,6 +126,7 @@ dtuGateway provides a reliable, dedicated gateway to your Hoymiles DTU where no 
 - **Hoymiles HMS-xxxW-2T** solar inverter with **built-in Wi-Fi DTU**
   - ✅ **Supported**: HMS-800W-2T, HMS-1000W-2T, HMS-600W-2T, HMS-300W-2T
   - ✅ **Confirmed**: All HMS inverters with 2 panel connections **and integrated Wi-Fi DTU**
+  - ✅ **Accurate Detection**: Automatic model identification via serial number analysis
   - ❌ **NOT Supported**: External DTU models (DTU-Lite stick, DTU-Pro external units)
 
 ### 📺 Optional Displays
@@ -716,7 +717,7 @@ For secure connections (e.g., HiveMQ Cloud):
 ### System Information Endpoint  
 **URL**: `http://<device-ip>/api/info.json`
 
-**Includes**: System status, network information, DTU/inverter firmware versions, and device diagnostics
+**Includes**: System status, network information, DTU/inverter firmware versions, inverter model detection, and device diagnostics
 
 <details>
 <summary>Click to see example response</summary>
@@ -742,11 +743,14 @@ For secure connections (e.g., HiveMQ Cloud):
     "dtuCloudPauseTime": 30,
     "dtuRemoteDisplay": 0,
     "dtuRemoteSummaryDisplay": 0,
-    "firmware": {
+    "deviceData": {
       "dtu_version": 4097,
       "dtu_version_string": "01.00.01",
+      "dtu_serial": "123456789011",
       "inverter_version": 10008,
-      "inverter_version_string": "01.00.08"
+      "inverter_version_string": "01.00.08",
+      "inverter_model": "HMS-800W-2T",
+      "inverter_serial": "141241234567"
     }
   },
   "wifiConnection": {
@@ -781,10 +785,13 @@ print(f"Inverter temp: {inverter_temp}°C")
 info_response = requests.get('http://192.168.1.50/api/info.json')
 info_data = info_response.json()
 
-if 'firmware' in info_data['dtuConnection']:
-    firmware = info_data['dtuConnection']['firmware']
-    print(f"DTU firmware: {firmware['dtu_version_string']}")
-    print(f"Inverter firmware: {firmware['inverter_version_string']}")
+if 'deviceData' in info_data['dtuConnection']:
+    deviceData = info_data['dtuConnection']['deviceData']
+    print(f"DTU firmware: {deviceData['dtu_version_string']}")
+    print(f"Inverter firmware: {deviceData['inverter_version_string']}")
+    if 'inverter_model' in deviceData:
+        print(f"Inverter model: {deviceData['inverter_model']}")
+        print(f"Serial number: {deviceData['inverter_serial']}")
 ```
 
 **Node.js**:
@@ -1263,7 +1270,7 @@ https://github.com/ohAnd/dtuGateway/tree/esp8266_maintenance
 - **Snapshot**: Latest development features including DTU/inverter firmware version detection and weak connection handling
 
 ### Known Limitations
-- **Memory**: Occasional resets after extended operation (days/weeks)
+- **Memory**: Occasional resets after extended operation (days/weeks) - optimized code reduces RAM usage
 - **DTU Stability**: ~31 second minimum polling to avoid DTU hangs
 - **Connection Management**: Automatic WiFi reconnection for signals below -75 dBm RSSI
 - **TLS**: Only available on ESP32 platform
