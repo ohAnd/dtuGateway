@@ -495,19 +495,20 @@ boolean scanNetworksResult()
 // }
 
 // timezone configuration with automatic DST switching
-void configureTimezone() {
+void configureTimezone()
+{
   // POSIX timezone strings for common European regions
   // Format: STD offset DST,start_rule,end_rule
   // where offset is hours west of UTC (negative for east of UTC)
 
-  const char* timezoneStrings[] = {
-    "CET-1CEST,M3.5.0,M10.5.0/3",     // Central European Time (Germany, France, etc.)
-    "EET-2EEST,M3.5.0/3,M10.5.0/4",   // Eastern European Time (Finland, Romania, etc.)
-    "WET0WEST,M3.5.0/1,M10.5.0",      // Western European Time (UK, Portugal)
-    "EST5EDT,M3.2.0,M11.1.0",         // US Eastern Time
-    "CST6CDT,M3.2.0,M11.1.0",         // US Central Time
-    "MST7MDT,M3.2.0,M11.1.0",         // US Mountain Time
-    "PST8PDT,M3.2.0,M11.1.0"          // US Pacific Time
+  const char *timezoneStrings[] = {
+      "CET-1CEST,M3.5.0,M10.5.0/3",   // Central European Time (Germany, France, etc.)
+      "EET-2EEST,M3.5.0/3,M10.5.0/4", // Eastern European Time (Finland, Romania, etc.)
+      "WET0WEST,M3.5.0/1,M10.5.0",    // Western European Time (UK, Portugal)
+      "EST5EDT,M3.2.0,M11.1.0",       // US Eastern Time
+      "CST6CDT,M3.2.0,M11.1.0",       // US Central Time
+      "MST7MDT,M3.2.0,M11.1.0",       // US Mountain Time
+      "PST8PDT,M3.2.0,M11.1.0"        // US Pacific Time
   };
 
   // Select timezone based on user config or default to Central European Time
@@ -516,15 +517,32 @@ void configureTimezone() {
   // You can extend this to read from userConfig in the future
   // For now, auto-detect based on current timezone offset
   int offsetHours = userConfig.timezoneOffest / 3600;
-  switch(offsetHours) {
-    case 0:  timezoneIndex = 2; break; // WET (UK, Portugal)
-    case 1:  timezoneIndex = 0; break; // CET (Germany, France, etc.)
-    case 2:  timezoneIndex = 1; break; // EET (Finland, Romania, etc.)
-    case -5: timezoneIndex = 3; break; // EST (US Eastern)
-    case -6: timezoneIndex = 4; break; // CST (US Central)
-    case -7: timezoneIndex = 5; break; // MST (US Mountain)
-    case -8: timezoneIndex = 6; break; // PST (US Pacific)
-    default: timezoneIndex = 0; break; // Default to CET
+  switch (offsetHours)
+  {
+  case 0:
+    timezoneIndex = 2;
+    break; // WET (UK, Portugal)
+  case 1:
+    timezoneIndex = 0;
+    break; // CET (Germany, France, etc.)
+  case 2:
+    timezoneIndex = 1;
+    break; // EET (Finland, Romania, etc.)
+  case -5:
+    timezoneIndex = 3;
+    break; // EST (US Eastern)
+  case -6:
+    timezoneIndex = 4;
+    break; // CST (US Central)
+  case -7:
+    timezoneIndex = 5;
+    break; // MST (US Mountain)
+  case -8:
+    timezoneIndex = 6;
+    break; // PST (US Pacific)
+  default:
+    timezoneIndex = 0;
+    break; // Default to CET
   }
 
   // Configure timezone with automatic DST
@@ -536,18 +554,21 @@ void configureTimezone() {
 }
 
 // get current time with automatic DST consideration
-String getCurrentTimeString() {
-  if(userConfig.wifiAPstart || WiFi.status() != WL_CONNECTED) {
+String getCurrentTimeString()
+{
+  if (userConfig.wifiAPstart || WiFi.status() != WL_CONNECTED)
+  {
     // If AP mode is started, we cannot use NTPClient
     return timeClient.getFormattedTime() + "*";
   }
   struct tm timeinfo;
-  if (!getLocalTime(&timeinfo)) {
+  if (!getLocalTime(&timeinfo))
+  {
     // fallback to NTPClient - format time with timezone offset
     // Note: this doesn't handle DST automatically, but provides reasonable fallback
     time_t utcTime = timeClient.getEpochTime();
     time_t localTime = utcTime + userConfig.timezoneOffest;
-    struct tm* ptm = gmtime(&localTime);
+    struct tm *ptm = gmtime(&localTime);
 
     char timeString[32];
     strftime(timeString, sizeof(timeString), "%H:%M:%S", ptm);
@@ -560,13 +581,16 @@ String getCurrentTimeString() {
 }
 
 // get timestamp with automatic DST consideration
-time_t getCurrentTimestamp() {
-  if(userConfig.wifiAPstart || WiFi.status() != WL_CONNECTED) {
+time_t getCurrentTimestamp()
+{
+  if (userConfig.wifiAPstart || WiFi.status() != WL_CONNECTED)
+  {
     // If AP mode is started, we cannot use NTPClient
     return timeClient.getEpochTime() + userConfig.timezoneOffest;
   }
   struct tm timeinfo;
-  if (!getLocalTime(&timeinfo)) {
+  if (!getLocalTime(&timeinfo))
+  {
     // fallback to NTPClient with timezone offset applied
     // Note: this doesn't handle DST automatically, but provides reasonable fallback
     time_t utcTime = timeClient.getEpochTime();
@@ -585,9 +609,11 @@ time_t getCurrentTimestamp() {
 }
 
 // check if currently in DST
-bool isDST() {
+bool isDST()
+{
   struct tm timeinfo;
-  if (!getLocalTime(&timeinfo)) {
+  if (!getLocalTime(&timeinfo))
+  {
     return false; // fallback
   }
   return timeinfo.tm_isdst > 0;
@@ -600,7 +626,8 @@ String getTimeStringByTimestamp(unsigned long timestamp)
   time_t currentTime = getCurrentTimestamp();
 
   // If the timestamp is current (within 1 hour), use timezone-aware formatting
-  if (abs((long)(timestamp - currentTime)) < 3600) {
+  if (abs((long)(timestamp - currentTime)) < 3600)
+  {
     struct tm timeinfo;
     time_t ts = timestamp;
     localtime_r(&ts, &timeinfo);
@@ -713,7 +740,8 @@ boolean getPowerSetDataFromOpenHab()
   if (openhabMessage.length() > 0)
   {
     int dotIndex = openhabMessage.indexOf('.');
-    if (dotIndex != -1) {
+    if (dotIndex != -1)
+    {
       openhabMessage = openhabMessage.substring(0, dotIndex);
     }
     gotLimit = openhabMessage.toInt();
@@ -895,17 +923,22 @@ void setup()
     return;
   }
 
-  if (configManager.loadConfig(userConfig)) {
+  if (configManager.loadConfig(userConfig))
+  {
     configManager.printConfigdata();
-    if(userConfig.webServerPort == 0) {
+    if (userConfig.webServerPort == 0)
+    {
       userConfig.webServerPort = 80; // default port for webserver
       Serial.println(F("Webserver port in config is 0 - set to default: 80"));
-    } else {
+    }
+    else
+    {
       Serial.println("Webserver will be start with port: " + String(userConfig.webServerPort));
     }
     dtuWebServer = new DTUwebserver(userConfig.webServerPort);
   }
-  else {
+  else
+  {
     Serial.println(F("Failed to load user config"));
     dtuWebServer = new DTUwebserver();
   }
@@ -1044,7 +1077,8 @@ void startServices()
 
     mqttHandler.setTopicStructure(userConfig.mqttOpenDTUtopics);
     // autodiscovery for home assistant with opendtu topics not implemented yet
-    if(userConfig.mqttOpenDTUtopics && userConfig.mqttHAautoDiscoveryON) {
+    if (userConfig.mqttOpenDTUtopics && userConfig.mqttHAautoDiscoveryON)
+    {
       mqttHandler.setAutoDiscovery(false);
       userConfig.mqttHAautoDiscoveryON = false;
       configManager.saveConfig(userConfig);
@@ -1583,17 +1617,20 @@ void loop()
             platformData.dtuNextUpdateCounterSeconds = dtuGlobalData.currentTimestamp - userConfig.dtuUpdateTime + 5;
         }
       }
-      if (dtuGlobalData.rebootMi) {
+      if (dtuGlobalData.rebootMi)
+      {
         dtuGlobalData.rebootMi = false;
         Serial.println("----- ----- reboot mi ----- ----- ");
         dtuInterface.requestRestartMi();
       }
-      if (dtuGlobalData.rebootDtu) {
+      if (dtuGlobalData.rebootDtu)
+      {
         dtuGlobalData.rebootDtu = false;
         Serial.println("----- ----- reboot dtu ----- ----- ");
         dtuInterface.requestRestartDevice();
       }
-      if (dtuGlobalData.rebootDtuGw) {
+      if (dtuGlobalData.rebootDtuGw)
+      {
         dtuGlobalData.rebootDtuGw = false;
         Serial.println("----- ----- reboot dtu gw ----- ----- ");
         platformData.rebootRequested = true;
@@ -1681,7 +1718,8 @@ void loop()
       static bool firstDSTcheck = true;
       bool currentDSTstatus = isDST();
 
-      if (firstDSTcheck || (lastDSTstatus != currentDSTstatus)) {
+      if (firstDSTcheck || (lastDSTstatus != currentDSTstatus))
+      {
         Serial.println("TIMEZONE:\t DST status: " + String(currentDSTstatus ? "DST active (summer time)" : "Standard time (winter time)"));
         lastDSTstatus = currentDSTstatus;
         firstDSTcheck = false;

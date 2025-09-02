@@ -583,9 +583,9 @@ void DisplayTFT::drawFooterSummary(String time)
             lastDisplayData.totalPowerMax = 1;
 
         wattage_length = map(display_wattage, 0, lastDisplayData.totalPowerMax, min + 1, max);
-        if(wattage_length > max)
+        if (wattage_length > max)
             wattage_length = max;
-        
+
         // Serial.println("DisplayTFT:\t >> current power: " + String(display_wattage) + " - max power: " + String(lastDisplayData.totalPowerMax) + " - wattage length: " + String(wattage_length));
         // if (lastDisplayData.totalPowerLast != lastDisplayData.totalPower && wattage_length != max)
         if (wattage_length != max)

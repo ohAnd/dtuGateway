@@ -207,8 +207,8 @@ RemoteInverterData MQTTHandler::getRemoteInverterData()
 RebootDevices MQTTHandler::getRebootDevices()
 {
     RebootDevices reboot = rebootDevices;
-    rebootDevices.rebootMi = false; // reset reboot mi
-    rebootDevices.rebootDtu = false; // reset reboot dtu
+    rebootDevices.rebootMi = false;    // reset reboot mi
+    rebootDevices.rebootDtu = false;   // reset reboot dtu
     rebootDevices.rebootDtuGw = false; // reset reboot dtu gateway
     return reboot;
 }
@@ -274,10 +274,13 @@ void MQTTHandler::publishDiscoveryMessage(const char *entity, const char *entity
         doc["max"] = 100;
     }
 
-    if (entityType == "button") {
+    if (entityType == "button")
+    {
         doc["command_topic"] = commandTopicPath;
         doc["payload_press"] = "1";
-    } else {
+    }
+    else
+    {
         doc["state_topic"] = stateTopicPath;
     }
 
@@ -386,7 +389,7 @@ String MQTTHandler::mapTopic(const String &baseTopic)
         if (baseTopic == "inverter_inverterControlStateOn")
             return "/dtuGW_special/inverter_control_state_on";
         if (baseTopic == "inverter_warningsActive")
-            return "/dtuGW_special/warnings_active";        
+            return "/dtuGW_special/warnings_active";
     }
 
     // if no specific mapping is found - return the base topic as is

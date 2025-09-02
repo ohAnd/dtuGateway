@@ -80,7 +80,7 @@ void DTUInterface::disconnect(uint8_t tgtState)
     {
         Serial.println(F("DTUinterface:\t disconnect request - no DTU connection to close"));
     }
-    
+
     // Reset device info request flag so it will be requested on next connection
     initialAppInfoRequested = false;
 }
@@ -501,7 +501,7 @@ void DTUInterface::onDataReceived(void *arg, AsyncClient *client, void *data, si
 void DTUInterface::printDataAsTextToSerial()
 {
     Serial.print("power limit (set): " + String(dtuGlobalData.powerLimit) + " % (" + String(dtuGlobalData.powerLimitSet) + " %) --- inverter mode: " + String(dtuGlobalData.inverterControl.stateOn ? "On" : "Off") + " --- ");
-    Serial.print("inverter temp: " + String(dtuGlobalData.inverterTemp) + " °C - serial number: " + dtuGlobalData.device_serial_number + "\n");
+    Serial.print("inverter temp: " + String(dtuGlobalData.inverterTemp) + " °C - serial number: " + dtuGlobalData.device_serial_number_dtu + "\n");
 
     Serial.print(F(" \t |_____current____|_____voltage___|_____power_____|________daily______|_____total_____|\n"));
     // 12341234 |1234 current  |1234 voltage  |1234 power1234|12341234daily 1234|12341234total 1234|
@@ -867,8 +867,8 @@ boolean DTUInterface::writeReqAppInformation()
     APPInfoDataResDTO devInfoReq = APPInfoDataResDTO_init_zero;
     devInfoReq.offset = DTU_TIME_OFFSET;
     devInfoReq.time = dtuGlobalData.currentTimestamp;
-    devInfoReq.package_now = 0;  // Request first/only package
-    devInfoReq.err_code = 0;     // No error
+    devInfoReq.package_now = 0; // Request first/only package
+    devInfoReq.err_code = 0;    // No error
 
     bool status = pb_encode(&stream, APPInfoDataResDTO_fields, &devInfoReq);
 
@@ -931,7 +931,7 @@ boolean DTUInterface::readRespAppInformation(pb_istream_t istream)
     dtuGlobalData.device_serial_number_dtu[sizeof(dtuGlobalData.device_serial_number_dtu) - 1] = '\0'; // Ensure null-termination
     Serial.println("DTUinterface:\t DTU Serial INT64 : " + String((long long)dtuGlobalData.device_serial_number_dtu));
     Serial.println("DTUinterface:\t DTU Serial STRING: " + String(dtuGlobalData.device_serial_number_dtu));
-        
+
     // Serial.println("DTUinterface:\t readRespAppInformation - got response -> (" + String(appInfoDataReqDTO.time) + "):\t" + getTimeStringByTimestamp(appInfoDataReqDTO.time));
 
     // Extract DTU firmware and hardware versions from the app information
@@ -943,33 +943,34 @@ boolean DTUInterface::readRespAppInformation(pb_istream_t istream)
         {
             dtuGlobalData.dtuFirmwareVersion = dtuInfo.dtu_sw_version;
             dtuGlobalData.dtuFirmwareVersionValid = true;
-            Serial.println("DTUinterface:\t DTU SW: " + formatDtuVersion(dtuInfo.dtu_sw_version) + 
-                          " (raw: " + String(dtuInfo.dtu_sw_version) + ")");
+            Serial.println("DTUinterface:\t DTU SW: " + formatDtuVersion(dtuInfo.dtu_sw_version) +
+                           " (raw: " + String(dtuInfo.dtu_sw_version) + ")");
         }
         // Extract DTU hardware version (info only)
         if (dtuInfo.dtu_hw_version > 0)
         {
-            Serial.println("DTUinterface:\t DTU HW: " + formatDtuVersion(dtuInfo.dtu_hw_version) + 
-                          " (raw: " + String(dtuInfo.dtu_hw_version) + ")");
+            Serial.println("DTUinterface:\t DTU HW: " + formatDtuVersion(dtuInfo.dtu_hw_version) +
+                           " (raw: " + String(dtuInfo.dtu_hw_version) + ")");
         }
     }
     else
     {
         Serial.println(F("DTUinterface:\t No DTU info available"));
     }
-    
+
     // Extract PV/Inverter information
     if (appInfoDataReqDTO.mAPPpvInfo_count > 0)
     {
         Serial.println("DTUinterface:\t inverter modules found: " + String(appInfoDataReqDTO.mAPPpvInfo_count));
-        
+
         for (int i = 0; i < appInfoDataReqDTO.mAPPpvInfo_count && i < 2; i++)
         {
             APPPvInfoMO pvInfo = appInfoDataReqDTO.mAPPpvInfo[i];
             dtuGlobalData.device_serial_number_inverter = pvInfo.pv_sn;
             Serial.println("DTUinterface:\t Inverter" + String(i + 1) + " Serial INT64 : " + String((long long)dtuGlobalData.device_serial_number_inverter));
             char serial_display[16];
-            if (format_serial_for_display(dtuGlobalData.device_serial_number_inverter, serial_display, sizeof(serial_display)) > 0) {
+            if (format_serial_for_display(dtuGlobalData.device_serial_number_inverter, serial_display, sizeof(serial_display)) > 0)
+            {
                 Serial.println("DTUinterface:\t Inverter" + String(i + 1) + " Serial STRING: " + String(serial_display));
             }
 
@@ -981,14 +982,14 @@ boolean DTUInterface::readRespAppInformation(pb_istream_t istream)
             if (pvInfo.pv_sw_version > 0)
             {
                 Serial.println("DTUinterface:\t Inverter" + String(i + 1) + " SW: " + formatPvSoftwareVersion(pvInfo.pv_sw_version) +
-                              " (raw: " + String(pvInfo.pv_sw_version) + ")");
+                               " (raw: " + String(pvInfo.pv_sw_version) + ")");
                 dtuGlobalData.inverterFirmwareVersion = pvInfo.pv_sw_version;
                 dtuGlobalData.inverterFirmwareVersionValid = true;
-            }   
+            }
             if (pvInfo.pv_hw_version > 0)
             {
-                Serial.println("DTUinterface:\t Inverter" + String(i + 1) + " HW: " + formatPvHardwareVersion(pvInfo.pv_hw_version) + 
-                              " (raw: " + String(pvInfo.pv_hw_version) + ")");
+                Serial.println("DTUinterface:\t Inverter" + String(i + 1) + " HW: " + formatPvHardwareVersion(pvInfo.pv_hw_version) +
+                               " (raw: " + String(pvInfo.pv_hw_version) + ")");
             }
         }
     }
@@ -1015,7 +1016,7 @@ void DTUInterface::requestDeviceInfoPeriodically()
             lastAppInfoRequest = now;
             return;
         }
-        
+
         // For subsequent requests, wait 10 minutes (600000 ms)
         if (initialAppInfoRequested && (now - lastAppInfoRequest > 600000))
         {
@@ -2254,15 +2255,17 @@ inline int serial_int64_to_hex_string(int64_t serial_int, char *hex_str, size_t 
     return len;
 }
 
-int DTUInterface::format_serial_for_display(int64_t serial_int, char* display_str, size_t max_len) {
+int DTUInterface::format_serial_for_display(int64_t serial_int, char *display_str, size_t max_len)
+{
     char hex_str[16];
-    
+
     // First convert to hex string
     int hex_len = serial_int64_to_hex_string(serial_int, hex_str, sizeof(hex_str));
-    if (hex_len < 0) {
+    if (hex_len < 0)
+    {
         return -1;
     }
-    
+
     // For display, we typically want the decimal representation of the hex string
     // e.g., 0x141293319311 becomes "141293319311"
     return snprintf(display_str, max_len, "%s", hex_str);
@@ -2374,4 +2377,3 @@ String DTUInterface::getInverterModelFromIntSerial(int64_t serialNumber)
 
     return series + "-" + String(b0, HEX) + String(b1, HEX) + "-" + type;
 }
-
