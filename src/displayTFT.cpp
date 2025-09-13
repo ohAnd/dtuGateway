@@ -28,12 +28,20 @@ void DisplayTFT::setup()
     // Swap the colour byte order when rendering
     tft.setSwapBytes(true);
 
+    
+
     pinMode(BACKLIIGHT_PIN, OUTPUT);
-    brightness = userConfig.displayBrightnessDay;
-    // set brightness to max - workaround for unconfigured brightness and no backlight control
-    if (brightness == 0)
-        brightness = 255;
-    analogWrite(BACKLIIGHT_PIN, brightness);
+
+    #ifndef DGC9A01_MOUNTED
+        brightness = userConfig.displayBrightnessDay;
+        // set brightness to max - workaround for unconfigured brightness and no backlight control
+        if (brightness == 0)
+            brightness = 255;
+        analogWrite(BACKLIIGHT_PIN, brightness);
+    #else
+        digitalWrite(BACKLIIGHT_PIN, 1);
+    #endif
+
     Serial.println(F("TFT display initialized"));
 }
 
@@ -608,6 +616,10 @@ void DisplayTFT::checkChangedValues()
 
 void DisplayTFT::setBrightnessAuto()
 {
+    #ifdef DGC9A01_MOUNTED
+    digitalWrite(BACKLIIGHT_PIN, 1);
+    #else
+
     // do not change brightness if it is set to 0
     if (userConfig.displayBrightnessDay == 0)
         return;
@@ -630,6 +642,7 @@ void DisplayTFT::setBrightnessAuto()
         brightness = brightness + 1;
         analogWrite(BACKLIIGHT_PIN, brightness);
     }
+    #endif
 }
 
 void DisplayTFT::checkNightMode()

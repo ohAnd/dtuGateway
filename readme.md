@@ -118,11 +118,31 @@ dtuGateway provides a reliable, dedicated gateway to your Hoymiles DTU where no 
 
 ## Compatible Hardware
 
-### ✅ Required
+-### ✅ Required
+
 - **ESP32 microcontroller**
   - ESP-WROOM-32 NodeMCU-32S *(tested, recommended)*
-  - ESP32-S3 *(untested by maintainer, but tested by community users)*
-  - ESP32-S3 16MB N16R8 *(separate build target: `esp32_S3_16MB_N16R8`, tested by community)*
+  - ESP32-S3 *(standard build: `esp32_S3`, tested by community users)*
+  - ESP32-S3 16MB N16R8 *(build target: `esp32_S3_16MB_N16R8`, tested by community)*
+  - ESP32-S3 with 1.28" round TFT *(special build target: `esp32_S3_lcd_128`, for pre-mounted round GC9A01 displays, e.g. Waveshare board)*
+    > **Most common:** [Waveshare ESP32-S3 1.28 inch IPS LCD](https://www.waveshare.com/esp32-s3-lcd-1.28-b.htm) (GC9A01 driver, 240x240). Widely available as a single board with display and supported by the `esp32_S3_lcd_128` build target.  
+    > **Buy:** [Waveshare](https://www.waveshare.com/esp32-s3-lcd-1.28-b.htm) · [Amazon (search)](https://www.amazon.com/s?k=waveshare+esp32-s3+lcd+1.28) · [Aliexpress (search)](https://www.aliexpress.com/wholesale?SearchText=esp32-s3-lcd-1.28-b)
+
+- **Hoymiles HMS-xxxW-2T** solar inverter with **built-in Wi-Fi DTU**
+  - ✅ **Supported**: HMS-800W-2T, HMS-1000W-2T, HMS-600W-2T, HMS-300W-2T
+  - ✅ **Confirmed**: All HMS inverters with 2 panel connections **and integrated Wi-Fi DTU**
+  - ✅ **Accurate Detection**: Automatic model identification via serial number analysis
+  - ❌ **NOT Supported**: External DTU models (DTU-Lite stick, DTU-Pro external units)
+**Common sources:**
+- [Waveshare Product Page](https://www.waveshare.com/esp32-s3-lcd-1.28-b.htm)
+- [Amazon - search "Waveshare ESP32-S3 LCD 1.28" or "ESP32-S3-LCD-1.28-B"](https://www.amazon.com/s?k=waveshare+esp32-s3+lcd+1.28)
+- [Aliexpress - search "ESP32-S3-LCD-1.28-B"](https://www.aliexpress.com/wholesale?SearchText=esp32-s3-lcd-1.28-b)
+
+- **ESP32 microcontroller**
+  - ESP-WROOM-32 NodeMCU-32S *(tested, recommended)*
+  - ESP32-S3 *(standard build: `esp32_S3`, tested by community users)*
+  - ESP32-S3 16MB N16R8 *(build target: `esp32_S3_16MB_N16R8`, tested by community)*
+  - ESP32-S3 with 1.28" round TFT *(special build target: `esp32_S3_lcd_128`, for pre-mounted round GC9A01 displays, see below)*
 - **Hoymiles HMS-xxxW-2T** solar inverter with **built-in Wi-Fi DTU**
   - ✅ **Supported**: HMS-800W-2T, HMS-1000W-2T, HMS-600W-2T, HMS-300W-2T
   - ✅ **Confirmed**: All HMS inverters with 2 panel connections **and integrated Wi-Fi DTU**
@@ -133,7 +153,8 @@ dtuGateway provides a reliable, dedicated gateway to your Hoymiles DTU where no 
 | Display Type | Size | Features | Wiring |
 |--------------|------|----------|---------|
 | **OLED** | 1.3" 128x64 | SSH1106, screensaver, brightness | 4 wires (VCC, GND, SCL, SDA) |
-| **Round TFT** | 1.28" 240x240 | GC9A01, night mode, backlight | 8 wires (see pinout table) |
+| **Round TFT (standard)** | 1.28" 240x240 | GC9A01, night mode, backlight | 8 wires (see standard pinout below) |
+| **Round TFT (pre-mounted/128)** | 1.28" 240x240 | GC9A01, night mode, backlight | 8 wires (see special pinout for `esp32_S3_lcd_128` below) |
 
 **Need wiring help?** → [Hardware Setup Guide](#hardware-setup)
 
@@ -251,7 +272,10 @@ Your solar data is now flowing into your smart home system. The device will:
 | SCL | GPIO22 (D22) | I2C Clock |
 | SDA | GPIO21 (D21) | I2C Data |
 
+
 ### ESP32 Pinout for Round TFT Display
+
+**Standard wiring (for `esp32`, `esp32_S3`, `esp32_S3_16MB_N16R8`):**
 
 | Display Pin | ESP32 Pin | Description |
 |-------------|-----------|-------------|
@@ -264,12 +288,28 @@ Your solar data is now flowing into your smart home system. The device will:
 | RST | 3.3V | Reset (pulled high) |
 | BLK | GPIO4 (D4) | Backlight control (ESP32) / GPIO12 (ESP8266) |
 
+**Special wiring for pre-mounted round TFT (for `esp32_S3_lcd_128`):**
+
+| Display Pin | ESP32 Pin | Description |
+|-------------|-----------|-------------|
+| VCC | 3.3V | Power supply |
+| GND | GND | Ground |
+| SCL | GPIO10 | SPI Clock |
+| SDA | GPIO11 | SPI Data (MOSI) |
+| DC | GPIO8 | Data/Command |
+| CS | GPIO9 | Chip Select |
+| RST | GPIO12 | Reset |
+| BLK | GPIO40 | Backlight control |
+
+
 ### Assembly Tips
 - **OLED**: Simple 4-wire connection, plug and play
-- **TFT**: 8 wires required, but backlight control enables night mode
+- **TFT (standard)**: 8 wires required, PWM backlight control enables night mode and smooth brightness
+- **TFT (pre-mounted/128)**: Use the special wiring and `esp32_S3_lcd_128` build target for pre-mounted round TFT modules. Backlight is always ON (no brightness/PWM control).
 - **Both displays**: Factory mode alternates between OLED/TFT config on each reboot until configured
 - **No display**: Gateway works perfectly via web interface only
 - **OLED pins**: Uses default I2C pins (GPIO21/SDA, GPIO22/SCL) for ESP32
+- **esp32_S3_lcd_128**: Use only with pre-mounted round TFT hardware (see above pinout and build target). This build excludes all OLED code and optimizes memory for the TFT display.
 
 ---
 
@@ -378,12 +418,19 @@ Access expert mode at `http://<device-ip>/config`:
 - Wi-Fi signal strength indicators
 
 ### Round TFT Display (GC9A01)
+
+**Build targets:**
+- `esp32`, `esp32_S3`, `esp32_S3_16MB_N16R8`: Standard round TFT wiring (see table above)
+- `esp32_S3_lcd_128`: For pre-mounted round TFT modules (special wiring, memory config, and display code optimization)
+
+**Conditional compilation:**
+- The firmware uses conditional compilation to optimize memory and code for each display type. When building for `esp32_S3_lcd_128`, all OLED code is excluded, and the TFT code is optimized for the mounted display.
 <img src="doc/images/roundTFT.jpg" alt="Round TFT Display" width="200"/>
 
 **Features:**
 - **Gauge-style display**: Analog power meter with digital readouts
 - **Night mode**: Automatic dimming or clock-only display
-- **Backlight control**: PWM brightness adjustment
+- **Backlight control**: PWM brightness adjustment (standard builds only; pre-mounted/128 is always ON)
 - **Status rings**: Visual indicators for system status
 
 **Modes:**

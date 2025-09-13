@@ -9,6 +9,8 @@
 
 #if defined(ESP8266)
 #define BACKLIIGHT_PIN 12
+#elif defined(ESP32) && defined(DGC9A01_MOUNTED)
+#define BACKLIIGHT_PIN 40
 #elif defined(ESP32)
 #define BACKLIIGHT_PIN 4
 #endif

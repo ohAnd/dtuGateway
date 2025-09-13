@@ -21,7 +21,10 @@
 #include <DNSServer.h>
 #include <base/platformData.h>
 
+#ifndef DGC9A01_MOUNTED
 #include <display.h>
+#endif
+
 #include <displayTFT.h>
 
 #include <dtuInterface.h>
@@ -117,7 +120,10 @@ DNSServer dnsServer;
 // HTTPUpdateServer httpUpdater;
 // #endif
 
+#ifndef DGC9A01_MOUNTED
 Display displayOLED;
+#endif
+
 DisplayTFT displayTFT;
 
 DTUInterface dtuInterface("192.168.0.254"); // initialize with default IP
@@ -945,12 +951,16 @@ void setup()
   // ------- user config loaded --------------------------------------------
 
   // init display according to userConfig
+  #ifndef DGC9A01_MOUNTED
   if (userConfig.displayConnected == 0)
   {
     displayOLED.setup();
     displayOLED.setRemoteDisplayMode(userConfig.remoteDisplayActive);
   }
   else if (userConfig.displayConnected == 1)
+  #else
+  // For DGC9A01_MOUNTED, always use TFT display
+  #endif
   {
     displayTFT.setup();
     displayTFT.setRemoteDisplayMode(userConfig.remoteDisplayActive, userConfig.remoteSummaryDisplayActive);
@@ -1005,12 +1015,16 @@ void setup()
     Serial.println("Or connect to AP '" + platformData.espUniqueName + "' and navigate to " + WiFi.softAPIP().toString());
 
     // display - change every reboot in first start mode
+    #ifndef DGC9A01_MOUNTED
     if (userConfig.displayConnected == 0)
     {
       displayOLED.drawFactoryMode(String(platformData.fwVersion), platformData.espUniqueName, apIP.toString());
       userConfig.displayConnected = 1;
     }
     else if (userConfig.displayConnected == 1)
+    #else
+    // For DGC9A01_MOUNTED, always use TFT display
+    #endif
     {
       displayTFT.drawFactoryMode(String(platformData.fwVersion), platformData.espUniqueName, apIP.toString());
       userConfig.displayConnected = 0;
@@ -1388,17 +1402,25 @@ void loop()
       // dtuInterface.disconnect(DTU_STATE_STOPPED);
       dtuInterface.flushConnection();
       mqttHandler.stopConnection();
+      #ifndef DGC9A01_MOUNTED
       if (userConfig.displayConnected == 0)
         displayOLED.drawUpdateMode("update running ...");
       else if (userConfig.displayConnected == 1)
+      #else
+      // For DGC9A01_MOUNTED, always use TFT display
+      #endif
         displayTFT.drawUpdateMode("update running ...");
       updateInfo.updateState = UPDATE_STATE_INSTALLING;
     }
     if (updateInfo.updateState == UPDATE_STATE_DONE)
     {
+      #ifndef DGC9A01_MOUNTED
       if (userConfig.displayConnected == 0)
         displayOLED.drawUpdateMode("update done", "rebooting ...");
       else if (userConfig.displayConnected == 1)
+      #else
+      // For DGC9A01_MOUNTED, always use TFT display
+      #endif
         displayTFT.drawUpdateMode("update done", "rebooting ...");
       updateInfo.updateState = UPDATE_STATE_RESTART;
     }
@@ -1426,26 +1448,38 @@ void loop()
     // reboot screen
     if (platformData.rebootRequested)
     {
+      #ifndef DGC9A01_MOUNTED
       if (userConfig.displayConnected == 0)
         displayOLED.drawUpdateMode("rebooting ...", "in " + String(platformData.rebootRequestedInSec) + " s");
       else if (userConfig.displayConnected == 1)
+      #else
+      // For DGC9A01_MOUNTED, always use TFT display
+      #endif
         displayTFT.drawUpdateMode("rebooting ...", "in " + String(platformData.rebootRequestedInSec) + " s");
     }
     // reboot screen
     else if (platformData.rebootStarted)
     {
+      #ifndef DGC9A01_MOUNTED
       if (userConfig.displayConnected == 0)
         displayOLED.drawUpdateMode("rebooting ...", "now");
       else if (userConfig.displayConnected == 1)
+      #else
+      // For DGC9A01_MOUNTED, always use TFT display
+      #endif
         displayTFT.drawUpdateMode("rebooting ...", "now");
     }
     // normal screen
     else if (!userConfig.wifiAPstart)
     {
       // display tasks every 50ms = 20Hz
+      #ifndef DGC9A01_MOUNTED
       if (userConfig.displayConnected == 0)
         displayOLED.renderScreen(getCurrentTimeString(), String(platformData.fwVersion));
       else if (userConfig.displayConnected == 1)
+      #else
+      // For DGC9A01_MOUNTED, always use TFT display
+      #endif
         displayTFT.renderScreen(getCurrentTimeString(), String(platformData.fwVersion));
     }
   }
