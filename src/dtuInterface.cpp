@@ -80,13 +80,16 @@ void DTUInterface::disconnect(uint8_t tgtState)
     {
         Serial.println(F("DTUinterface:\t disconnect request - no DTU connection to close"));
     }
+
+    // Reset device info request flag so it will be requested on next connection
+    initialAppInfoRequested = false;
 }
 
 void DTUInterface::getDataUpdate()
 {
     if (!dtuConnection.dtuActiveOffToCloudUpdate)
     {
-        if (client->connected())
+        if (client->connected() && dtuConnection.dtuTxRxState == DTU_TXRX_STATE_IDLE)
             writeReqRealDataNew();
         else
         {
@@ -265,8 +268,17 @@ void DTUInterface::txrxStateObserver()
         dtuConnection.dtuTxRxStateLast = dtuConnection.dtuTxRxState;
         dtuConnection.dtuTxRxStateLastChange = millis();
     }
-    else if (millis() - dtuConnection.dtuTxRxStateLastChange > 15000 && dtuConnection.dtuTxRxState != DTU_TXRX_STATE_IDLE)
+    else if (millis() - dtuConnection.dtuTxRxStateLastChange > 30000 && dtuConnection.dtuTxRxState != DTU_TXRX_STATE_IDLE)
     {
+        // Check WiFi quality before forcing disconnect
+        if (WiFi.RSSI() < -75)
+        {
+            Serial.println(F("DTUinterface:\t [[stateObserver]] - timeout with poor WiFi signal - attempting WiFi reconnect"));
+            WiFi.reconnect();
+            dtuConnection.dtuTxRxStateLastChange = millis(); // Reset timer
+            return;
+        }
+
         Serial.println(F("DTUinterface:\t [[stateObserver]] - timeout - reset txrx state to DTU_TXRX_STATE_IDLE"));
         dtuConnection.dtuTxRxState = DTU_TXRX_STATE_IDLE;
         dtuInterface.disconnect(DTU_STATE_OFFLINE);
@@ -439,6 +451,9 @@ void DTUInterface::onDataReceived(void *arg, AsyncClient *client, void *data, si
         // if real data received, then request config for powerlimit
         dtuInterface->writeReqGetConfig();
         break;
+    case DTU_TXRX_STATE_WAIT_APP_INFORMATION:
+        dtuInterface->readRespAppInformation(istream);
+        break;
     case DTU_TXRX_STATE_WAIT_APPGETHISTPOWER:
         dtuInterface->readRespAppGetHistPower(istream);
         break;
@@ -486,7 +501,7 @@ void DTUInterface::onDataReceived(void *arg, AsyncClient *client, void *data, si
 void DTUInterface::printDataAsTextToSerial()
 {
     Serial.print("power limit (set): " + String(dtuGlobalData.powerLimit) + " % (" + String(dtuGlobalData.powerLimitSet) + " %) --- inverter mode: " + String(dtuGlobalData.inverterControl.stateOn ? "On" : "Off") + " --- ");
-    Serial.print("inverter temp: " + String(dtuGlobalData.inverterTemp) + " °C - serial number: " + dtuGlobalData.device_serial_number + "\n");
+    Serial.print("inverter temp: " + String(dtuGlobalData.inverterTemp) + " °C - serial number: " + dtuGlobalData.device_serial_number_dtu + "\n");
 
     Serial.print(F(" \t |_____current____|_____voltage___|_____power_____|________daily______|_____total_____|\n"));
     // 12341234 |1234 current  |1234 voltage  |1234 power1234|12341234daily 1234|12341234total 1234|
@@ -560,20 +575,21 @@ String DTUInterface::getTimeStringByTimestamp(unsigned long timestamp)
     // Use DST-aware formatting when possible
     struct tm timeinfo;
     time_t ts = timestamp;
-    
+
     // Try to use localtime_r for DST-aware formatting
-    if (localtime_r(&ts, &timeinfo)) {
+    if (localtime_r(&ts, &timeinfo))
+    {
         char buf[30];
-        sprintf(buf, "%02d.%02d.%04d - %02d:%02d:%02d", 
-                timeinfo.tm_mday, 
-                timeinfo.tm_mon + 1, 
-                timeinfo.tm_year + 1900, 
-                timeinfo.tm_hour, 
-                timeinfo.tm_min, 
+        sprintf(buf, "%02d.%02d.%04d - %02d:%02d:%02d",
+                timeinfo.tm_mday,
+                timeinfo.tm_mon + 1,
+                timeinfo.tm_year + 1900,
+                timeinfo.tm_hour,
+                timeinfo.tm_min,
                 timeinfo.tm_sec);
         return String(buf);
     }
-    
+
     // Fallback to original method if DST formatting fails
     UnixTime stamp(1);
     char buf[30];
@@ -604,26 +620,26 @@ void DTUInterface::checkingForLastDataReceived()
     }
 }
 
-void DTUInterface::resetDtuGlobalData(uint8_t errorState,uint8_t dtuState)
+void DTUInterface::resetDtuGlobalData(uint8_t errorState, uint8_t dtuState)
 {
-        dtuGlobalData.grid.power = 0;
-        dtuGlobalData.grid.current = 0;
-        dtuGlobalData.grid.voltage = 0;
+    dtuGlobalData.grid.power = 0;
+    dtuGlobalData.grid.current = 0;
+    dtuGlobalData.grid.voltage = 0;
 
-        dtuGlobalData.pv0.power = 0;
-        dtuGlobalData.pv0.current = 0;
-        dtuGlobalData.pv0.voltage = 0;
+    dtuGlobalData.pv0.power = 0;
+    dtuGlobalData.pv0.current = 0;
+    dtuGlobalData.pv0.voltage = 0;
 
-        dtuGlobalData.pv1.power = 0;
-        dtuGlobalData.pv1.current = 0;
-        dtuGlobalData.pv1.voltage = 0;
+    dtuGlobalData.pv1.power = 0;
+    dtuGlobalData.pv1.current = 0;
+    dtuGlobalData.pv1.voltage = 0;
 
-        dtuGlobalData.dtuRssi = 0;
+    dtuGlobalData.dtuRssi = 0;
 
-        dtuConnection.dtuErrorState = errorState;
-        dtuConnection.dtuActiveOffToCloudUpdate = false;
-        dtuConnection.dtuConnectState = dtuState;
-        dtuGlobalData.updateReceived = true;
+    dtuConnection.dtuErrorState = errorState;
+    dtuConnection.dtuActiveOffToCloudUpdate = false;
+    dtuConnection.dtuConnectState = dtuState;
+    dtuGlobalData.updateReceived = true;
 }
 
 /**
@@ -761,9 +777,9 @@ void DTUInterface::readRespRealDataNew(pb_istream_t istream)
         dtuGlobalData.respTimestamp = uint32_t(realdatanewreqdto.timestamp);
         // dtuGlobalData.updateReceived = true; // not needed here - everytime both request (realData and getConfig) will be set
         dtuConnection.dtuErrorState = DTU_ERROR_NO_ERROR;
-        strncpy(dtuGlobalData.device_serial_number, realdatanewreqdto.device_serial_number, sizeof(dtuGlobalData.device_serial_number) - 1);
-        dtuGlobalData.device_serial_number[sizeof(dtuGlobalData.device_serial_number) - 1] = '\0'; // Ensure null-termination
-        // Serial.printf("\nDTU Serial-Number orig : >> %s <<", realdatanewreqdto.device_serial_number);
+        // strncpy(dtuGlobalData.device_serial_number_dtu, realdatanewreqdto.device_serial_number, sizeof(dtuGlobalData.device_serial_number_dtu) - 1);
+        // dtuGlobalData.device_serial_number_dtu[sizeof(dtuGlobalData.device_serial_number_dtu) - 1] = '\0'; // Ensure null-termination
+        // Serial.printf("\nDTU Serial-Number orig : >> %s <<", realdatanewreqdto.device_serial_number_dtu);
         // Serial.printf("\nMAIN dtu_power: \t\t%i\n", realdatanewreqdto.dtu_power);
 
         // Serial.printf("\ndtu_daily_energy: \t%i\n", realdatanewreqdto.dtu_daily_energy);
@@ -819,7 +835,7 @@ void DTUInterface::readRespRealDataNew(pb_istream_t istream)
         dtuGlobalData.pv1.voltage = calcValue(pvData1.voltage);
         dtuGlobalData.pv1.power = calcValue(pvData1.power);
         dtuGlobalData.pv1.dailyEnergy = calcValue(pvData1.energy_daily, 1000);
-        if (pvData0.energy_total != 0)
+        if (pvData1.energy_total != 0)
         {
             dtuGlobalData.pv1.totalEnergy = calcValue(pvData1.energy_total, 1000);
         }
@@ -834,6 +850,180 @@ void DTUInterface::readRespRealDataNew(pb_istream_t istream)
     {
         Serial.println(F("DTUinterface:\t readRespRealDataNew -> got timestamp == 0 (DTU_ERROR_NO_TIME) - try to reboot DTU"));
         handleError(DTU_ERROR_NO_TIME);
+    }
+}
+
+boolean DTUInterface::writeReqAppInformation()
+{
+    if (dtuConnection.dtuConnectState == DTU_STATE_OFFLINE)
+    {
+        Serial.println(F("DTUinterface:\t writeReqAppInformation -> not sending due to offline state"));
+        return false;
+    }
+
+    uint8_t buffer[200];
+    pb_ostream_t stream = pb_ostream_from_buffer(buffer, sizeof(buffer));
+
+    APPInfoDataResDTO devInfoReq = APPInfoDataResDTO_init_zero;
+    devInfoReq.offset = DTU_TIME_OFFSET;
+    devInfoReq.time = dtuGlobalData.currentTimestamp;
+    devInfoReq.package_now = 0; // Request first/only package
+    devInfoReq.err_code = 0;    // No error
+
+    bool status = pb_encode(&stream, APPInfoDataResDTO_fields, &devInfoReq);
+
+    if (!status)
+    {
+        Serial.println(F("DTUinterface:\t writeReqAppInformation - failed to encode"));
+        return false;
+    }
+
+    // Calculate CRC for request data
+    for (unsigned int i = 0; i < stream.bytes_written; i++)
+    {
+        crc.add(buffer[i]);
+    }
+
+    uint8_t header[10];
+    header[0] = 0x48;
+    header[1] = 0x4d;
+    header[2] = 0xa3; // 0xa3 - CMD_APP_INFO_DATA_RES_DTO = 0xa3 0x01 (CORRECT!)
+    header[3] = 0x01; // 0x01 (was 0x04 - that was wrong!)
+    header[4] = 0x00;
+    header[5] = 0x01;
+    header[6] = (crc.calc() >> 8) & 0xFF;
+    header[7] = (crc.calc()) & 0xFF;
+    header[8] = ((stream.bytes_written + 10) >> 8) & 0xFF; // suggest parentheses around '+' inside '>>' [-Wparentheses]
+    header[9] = (stream.bytes_written + 10) & 0xFF;        // warning: suggest parentheses around '+' in operand of '&' [-Wparentheses]
+    crc.restart();
+
+    uint8_t message[10 + stream.bytes_written];
+    for (int i = 0; i < 10; i++)
+    {
+        message[i] = header[i];
+    }
+    for (unsigned int i = 0; i < stream.bytes_written; i++)
+    {
+        message[i + 10] = buffer[i];
+    }
+
+    dtuConnection.dtuTxRxState = DTU_TXRX_STATE_WAIT_APP_INFORMATION;
+    client->write((const char *)message, 10 + stream.bytes_written);
+
+    Serial.println(F("DTUinterface:\t writeReqAppInformation sent"));
+
+    return true;
+}
+
+boolean DTUInterface::readRespAppInformation(pb_istream_t istream)
+{
+    dtuConnection.dtuTxRxState = DTU_TXRX_STATE_IDLE;
+    APPInfoDataReqDTO appInfoDataReqDTO = APPInfoDataReqDTO_init_default;
+
+    if (!pb_decode(&istream, &APPInfoDataReqDTO_msg, &appInfoDataReqDTO))
+    {
+        Serial.println(F("DTUinterface:\t readRespAppInformation -> pb_decode failed"));
+        return false;
+    }
+    initialAppInfoRequested = true;
+
+    strncpy(dtuGlobalData.device_serial_number_dtu, appInfoDataReqDTO.dtu_sn, sizeof(dtuGlobalData.device_serial_number_dtu) - 1);
+    dtuGlobalData.device_serial_number_dtu[sizeof(dtuGlobalData.device_serial_number_dtu) - 1] = '\0'; // Ensure null-termination
+    Serial.println("DTUinterface:\t DTU Serial INT64 : " + String((long long)dtuGlobalData.device_serial_number_dtu));
+    Serial.println("DTUinterface:\t DTU Serial STRING: " + String(dtuGlobalData.device_serial_number_dtu));
+
+    // Serial.println("DTUinterface:\t readRespAppInformation - got response -> (" + String(appInfoDataReqDTO.time) + "):\t" + getTimeStringByTimestamp(appInfoDataReqDTO.time));
+
+    // Extract DTU firmware and hardware versions from the app information
+    if (appInfoDataReqDTO.has_mAPPDtuInfo)
+    {
+        APPDtuInfoMO dtuInfo = appInfoDataReqDTO.mAPPDtuInfo;
+        // Extract and store DTU software version
+        if (dtuInfo.dtu_sw_version > 0)
+        {
+            dtuGlobalData.dtuFirmwareVersion = dtuInfo.dtu_sw_version;
+            dtuGlobalData.dtuFirmwareVersionValid = true;
+            Serial.println("DTUinterface:\t DTU SW: " + formatDtuVersion(dtuInfo.dtu_sw_version) +
+                           " (raw: " + String(dtuInfo.dtu_sw_version) + ")");
+        }
+        // Extract DTU hardware version (info only)
+        if (dtuInfo.dtu_hw_version > 0)
+        {
+            Serial.println("DTUinterface:\t DTU HW: " + formatDtuVersion(dtuInfo.dtu_hw_version) +
+                           " (raw: " + String(dtuInfo.dtu_hw_version) + ")");
+        }
+    }
+    else
+    {
+        Serial.println(F("DTUinterface:\t No DTU info available"));
+    }
+
+    // Extract PV/Inverter information
+    if (appInfoDataReqDTO.mAPPpvInfo_count > 0)
+    {
+        Serial.println("DTUinterface:\t inverter modules found: " + String(appInfoDataReqDTO.mAPPpvInfo_count));
+
+        for (int i = 0; i < appInfoDataReqDTO.mAPPpvInfo_count && i < 2; i++)
+        {
+            APPPvInfoMO pvInfo = appInfoDataReqDTO.mAPPpvInfo[i];
+            dtuGlobalData.device_serial_number_inverter = pvInfo.pv_sn;
+            Serial.println("DTUinterface:\t Inverter" + String(i + 1) + " Serial INT64 : " + String((long long)dtuGlobalData.device_serial_number_inverter));
+            char serial_display[16];
+            if (format_serial_for_display(dtuGlobalData.device_serial_number_inverter, serial_display, sizeof(serial_display)) > 0)
+            {
+                Serial.println("DTUinterface:\t Inverter" + String(i + 1) + " Serial STRING: " + String(serial_display));
+            }
+
+            // Extract inverter model from serial number string
+            dtuGlobalData.inverterModel = getInverterModelFromIntSerial(pvInfo.pv_sn);
+            dtuGlobalData.inverterModelValid = true;
+            Serial.println("DTUinterface:\t Inverter Model: " + dtuGlobalData.inverterModel);
+
+            if (pvInfo.pv_sw_version > 0)
+            {
+                Serial.println("DTUinterface:\t Inverter" + String(i + 1) + " SW: " + formatPvSoftwareVersion(pvInfo.pv_sw_version) +
+                               " (raw: " + String(pvInfo.pv_sw_version) + ")");
+                dtuGlobalData.inverterFirmwareVersion = pvInfo.pv_sw_version;
+                dtuGlobalData.inverterFirmwareVersionValid = true;
+            }
+            if (pvInfo.pv_hw_version > 0)
+            {
+                Serial.println("DTUinterface:\t Inverter" + String(i + 1) + " HW: " + formatPvHardwareVersion(pvInfo.pv_hw_version) +
+                               " (raw: " + String(pvInfo.pv_hw_version) + ")");
+            }
+        }
+    }
+    else
+    {
+        Serial.println(F("DTUinterface:\t No Inverter modules found"));
+    }
+
+    return true;
+}
+
+void DTUInterface::requestDeviceInfoPeriodically()
+{
+    unsigned long now = millis();
+
+    if (dtuConnection.dtuConnectState == DTU_STATE_CONNECTED &&
+        dtuConnection.dtuTxRxState == DTU_TXRX_STATE_IDLE)
+    {
+        // For initial request after connection, wait only 8 seconds
+        if (!initialAppInfoRequested && now > 8000)
+        {
+            Serial.println(F("DTUinterface:\t Initial device info request"));
+            writeReqAppInformation();
+            lastAppInfoRequest = now;
+            return;
+        }
+
+        // For subsequent requests, wait 10 minutes (600000 ms)
+        if (initialAppInfoRequested && (now - lastAppInfoRequest > 600000))
+        {
+            Serial.println(F("DTUinterface:\t Periodic device info request"));
+            writeReqAppInformation();
+            lastAppInfoRequest = now;
+        }
     }
 }
 
@@ -1875,7 +2065,7 @@ boolean DTUInterface::readRespCommandGetAlarms(pb_istream_t istream)
         {127, "Firmware error"},
         {129, "Abnormal bias"},
         {130, "Offline"},
-        
+
         // Grid-related alarms (141-149)
         {141, "[Grid] Grid overvoltage"},
         {142, "[Grid] 10 min value grid overvoltage"},
@@ -1886,7 +2076,7 @@ boolean DTUInterface::readRespCommandGetAlarms(pb_istream_t istream)
         {147, "[Grid] Power grid outage"},
         {148, "[Grid] Grid disconnection"},
         {149, "[Grid] Island detected"},
-        
+
         // MPPT and PV input alarms (205-218)
         {205, "[MPPT-A] Input overvoltage"},
         {206, "[MPPT-B] Input overvoltage"},
@@ -1900,7 +2090,7 @@ boolean DTUInterface::readRespCommandGetAlarms(pb_istream_t istream)
         {216, "[PV-1] Input undervoltage"},
         {217, "[PV-2] Input overvoltage"},
         {218, "[PV-2] Input undervoltage"},
-        
+
         // Device failure codes (301-314)
         {301, "[Device] Device failure 301"},
         {302, "[Device] Device failure 302"},
@@ -1916,10 +2106,10 @@ boolean DTUInterface::readRespCommandGetAlarms(pb_istream_t istream)
         {312, "[Device] Device failure 312"},
         {313, "[Device] Device failure 313"},
         {314, "[Device] Device failure 314"},
-        
+
         // Legacy codes from your current implementation (keeping for compatibility)
-        {72, "[Legacy] Grid frequency above limit"},  // Your current code - might be older firmware
-        {78, "[Legacy] Grid frequency above limit"},  // Your current code - might be older firmware
+        {72, "[Legacy] Grid frequency above limit"}, // Your current code - might be older firmware
+        {78, "[Legacy] Grid frequency above limit"}, // Your current code - might be older firmware
         {223, "[Unknown] Unknown warning code 223"}, // From your GitHub issue
     };
 
@@ -1997,4 +2187,193 @@ boolean DTUInterface::cloudPauseActiveControl()
         dtuConnection.dtuActiveOffToCloudUpdate = false;
     }
     return dtuConnection.dtuActiveOffToCloudUpdate;
+}
+
+// version recognition
+String DTUInterface::formatDtuVersion(uint32_t version)
+{
+    if (version == 0)
+    {
+        return "0.0.0";
+    }
+
+    // DTU version formatting
+    uint8_t version_number2 = version % 256;
+    uint8_t version_number3 = (version / 256) % 16;
+    uint8_t major = version / 4096;
+
+    char buffer[16];
+    sprintf(buffer, "%02d.%02d.%02d", major, version_number3, version_number2);
+    return String(buffer);
+}
+
+String DTUInterface::formatPvHardwareVersion(uint32_t version)
+{
+    if (version == 0)
+    {
+        return "0.0.0";
+    }
+
+    // PV Hardware version formatting
+    uint8_t major = version / 2048;
+    uint8_t minor = (version / 64) % 32;
+    uint8_t patch = version % 64;
+
+    char buffer[16];
+    sprintf(buffer, "%02d.%02d.%02d", major, minor, patch);
+    return String(buffer);
+}
+
+String DTUInterface::formatPvSoftwareVersion(uint32_t version)
+{
+    if (version == 0)
+    {
+        return "0.0.0";
+    }
+
+    // PV Software version formatting
+    uint16_t version_number2 = version / 10000;
+    uint16_t version_number3 = (version - (version_number2 * 10000)) / 100;
+    uint16_t version_number4 = (version - (version_number2 * 10000)) - (version_number3 * 100);
+
+    char buffer[16];
+    sprintf(buffer, "%02d.%02d.%02d", version_number2, version_number3, version_number4);
+    return String(buffer);
+}
+
+inline int serial_int64_to_hex_string(int64_t serial_int, char *hex_str, size_t max_len)
+{
+    if (!hex_str || max_len < 13)
+    {
+        return -1;
+    }
+
+    // Convert the int64 to hex string representation
+    // The serial number is transmitted as hex digits interpreted as decimal
+    int len = snprintf(hex_str, max_len, "%llX", (unsigned long long)serial_int);
+
+    return len;
+}
+
+int DTUInterface::format_serial_for_display(int64_t serial_int, char *display_str, size_t max_len)
+{
+    char hex_str[16];
+
+    // First convert to hex string
+    int hex_len = serial_int64_to_hex_string(serial_int, hex_str, sizeof(hex_str));
+    if (hex_len < 0)
+    {
+        return -1;
+    }
+
+    // For display, we typically want the decimal representation of the hex string
+    // e.g., 0x141293319311 becomes "141293319311"
+    return snprintf(display_str, max_len, "%s", hex_str);
+}
+
+// model detection based on serial number
+String DTUInterface::getInverterModelFromIntSerial(int64_t serialNumber)
+{
+    char hex_serial_str[16];
+    int len = serial_int64_to_hex_string(serialNumber, hex_serial_str, sizeof(hex_serial_str));
+    if (len < 4)
+    {
+        return "Unknown";
+    }
+    // Convert first 4 hex characters to bytes for model detection
+    // Serial format is typically like "112141234567" - we need first 4 chars
+    char hexStr[5] = {0};
+    strncpy(hexStr, hex_serial_str, 4);
+    hexStr[4] = '\0';
+
+    // Parse hex string to get first two bytes
+    uint32_t hexValue = strtoul(hexStr, NULL, 16);
+    uint8_t b0 = (hexValue >> 8) & 0xFF;
+    uint8_t b1 = hexValue & 0xFF;
+
+    // Simple lookup table approach - more memory efficient for ESP32
+    struct InverterModel
+    {
+        uint8_t b0, b1;
+        const char *model;
+    };
+
+    static const InverterModel models[] = {
+        // HMS Series (most common for this project)
+        {0x10, 0x14, "HMS-600W-2T"},
+        {0x11, 0x21, "HMS-350W-1T"},
+        {0x11, 0x22, "HMS-400W-1T"},
+        {0x11, 0x41, "HMS-600W-2T"},
+        {0x11, 0x42, "HMS-700W-2T"},
+        {0x11, 0x44, "HMS-800W-2T"},
+        {0x11, 0x61, "HMS-1000W-4T"},
+        {0x11, 0x62, "HMS-1200W-4T"},
+        {0x12, 0x22, "HMS-1500W-4T"},
+        {0x14, 0x10, "HMS-800W-2T"},
+        {0x14, 0x12, "HMS-800W-2T"},
+
+        // HM Series
+        {0x10, 0x22, "HM-400W"},
+        {0x10, 0x23, "HM-500W"},
+        {0x10, 0x24, "HM-600W"},
+        {0x10, 0x25, "HM-700W"},
+
+        // HMT Series
+        {0x13, 0x00, "HMT-1800W-6T"},
+        {0x13, 0x01, "HMT-2000W-6T"},
+
+        // SOL-H Series
+        {0x28, 0x21, "SOL-H800W-2T"},
+    };
+
+    // Search for matching model
+    for (size_t i = 0; i < sizeof(models) / sizeof(models[0]); i++)
+    {
+        if (models[i].b0 == b0 && models[i].b1 == b1)
+        {
+            return String(models[i].model);
+        }
+    }
+
+    // Fallback: try to determine basic info
+    String series = "Unknown";
+    String type = "Unknown";
+
+    if (b0 == 0x10)
+    {
+        series = ((b1 & 0x03) == 0x02) ? "HM" : "HMS";
+        type = (b1 == 0x14) ? "2T" : "1T";
+    }
+    else if (b0 == 0x11)
+    {
+        series = ((b1 & 0x0F) == 0x04) ? "HMS" : "HM";
+        if (b1 >= 0x20 && b1 <= 0x29)
+            type = "1T";
+        else if (b1 >= 0x40 && b1 <= 0x49)
+            type = "2T";
+        else if (b1 >= 0x60 && b1 <= 0x69)
+            type = "4T";
+    }
+    else if (b0 == 0x12)
+    {
+        series = "HMS";
+        type = "4T";
+    }
+    else if (b0 == 0x13)
+    {
+        series = "HMT";
+        type = "6T";
+    }
+    else if (b0 == 0x14)
+    {
+        series = "HMS";
+        type = "2T";
+    }
+    else if (b0 == 0x28)
+    {
+        series = "SOL-H";
+        type = "2T";
+    }
+
+    return series + "-" + String(b0, HEX) + String(b1, HEX) + "-" + type;
 }

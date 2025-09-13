@@ -250,9 +250,9 @@ void Display::drawHeader()
         u8g2.drawGlyph(19 + offset_x, 0 + offset_y, 0x004c);
     }
 
-    // header - content right    
+    // header - content right
     // cloud pause active - arrow up
-    if(dtuConnection.dtuConnectState == DTU_STATE_CLOUD_PAUSE)
+    if (dtuConnection.dtuConnectState == DTU_STATE_CLOUD_PAUSE)
     {
         u8g2.setFont(u8g2_font_open_iconic_arrow_1x_t);
         u8g2.drawGlyph(100 + offset_x, 0 + offset_y, 0x0047);

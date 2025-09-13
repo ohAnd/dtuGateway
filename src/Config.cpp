@@ -9,11 +9,11 @@ UserConfigManager::UserConfigManager(const char *filePath, const UserConfig &def
 
 bool UserConfigManager::begin()
 {
-    #ifdef ESP32
-    if(!LittleFS.begin(true))
-    #else
-    if(!LittleFS.begin())
-    #endif
+#ifdef ESP32
+    if (!LittleFS.begin(true))
+#else
+    if (!LittleFS.begin())
+#endif
 
     {
 
@@ -201,7 +201,6 @@ void UserConfigManager::printConfigdata()
     Serial.print(F("timezone offset: \t\t"));
     Serial.println(userConfig.timezoneOffest);
 
-
     Serial.print(F("--------------------------------------\n"));
 }
 
@@ -211,7 +210,7 @@ JsonDocument UserConfigManager::mappingStructToJson(const UserConfig &config)
 
     doc["wifi"]["ssid"] = config.wifiSsid;
     doc["wifi"]["pass"] = config.wifiPassword;
-    
+
     doc["webServer"]["port"] = config.webServerPort;
 
     doc["dtu"]["hostIP"] = config.dtuHostIpDomain;
@@ -321,7 +320,7 @@ String UserConfigManager::createWebPage(bool updated)
 
     const String endHtml = F("</form></div></body><script>function reset(){var url=window.location.href;if(url.indexOf('?')>0){url=url.substring(0,url.indexOf('?'));}url+='?reset=true';window.location.replace(url);}window.onload=createEntryFields;");
     const String endHtml2 = F("function createEntryFields(){var form=document.getElementsByTagName('form')[0];for(var key in mainTopicValue){var topic=mainTopicValue[key];var topicInfo=document.createElement('div');topicInfo.innerHTML='<label><h4>'+key+'</h4></label>';form.appendChild(topicInfo);for(var subKey in topic){var input=document.createElement('input');input.name=key+'.'+subKey;input.className='form-control';input.type='text';input.value=topic[subKey];var label=document.createElement('label');label.innerHTML=subKey;var div=document.createElement('div');div.className='form-group row';var div2=document.createElement('div');div2.className='col-2';div2.appendChild(label);var div3=document.createElement('div');div3.className='col-10';div3.appendChild(input);div.appendChild(div2);div.appendChild(div3);form.appendChild(div);}}var div=document.createElement('div');div.className='form-group row';div.innerHTML='<div class=\"col-12\"><button class=\"btn btn-primary\" type=\"submit\">Save</button></div>';form.appendChild(div);}</script></html>");
-    
+
     String result = beginHtml;
 
     if (updated)

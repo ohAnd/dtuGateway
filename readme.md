@@ -70,6 +70,8 @@ dtuGateway provides a reliable, dedicated gateway to your Hoymiles DTU where no 
 - ✅ **Multiple APIs provided**: MQTT, REST JSON, openHAB integration where none existed  
 - ✅ **Consistent data delivery**: Real-time monitoring with guaranteed updates
 - ✅ **Remote control capabilities**: Power limiting and inverter management via API
+- ✅ **Comprehensive diagnostics**: DTU/inverter firmware version detection and system monitoring
+- ✅ **Intelligent connection handling**: Automatic WiFi reconnection and weak signal management
 - ✅ **Set-and-forget operation**: Automatic recovery from DTU connection issues
 - ✅ **Zero-configuration setup**: Universal captive portal works on any device without manual browser navigation
 
@@ -81,6 +83,7 @@ dtuGateway provides a reliable, dedicated gateway to your Hoymiles DTU where no 
 - **Real-time metrics**: Power (W), voltage (V), current (A) for both PV panels and grid
 - **Energy tracking**: Daily and total energy counters (kWh) 
 - **System health**: Inverter temperature, Wi-Fi signal strength, warnings
+- **Device information**: Automatic DTU and inverter firmware/hardware version detection plus model identification and serial number extraction (available via REST API)
 - **Automatic timezone/DST**: Built-in daylight saving time handling
 
 ### 🏠 **Smart Home Ready**
@@ -104,6 +107,8 @@ dtuGateway provides a reliable, dedicated gateway to your Hoymiles DTU where no 
 
 ### 🔧 **Professional Features**
 - **Universal captive portal**: Automatic configuration page detection on Android, iOS, and Windows devices
+- **Device diagnostics**: Real-time DTU and inverter firmware version monitoring
+- **Intelligent connection management**: Automatic WiFi reconnection for weak signal scenarios
 - **OTA updates**: Manual firmware updates via web interface
 - **Factory reset**: Easy recovery from any configuration issues
 - **Warning system**: Real-time DTU alerts and error monitoring
@@ -121,6 +126,7 @@ dtuGateway provides a reliable, dedicated gateway to your Hoymiles DTU where no 
 - **Hoymiles HMS-xxxW-2T** solar inverter with **built-in Wi-Fi DTU**
   - ✅ **Supported**: HMS-800W-2T, HMS-1000W-2T, HMS-600W-2T, HMS-300W-2T
   - ✅ **Confirmed**: All HMS inverters with 2 panel connections **and integrated Wi-Fi DTU**
+  - ✅ **Accurate Detection**: Automatic model identification via serial number analysis
   - ❌ **NOT Supported**: External DTU models (DTU-Lite stick, DTU-Pro external units)
 
 ### 📺 Optional Displays
@@ -156,6 +162,9 @@ Choose your version:
 - **Stable**: Latest tested release (recommended for most users)
 - **Snapshot**: Latest development features (for testing and early adopters)
 
+**💾 Factory Flash Packages Available:**  
+Each release now includes complete factory flash ZIP packages with all required files (bootloader, partitions, boot_app0, firmware) plus flashing instructions for easy setup.
+
 #### 🧪 **Want to Test New Features?**
 **Snapshot releases** contain the latest development code before it's released as stable:
 
@@ -172,8 +181,9 @@ Choose your version:
 ### Step 2: Flash Your ESP32
 Using [ESP Download Tool](https://www.espressif.com/en/support/download/other-tools):
 
-1. **Download required files** from `doc/esp32_factoryFlash/`:
-   - `bootloader.bin` → Address: `0x1000`
+1. **Download required files**:
+   - Use factory flash ZIP package from the release (recommended)
+   - Required files: `bootloader.bin` → Address: `0x1000`
    - `partitions.bin` → Address: `0x8000` 
    - `boot_app0.bin` → Address: `0xE000`
    - `firmware.bin` → Address: `0x10000`
@@ -184,6 +194,11 @@ Using [ESP Download Tool](https://www.espressif.com/en/support/download/other-to
    - Baud rate: 921600
 
 3. **Press Start** and wait for completion
+
+> **⚠️ Factory Flash Required:**  
+> - **New installations**: First-time ESP32 setup  
+> - **Version 2.2.0017+**: Partition changes prevent OTA updates from older versions  
+> - **Recovery**: After failed OTA or corrupted firmware
 
 *Alternative: Use esptool.py ([community guide](https://github.com/ohAnd/dtuGateway/discussions/46#discussion-7106516))*
 
@@ -711,6 +726,8 @@ For secure connections (e.g., HiveMQ Cloud):
 ### System Information Endpoint  
 **URL**: `http://<device-ip>/api/info.json`
 
+**Includes**: System status, network information, DTU/inverter firmware versions, inverter model detection, and device diagnostics
+
 <details>
 <summary>Click to see example response</summary>
 
@@ -728,9 +745,22 @@ For secure connections (e.g., HiveMQ Cloud):
   },
   "dtuConnection": {
     "dtuHostIpDomain": "192.168.1.100",
-    "dtuRssi": 75,
+    "dtuRssi": 48,
     "dtuDataCycle": 31,
-    "dtuCloudPause": 1
+    "dtuResetRequested": 2,
+    "dtuCloudPause": 1,
+    "dtuCloudPauseTime": 30,
+    "dtuRemoteDisplay": 0,
+    "dtuRemoteSummaryDisplay": 0,
+    "deviceData": {
+      "dtu_version": 4097,
+      "dtu_version_string": "01.00.01",
+      "dtu_serial": "123456789011",
+      "inverter_version": 10008,
+      "inverter_version_string": "01.00.08",
+      "inverter_model": "HMS-800W-2T",
+      "inverter_serial": "141241234567"
+    }
   },
   "wifiConnection": {
     "wifiSsid": "MyHomeWiFi",
@@ -759,6 +789,18 @@ inverter_temp = data['inverter']['temp']
 print(f"Current power: {current_power}W")
 print(f"Today's energy: {daily_energy}kWh") 
 print(f"Inverter temp: {inverter_temp}°C")
+
+# Get device information including firmware versions
+info_response = requests.get('http://192.168.1.50/api/info.json')
+info_data = info_response.json()
+
+if 'deviceData' in info_data['dtuConnection']:
+    deviceData = info_data['dtuConnection']['deviceData']
+    print(f"DTU firmware: {deviceData['dtu_version_string']}")
+    print(f"Inverter firmware: {deviceData['inverter_version_string']}")
+    if 'inverter_model' in deviceData:
+        print(f"Inverter model: {deviceData['inverter_model']}")
+        print(f"Serial number: {deviceData['inverter_serial']}")
 ```
 
 **Node.js**:
@@ -864,6 +906,7 @@ Post your inverter model and setup photos in [GitHub Discussions](https://github
 **Problem**: Inconsistent data updates
 - **Normal**: DTU connection issues happen, gateway auto-recovers
 - **Check**: DTU signal strength in web interface
+- **Automatic**: Gateway detects weak WiFi signals (< -75 dBm) and attempts reconnection
 - **Fix**: Improve DTU Wi-Fi signal or move gateway closer
 
 **Problem**: Wrong timezone/time
@@ -888,7 +931,7 @@ Post your inverter model and setup photos in [GitHub Discussions](https://github
 **Problem**: Firmware update fails
 - **Check**: Wi-Fi signal >50% during update
 - **Try**: Stable release instead of snapshot
-- **Recovery**: Factory reset if device won't boot
+- **Recovery**: Factory flash complete firmware if device won't boot (see [Step 2](#step-2-flash-your-esp32))
 
 **Problem**: Settings corrupted/lost
 - **Fix**: Serial connection → `resetToFactory 1`
@@ -954,7 +997,8 @@ mosquitto_sub -h BROKER-IP -t "dtuGateway_+/+/+"
 1. Web interface → DTU tab → Check connection status
 2. Look for "DTU reboots" counter (should be low)
 3. Check "last response" timestamp (should update every ~31 seconds)
-4. Warning icon shows DTU alerts if any
+4. **Check firmware versions**: Verify DTU and inverter firmware versions in system info (`/api/info.json`)
+5. Warning icon shows DTU alerts if any
 
 ### Getting Help
 
@@ -1089,6 +1133,8 @@ OpenDTU Topics: ON/OFF           # Use OpenDTU-compatible topic structure
 ```yaml
 # Optimize for your setup:
 DTU Data Cycle: 31-300           # Faster updates = more DTU stress
+DTU Timeout: 30 seconds          # Extended timeout for weak connections
+WiFi Signal Threshold: -75 dBm   # Automatic reconnection trigger for poor signal
 Cloud Pause Time: 0-60           # Coordinate with Hoymiles cloud
 Connection Retries: 3-10         # DTU connection attempts
 Wi-Fi Power: 20.5dBm             # Reduce if interference issues
@@ -1228,13 +1274,14 @@ https://github.com/ohAnd/dtuGateway/tree/esp8266_maintenance
 **Limitations**: Basic functionality only, no advanced features.
 
 ### Version History
-- **v2.x**: ESP32 with advanced features, displays, TLS
+- **v2.x**: ESP32 with advanced features, displays, TLS, device info extraction, intelligent WiFi management
 - **v1.x**: ESP8266 basic functionality (maintenance only)
-- **Snapshot**: Latest development features
+- **Snapshot**: Latest development features including DTU/inverter firmware version detection and weak connection handling
 
 ### Known Limitations
-- **Memory**: Occasional resets after extended operation (days/weeks)
+- **Memory**: Occasional resets after extended operation (days/weeks) - optimized code reduces RAM usage
 - **DTU Stability**: ~31 second minimum polling to avoid DTU hangs
+- **Connection Management**: Automatic WiFi reconnection for signals below -75 dBm RSSI
 - **TLS**: Only available on ESP32 platform
 - **Display**: Factory mode alternates display types until configured
 
