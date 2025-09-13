@@ -162,6 +162,9 @@ Choose your version:
 - **Stable**: Latest tested release (recommended for most users)
 - **Snapshot**: Latest development features (for testing and early adopters)
 
+**💾 Factory Flash Packages Available:**  
+Each release now includes complete factory flash ZIP packages with all required files (bootloader, partitions, boot_app0, firmware) plus flashing instructions for easy setup.
+
 #### 🧪 **Want to Test New Features?**
 **Snapshot releases** contain the latest development code before it's released as stable:
 
@@ -178,8 +181,9 @@ Choose your version:
 ### Step 2: Flash Your ESP32
 Using [ESP Download Tool](https://www.espressif.com/en/support/download/other-tools):
 
-1. **Download required files** from `doc/esp32_factoryFlash/`:
-   - `bootloader.bin` → Address: `0x1000`
+1. **Download required files**:
+   - Use factory flash ZIP package from the release (recommended)
+   - Required files: `bootloader.bin` → Address: `0x1000`
    - `partitions.bin` → Address: `0x8000` 
    - `boot_app0.bin` → Address: `0xE000`
    - `firmware.bin` → Address: `0x10000`
@@ -190,6 +194,11 @@ Using [ESP Download Tool](https://www.espressif.com/en/support/download/other-to
    - Baud rate: 921600
 
 3. **Press Start** and wait for completion
+
+> **⚠️ Factory Flash Required:**  
+> - **New installations**: First-time ESP32 setup  
+> - **Version 2.2.0017+**: Partition changes prevent OTA updates from older versions  
+> - **Recovery**: After failed OTA or corrupted firmware
 
 *Alternative: Use esptool.py ([community guide](https://github.com/ohAnd/dtuGateway/discussions/46#discussion-7106516))*
 
@@ -922,7 +931,7 @@ Post your inverter model and setup photos in [GitHub Discussions](https://github
 **Problem**: Firmware update fails
 - **Check**: Wi-Fi signal >50% during update
 - **Try**: Stable release instead of snapshot
-- **Recovery**: Factory reset if device won't boot
+- **Recovery**: Factory flash complete firmware if device won't boot (see [Step 2](#step-2-flash-your-esp32))
 
 **Problem**: Settings corrupted/lost
 - **Fix**: Serial connection → `resetToFactory 1`
