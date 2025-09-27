@@ -1,4 +1,4 @@
-# dtuGateway for Hoymiles HMS-xxxW-2T Inverters
+# dtuGateway for Hoymiles HMS-xxxxW-2T Inverters
 
 > 🔌 A reliable ESP32-based gateway that bridges your Hoymiles solar inverter to smart home systems like Home Assistant, openHAB, and MQTT.
 
@@ -10,7 +10,7 @@
 
 | What you need | What you get |
 |---------------|--------------|
-| ESP32 board + Hoymiles HMS-xxxW-2T | Real-time solar data in your smart home |
+| ESP32 board + Hoymiles HMS-xxxxW-2T | Real-time solar data in your smart home |
 | 5 minutes setup | Power monitoring, remote control, automatic updates |
 | Any smartphone/tablet/laptop | Zero-configuration setup with universal captive portal |
 
@@ -118,7 +118,7 @@ dtuGateway provides a reliable, dedicated gateway to your Hoymiles DTU where no 
 
 ## Compatible Hardware
 
--### ✅ Required
+### ✅ Required
 
 - **ESP32 microcontroller**
   - ESP-WROOM-32 NodeMCU-32S *(tested, recommended)*
@@ -128,24 +128,9 @@ dtuGateway provides a reliable, dedicated gateway to your Hoymiles DTU where no 
     > **Most common:** [Waveshare ESP32-S3 1.28 inch IPS LCD](https://www.waveshare.com/esp32-s3-lcd-1.28-b.htm) (GC9A01 driver, 240x240). Widely available as a single board with display and supported by the `esp32_S3_lcd_128` build target.  
     > **Buy:** [Waveshare](https://www.waveshare.com/esp32-s3-lcd-1.28-b.htm) · [Amazon (search)](https://www.amazon.com/s?k=waveshare+esp32-s3+lcd+1.28) · [Aliexpress (search)](https://www.aliexpress.com/wholesale?SearchText=esp32-s3-lcd-1.28-b)
 
-- **Hoymiles HMS-xxxW-2T** solar inverter with **built-in Wi-Fi DTU**
-  - ✅ **Supported**: HMS-800W-2T, HMS-1000W-2T, HMS-600W-2T, HMS-300W-2T
-  - ✅ **Confirmed**: All HMS inverters with 2 panel connections **and integrated Wi-Fi DTU**
-  - ✅ **Accurate Detection**: Automatic model identification via serial number analysis
-  - ❌ **NOT Supported**: External DTU models (DTU-Lite stick, DTU-Pro external units)
-**Common sources:**
-- [Waveshare Product Page](https://www.waveshare.com/esp32-s3-lcd-1.28-b.htm)
-- [Amazon - search "Waveshare ESP32-S3 LCD 1.28" or "ESP32-S3-LCD-1.28-B"](https://www.amazon.com/s?k=waveshare+esp32-s3+lcd+1.28)
-- [Aliexpress - search "ESP32-S3-LCD-1.28-B"](https://www.aliexpress.com/wholesale?SearchText=esp32-s3-lcd-1.28-b)
-
-- **ESP32 microcontroller**
-  - ESP-WROOM-32 NodeMCU-32S *(tested, recommended)*
-  - ESP32-S3 *(standard build: `esp32_S3`, tested by community users)*
-  - ESP32-S3 16MB N16R8 *(build target: `esp32_S3_16MB_N16R8`, tested by community)*
-  - ESP32-S3 with 1.28" round TFT *(special build target: `esp32_S3_lcd_128`, for pre-mounted round GC9A01 displays, see below)*
-- **Hoymiles HMS-xxxW-2T** solar inverter with **built-in Wi-Fi DTU**
-  - ✅ **Supported**: HMS-800W-2T, HMS-1000W-2T, HMS-600W-2T, HMS-300W-2T
-  - ✅ **Confirmed**: All HMS inverters with 2 panel connections **and integrated Wi-Fi DTU**
+- **Hoymiles HMS-xxxxW-2T** solar inverter with **built-in Wi-Fi DTU**
+  - ✅ **Supported**: HMS-600W-2T, HMS-700W-2T, HMS-800W-2T, HMS-900W-2T, HMS-1000W-2T
+  - ✅ **Confirmed**: All HMS-600W/700W/800W/900W/1000W-2T inverters (single phase, 2 MPPT channels, Wi-Fi integrated)
   - ✅ **Accurate Detection**: Automatic model identification via serial number analysis
   - ❌ **NOT Supported**: External DTU models (DTU-Lite stick, DTU-Pro external units)
 
@@ -171,6 +156,17 @@ dtuGateway provides a reliable, dedicated gateway to your Hoymiles DTU where no 
 - dtuGateway connects directly to the inverter, not external DTU hardware
 
 *Not sure about your setup?* Check if your inverter has its own Wi-Fi network or connects directly to your home Wi-Fi. If it does, you have a compatible integrated Wi-Fi DTU model.
+
+
+**Model naming explained:**
+> - `HM`= Hoymiles
+> - `S` = S - single phase inverter
+> - `xxx' / 'xxxx` = wattage (e.g., 800, 1000)
+> - `W` = Wi-Fi version
+> - `2` = 2 channels (for 2 PV panels)
+> - `T` = MPPT (Maximum Power Point Tracking)
+>  
+> Example: **HMS-1000W-2T** means a 1000W inverter, Wi-Fi version, 2 MPPT channels.
 
 ---
 

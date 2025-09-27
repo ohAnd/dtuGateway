@@ -1,7 +1,7 @@
-# dtu Gateway for Hoymiles HMS-xxxW-2T (2T series)
+# dtu Gateway for Hoymiles HMS-xxxxW-2T (2T series)
 
 ## Contents
-- [dtu Gateway for Hoymiles HMS-xxxW-2T (2T series)](#dtu-gateway-for-hoymiles-hms-xxxw-2t-2t-series)
+- [dtu Gateway for Hoymiles HMS-xxxxW-2T (2T series)](#dtu-gateway-for-hoymiles-hms-xxxxw-2t-2t-series)
   - [Contents](#contents)
   - [problem](#problem)
   - [goal](#goal)
