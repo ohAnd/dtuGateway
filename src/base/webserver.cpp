@@ -322,6 +322,7 @@ void DTUwebserver::handleConfigPage(AsyncWebServerRequest *request)
 void DTUwebserver::handleDataJson(AsyncWebServerRequest *request)
 {
     String JSON = "{";
+    JSON = JSON + "\"apiVersion\": \"" API_VERSION "\",";
     JSON = JSON + "\"localtime\": " + String(dtuGlobalData.currentTimestamp) + ",";
     JSON = JSON + "\"ntpStamp\": " + String(platformData.currentNTPtimeUTC) + ",";
 
@@ -371,6 +372,7 @@ void DTUwebserver::handleDataJson(AsyncWebServerRequest *request)
 void DTUwebserver::handleInfojson(AsyncWebServerRequest *request)
 {
     String JSON = "{";
+    JSON = JSON + "\"apiVersion\": \"" API_VERSION "\",";
     JSON = JSON + "\"chipid\": " + String(platformData.chipID) + ",";
     JSON = JSON + "\"chipType\": \"" + platformData.chipType + "\",";
     JSON = JSON + "\"host\": \"" + platformData.espUniqueName + "\",";
@@ -477,6 +479,7 @@ void DTUwebserver::handleInfojson(AsyncWebServerRequest *request)
 void DTUwebserver::handleDtuInfoJson(AsyncWebServerRequest *request)
 {
     String JSON = "{";
+    JSON = JSON + "\"apiVersion\": \"" API_VERSION "\",";
     JSON = JSON + "\"localtime\": " + String(dtuGlobalData.currentTimestamp) + ",";
     JSON = JSON + "\"ntpStamp\": " + String(platformData.currentNTPtimeUTC) + ",";
 

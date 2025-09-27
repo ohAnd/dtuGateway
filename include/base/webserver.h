@@ -1,6 +1,8 @@
 #ifndef DTU_WEBSERVER_H
 #define DTU_WEBSERVER_H
 
+#define API_VERSION "1.0.0"
+
 #if defined(ESP8266)
 #include <ESP8266WiFi.h>
 #include <ESPAsyncTCP.h>
