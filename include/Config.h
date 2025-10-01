@@ -7,6 +7,9 @@
 #include <LittleFS.h>
 
 #define CONFIG_FILE_PATH "/userconfig.json"
+#define DTU_EVENTS_FILE_PATH "/dtu_events.json"
+#define DTU_EVENTS_MAX_ENTRIES 50
+#define DTU_EVENTS_MAX_FILE_SIZE 32768  // 32KB limit
 
 struct UserConfig
 {
@@ -71,6 +74,13 @@ class UserConfigManager {
         // String getWebHandler(keyAndValue_t* keyValueWebClient, unsigned int size);
         String getWebHandler(JsonDocument doc);
         
+        // DTU Event Storage Management
+        bool saveDtuEvent(const char* eventType, const char* description, 
+                         unsigned long timestamp, unsigned long connectionDuration, 
+                         uint8_t dtuState, uint16_t bufferSpace);
+        String getDtuEventsJson();
+        void clearDtuEvents();
+        int getDtuEventCount();
 
     private:
         const char *filePath;

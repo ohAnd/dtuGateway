@@ -49,6 +49,18 @@
 #define DTU_ERROR_DATA_NO_CHANGE 3
 #define DTU_ERROR_LAST_SEND 4
 
+// Event monitoring thresholds
+#define DTU_EVENT_SHORT_CONNECTION_MS 1000    // Connections shorter than 1 second
+#define DTU_EVENT_BUFFER_SIZE 10              // Keep last 10 events
+#define DTU_EVENT_MIN_INTERVAL_MS 5000        // Minimum interval between similar events
+
+// Event types for monitoring
+#define DTU_EVENT_SHORT_CONNECT 1
+#define DTU_EVENT_UNEXPECTED_DISCONNECT 2
+#define DTU_EVENT_RECOVERY_DETECTED 3
+#define DTU_EVENT_PATTERN_ANOMALY 4
+#define DTU_EVENT_CLOUD_PAUSE_RECOVERY 5
+
 #define DTU_TXRX_STATE_IDLE 0
 #define DTU_TXRX_STATE_WAIT_APPGETHISTPOWER 1
 #define DTU_TXRX_STATE_WAIT_REALDATANEW 2
@@ -65,6 +77,16 @@
 #define DTU_TXRX_STATE_ERROR 99
 
 
+// Event monitoring structure for intelligent DTU issue tracking
+struct dtuEventRecord {
+  uint8_t eventType;              // Type of event (DTU_EVENT_*)
+  unsigned long timestamp;        // When event occurred
+  unsigned long connectionDuration; // Duration of connection (if applicable)
+  uint8_t dtuState;              // DTU state at time of event
+  uint16_t bufferSpace;          // Available buffer space (if known)
+  char description[64];          // Brief event description
+};
+
 struct connectionControl
 {
   boolean preventCloudErrors = true;
@@ -78,6 +100,22 @@ struct connectionControl
   uint8_t dtuConnectRetriesShort = 0;
   uint8_t dtuConnectRetriesLong = 0;
   unsigned long pauseStartTime = 0;
+  
+  // DIAGNOSTIC: Track connection patterns to detect DTU state changes
+  unsigned long lastConnectTime = 0;
+  unsigned long lastDisconnectTime = 0;
+  uint16_t totalConnections = 0;
+  uint16_t shortConnections = 0;  // connections < 1 second
+  unsigned long longestConnection = 0;
+  unsigned long averageConnectionTime = 0;
+  
+  // EVENT MONITORING: Intelligent issue tracking
+  dtuEventRecord events[DTU_EVENT_BUFFER_SIZE];  // Circular buffer of events
+  uint8_t eventIndex = 0;                        // Current index in circular buffer
+  unsigned long lastEventTime[6] = {0};          // Last time each event type occurred
+  boolean healthyStateDetected = false;          // Flag when DTU returns to healthy state
+  unsigned long lastHealthyStateTime = 0;        // When healthy state was detected
+  uint16_t consecutiveShortConnections = 0;      // Counter for pattern detection
 };
 
 struct baseData
@@ -170,6 +208,12 @@ public:
     void requestRestartMi();
     void requestInverterTargetState(boolean OnOff);
     void requestAlarms();
+    void requestEventHistory();  // Display DTU event monitoring history
+    
+    // Connection status methods for API access
+    bool isConnected();
+    uint16_t getConnectionBufferSpace();
+    unsigned long getCurrentConnectionDuration();
 
     String getTimeStringByTimestamp(unsigned long timestamp);
     void printDataAsTextToSerial();
@@ -213,6 +257,12 @@ private:
     void checkingForLastDataReceived();
     void resetDtuGlobalData(uint8_t errorState,uint8_t dtuState);
     boolean cloudPauseActiveControl();
+    
+    // EVENT MONITORING: Intelligent DTU issue tracking
+    void logDtuEvent(uint8_t eventType, const char* description, unsigned long connectionDuration = 0);
+    void checkConnectionAnomalies();
+    void detectHealthyStateRecovery();
+    void printEventHistory();
         
     // Protobuf functions
     void writeReqAppGetHistPower();

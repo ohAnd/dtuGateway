@@ -89,6 +89,8 @@ void DTUwebserver::start()
     asyncDtuWebServer.on("/api/data.json", handleDataJson);
     asyncDtuWebServer.on("/api/info.json", handleInfojson);
     asyncDtuWebServer.on("/api/dtuData.json", handleDtuInfoJson);
+    asyncDtuWebServer.on("/api/dtuEvents.json", handleDtuEventsJson);
+    asyncDtuWebServer.on("/api/dtuEventsClear", handleDtuEventsClear);
 
     // OTA direct update
     asyncDtuWebServer.on("/updateOTASettings", handleUpdateOTASettings);
@@ -972,4 +974,65 @@ void DTUwebserver::notFound(AsyncWebServerRequest *request)
         // Normal mode - return 404
         request->send(404, "text/plain", "Not found");
     }
+}
+
+// =====================================================================================
+// DTU Events API Handlers - Persistent event data access via JSON API
+// =====================================================================================
+
+void DTUwebserver::handleDtuEventsJson(AsyncWebServerRequest *request)
+{
+    Serial.println("WEB:\t\t api/dtuEvents.json requested");
+    
+    // Get persistent DTU events from storage
+    String eventsJson = configManager.getDtuEventsJson();
+    
+    // Add current connection statistics to the response
+    JsonDocument responseDoc;
+    DeserializationError error = deserializeJson(responseDoc, eventsJson);
+    
+    if (error) {
+        // If parsing fails, create minimal response
+        responseDoc.clear();
+        responseDoc["events"] = JsonArray();
+        responseDoc["error"] = "Failed to parse events data";
+    }
+    
+    // Add current runtime statistics
+    responseDoc["statistics"]["totalConnections"] = dtuConnection.totalConnections;
+    responseDoc["statistics"]["shortConnections"] = dtuConnection.shortConnections;
+    responseDoc["statistics"]["longestConnection"] = dtuConnection.longestConnection;
+    responseDoc["statistics"]["averageConnectionTime"] = dtuConnection.averageConnectionTime;
+    responseDoc["statistics"]["healthyState"] = dtuConnection.healthyStateDetected;
+    responseDoc["statistics"]["eventCount"] = configManager.getDtuEventCount();
+    responseDoc["statistics"]["currentTimestamp"] = millis();
+    
+    // Add current connection info if connected
+    extern DTUInterface dtuInterface;
+    if (dtuInterface.isConnected()) {
+        responseDoc["currentConnection"]["duration"] = dtuInterface.getCurrentConnectionDuration();
+        responseDoc["currentConnection"]["bufferSpace"] = dtuInterface.getConnectionBufferSpace();
+        responseDoc["currentConnection"]["state"] = "connected";
+    } else {
+        responseDoc["currentConnection"]["state"] = "disconnected";
+    }
+    
+    // Serialize and send response
+    String jsonResponse;
+    serializeJson(responseDoc, jsonResponse);
+    
+    request->send(200, "application/json; charset=utf-8", jsonResponse);
+}
+
+void DTUwebserver::handleDtuEventsClear(AsyncWebServerRequest *request)
+{
+    Serial.println("WEB:\t\t api/dtuEventsClear requested");
+    
+    // Clear persistent DTU events
+    configManager.clearDtuEvents();
+    
+    // Create response
+    String response = "{\"success\": true, \"message\": \"DTU events cleared\", \"timestamp\": " + String(millis()) + "}";
+    
+    request->send(200, "application/json; charset=utf-8", response);
 }

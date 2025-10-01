@@ -42,6 +42,17 @@ bool UserConfigManager::begin()
     {
         Serial.println(F("UserConfigManager::begin - Config loaded successfully"));
     }
+    
+    // Initialize DTU events file if it doesn't exist
+    if (!LittleFS.exists(DTU_EVENTS_FILE_PATH)) {
+        Serial.println(F("UserConfigManager::begin - Initializing DTU events storage"));
+        File eventsFile = LittleFS.open(DTU_EVENTS_FILE_PATH, "w");
+        if (eventsFile) {
+            eventsFile.println("{\"events\":[]}");
+            eventsFile.close();
+        }
+    }
+    
     return true;
 }
 
@@ -387,4 +398,110 @@ String UserConfigManager::getWebHandler(JsonDocument doc)
 
     String html = createWebPage(updated);
     return html;
+}
+
+// =====================================================================================
+// DTU Event Storage System - Persistent logging with JSON API
+// =====================================================================================
+
+bool UserConfigManager::saveDtuEvent(const char* eventType, const char* description, 
+                                    unsigned long timestamp, unsigned long connectionDuration,
+                                    uint8_t dtuState, uint16_t bufferSpace) {
+    
+    // Read existing events
+    JsonDocument eventsDoc;
+    File eventsFile = LittleFS.open(DTU_EVENTS_FILE_PATH, "r");
+    if (eventsFile) {
+        DeserializationError error = deserializeJson(eventsDoc, eventsFile);
+        eventsFile.close();
+        if (error) {
+            Serial.println("DTU Events: Failed to parse existing events file");
+            eventsDoc.clear();
+            eventsDoc["events"] = JsonArray();
+        }
+    } else {
+        eventsDoc["events"] = JsonArray();
+    }
+    
+    // Create new event object
+    JsonObject newEvent = eventsDoc["events"].add<JsonObject>();
+    newEvent["timestamp"] = timestamp;
+    newEvent["eventType"] = eventType;
+    newEvent["description"] = description;
+    newEvent["connectionDuration"] = connectionDuration;
+    newEvent["dtuState"] = dtuState;
+    newEvent["bufferSpace"] = bufferSpace;
+    newEvent["localTime"] = timestamp; // Could convert to readable format later
+    
+    // Maintain circular buffer - remove oldest events if exceeding limit
+    JsonArray events = eventsDoc["events"];
+    while (events.size() > DTU_EVENTS_MAX_ENTRIES) {
+        events.remove(0); // Remove oldest (first) event
+    }
+    
+    // Check file size and trim if needed
+    eventsFile = LittleFS.open(DTU_EVENTS_FILE_PATH, "w");
+    if (!eventsFile) {
+        Serial.println("DTU Events: Failed to open file for writing");
+        return false;
+    }
+    
+    size_t bytesWritten = serializeJson(eventsDoc, eventsFile);
+    eventsFile.close();
+    
+    // If file is too large, reduce entries more aggressively
+    if (bytesWritten > DTU_EVENTS_MAX_FILE_SIZE) {
+        Serial.println("DTU Events: File size limit reached, reducing entries");
+        while (events.size() > DTU_EVENTS_MAX_ENTRIES / 2 && events.size() > 0) {
+            events.remove(0);
+        }
+        
+        eventsFile = LittleFS.open(DTU_EVENTS_FILE_PATH, "w");
+        if (eventsFile) {
+            serializeJson(eventsDoc, eventsFile);
+            eventsFile.close();
+        }
+    }
+    
+    Serial.println("DTU Events: Saved event '" + String(eventType) + "' to persistent storage");
+    return true;
+}
+
+String UserConfigManager::getDtuEventsJson() {
+    File eventsFile = LittleFS.open(DTU_EVENTS_FILE_PATH, "r");
+    if (!eventsFile) {
+        return "{\"events\":[],\"error\":\"Events file not found\"}";
+    }
+    
+    String jsonContent = eventsFile.readString();
+    eventsFile.close();
+    
+    if (jsonContent.length() == 0) {
+        return "{\"events\":[],\"error\":\"Empty events file\"}";
+    }
+    
+    return jsonContent;
+}
+
+void UserConfigManager::clearDtuEvents() {
+    File eventsFile = LittleFS.open(DTU_EVENTS_FILE_PATH, "w");
+    if (eventsFile) {
+        eventsFile.println("{\"events\":[]}");
+        eventsFile.close();
+        Serial.println("DTU Events: Event history cleared");
+    }
+}
+
+int UserConfigManager::getDtuEventCount() {
+    JsonDocument eventsDoc;
+    File eventsFile = LittleFS.open(DTU_EVENTS_FILE_PATH, "r");
+    if (!eventsFile) return 0;
+    
+    DeserializationError error = deserializeJson(eventsDoc, eventsFile);
+    eventsFile.close();
+    
+    if (error) return 0;
+    
+    JsonArray events = eventsDoc["events"];
+    return events.size();
 }
