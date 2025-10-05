@@ -190,7 +190,7 @@ static const char *index_html PROGMEM = R"=====(
                     <input type="number" id="dtuDataCycle" min="1" max="60" placeholder="31">
                 </div>
                 <div>
-                    dtu cloud update pause (no cycle update every full 15 min):
+                    dtu cloud update pause (no cycle update every 5 min):
                     <input type="checkbox" id="dtuCloudPause">
                 </div>
             </div>

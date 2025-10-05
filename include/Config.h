@@ -23,7 +23,7 @@ struct UserConfig
     uint16_t webServerPort        = 80;
 
     char dtuHostIpDomain[128]     = "192.168.0.254";
-    int dtuCloudPauseTime         = 40;
+    int dtuCloudPauseTime         = 30;
     boolean dtuCloudPauseActive   = true;
     unsigned int dtuUpdateTime    = 31;
 

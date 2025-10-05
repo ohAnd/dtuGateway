@@ -330,7 +330,7 @@ void DTUInterface::txrxStateObserver()
     else if (millis() - dtuConnection.dtuTxRxStateLastChange > 30000 && dtuConnection.dtuTxRxState != DTU_TXRX_STATE_IDLE)
     {
         // Check WiFi quality before forcing disconnect
-        if (WiFi.RSSI() < -75)
+        if (WiFi.RSSI() < -80)
         {
             Serial.println(F("DTUinterface:\t [[stateObserver]] - timeout with poor WiFi signal - attempting WiFi reconnect"));
             WiFi.reconnect();
@@ -2274,7 +2274,12 @@ boolean DTUInterface::cloudPauseActiveControl()
     int min = stamp.minute;
     int sec = stamp.second;
 
-    if (sec >= 40 && (min == 59 || min == 14 || min == 29 || min == 44) && !dtuConnection.dtuActiveOffToCloudUpdate)
+    // HOYMILES CLOUD SYNC COORDINATION (5-minute intervals)
+    // Hoymiles backend changed from 15min to 5min sync intervals
+    // real measurements: 15:05:02, 15:10:02, 15:15:15, 15:20:02, 15:25:02, 15:30:25 ...
+    // Cloud sync windows: every 5 minutes at :04:50, :09:50, :14:50, :19:50, :24:50, etc.
+    // Pattern: minutes ending in 4 (04, 09, 14, 19, 24, 29, 34, 39, 44, 49, 54, 59) at 50+ seconds
+    if (sec >= 50 && (min % 5 == 4) && !dtuConnection.dtuActiveOffToCloudUpdate)
     {
         Serial.printf("\n<<< dtuCloudPauseActiveControl >>> --- ");
         Serial.printf("local time: %02i.%02i. - %02i:%02i:%02i ", stamp.day, stamp.month, stamp.hour, stamp.minute, stamp.second);
