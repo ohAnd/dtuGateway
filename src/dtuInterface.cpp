@@ -682,6 +682,7 @@ void DTUInterface::checkingDataUpdate()
     {
         dtuGlobalData.uptodate = true;
         dtuConnection.dtuErrorState = DTU_ERROR_NO_ERROR;
+        dtuGlobalData.updateReceived = true;
         // sync local time (in seconds) to DTU time, only if abbrevation about 3 seconds
         if (abs((int(dtuGlobalData.respTimestamp) - int(dtuGlobalData.currentTimestamp))) > 3)
         {
