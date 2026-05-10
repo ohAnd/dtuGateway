@@ -785,36 +785,36 @@ boolean getPowerSetDataFromOpenHab()
 // update all values to openhab
 boolean updateValueToOpenhab()
 {
-  boolean sendOk = postMessageToOpenhab(String(userConfig.openItemPrefix) + "Grid_U", (String)dtuGlobalData.grid.voltage);
+  boolean sendOk = postMessageToOpenhab(String(userConfig.openItemPrefix) + "Grid_U", (String)dtuGlobalData.grid.voltage.getValue());
   if (sendOk)
   {
-    postMessageToOpenhab(String(userConfig.openItemPrefix) + "Grid_I", (String)dtuGlobalData.grid.current);
-    postMessageToOpenhab(String(userConfig.openItemPrefix) + "Grid_P", (String)dtuGlobalData.grid.power);
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "Grid_I", (String)dtuGlobalData.grid.current.getValue());
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "Grid_P", (String)dtuGlobalData.grid.power.getValue());
     postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV_E_day", String(dtuGlobalData.grid.dailyEnergy, 3));
     if (dtuGlobalData.grid.totalEnergy != 0)
     {
       postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV_E_total", String(dtuGlobalData.grid.totalEnergy, 3));
     }
 
-    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV1_U", (String)dtuGlobalData.pv0.voltage);
-    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV1_I", (String)dtuGlobalData.pv0.current);
-    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV1_P", (String)dtuGlobalData.pv0.power);
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV1_U", (String)dtuGlobalData.pv0.voltage.getValue());
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV1_I", (String)dtuGlobalData.pv0.current.getValue());
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV1_P", (String)dtuGlobalData.pv0.power.getValue());
     postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV1_E_day", String(dtuGlobalData.pv0.dailyEnergy, 3));
     if (dtuGlobalData.pv0.totalEnergy != 0)
     {
       postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV1_E_total", String(dtuGlobalData.pv0.totalEnergy, 3));
     }
 
-    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV2_U", (String)dtuGlobalData.pv1.voltage);
-    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV2_I", (String)dtuGlobalData.pv1.current);
-    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV2_P", (String)dtuGlobalData.pv1.power);
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV2_U", (String)dtuGlobalData.pv1.voltage.getValue());
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV2_I", (String)dtuGlobalData.pv1.current.getValue());
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV2_P", (String)dtuGlobalData.pv1.power.getValue());
     postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV2_E_day", String(dtuGlobalData.pv1.dailyEnergy, 3));
     if (dtuGlobalData.pv1.totalEnergy != 0)
     {
       postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV2_E_total", String(dtuGlobalData.pv1.totalEnergy, 3));
     }
 
-    postMessageToOpenhab(String(userConfig.openItemPrefix) + "_Temp", (String)dtuGlobalData.inverterTemp);
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "_Temp", (String)dtuGlobalData.inverterTemp.getValue());
     if (dtuGlobalData.powerLimit != -1)
       postMessageToOpenhab(String(userConfig.openItemPrefix) + "_PowerLimit", (String)dtuGlobalData.powerLimit);
     postMessageToOpenhab(String(userConfig.openItemPrefix) + "_WifiRSSI", (String)dtuGlobalData.dtuRssi);
@@ -830,29 +830,29 @@ void updateValuesToMqtt(boolean haAutoDiscovery = false)
   std::map<std::string, std::string> keyValueStore;
   keyValueStore["time_stamp"] = getTimeStringByTimestamp(platformData.currentNTPtimeUTC).c_str();
   // grid
-  keyValueStore["grid_U"] = String(dtuGlobalData.grid.voltage).c_str();
-  keyValueStore["grid_I"] = String(dtuGlobalData.grid.current).c_str();
-  keyValueStore["grid_P"] = String(dtuGlobalData.grid.power).c_str();
+  keyValueStore["grid_U"] = String(dtuGlobalData.grid.voltage.getValue()).c_str();
+  keyValueStore["grid_I"] = String(dtuGlobalData.grid.current.getValue()).c_str();
+  keyValueStore["grid_P"] = String(dtuGlobalData.grid.power.getValue()).c_str();
   keyValueStore["grid_dailyEnergy"] = String(dtuGlobalData.grid.dailyEnergy, 3).c_str();
   if (dtuGlobalData.grid.totalEnergy != 0)
     keyValueStore["grid_totalEnergy"] = String(dtuGlobalData.grid.totalEnergy, 3).c_str();
   // pv0
-  keyValueStore["pv0_U"] = String(dtuGlobalData.pv0.voltage).c_str();
-  keyValueStore["pv0_I"] = String(dtuGlobalData.pv0.current).c_str();
-  keyValueStore["pv0_P"] = String(dtuGlobalData.pv0.power).c_str();
+  keyValueStore["pv0_U"] = String(dtuGlobalData.pv0.voltage.getValue()).c_str();
+  keyValueStore["pv0_I"] = String(dtuGlobalData.pv0.current.getValue()).c_str();
+  keyValueStore["pv0_P"] = String(dtuGlobalData.pv0.power.getValue()).c_str();
   keyValueStore["pv0_dailyEnergy"] = String(dtuGlobalData.pv0.dailyEnergy, 3).c_str();
   if (dtuGlobalData.pv0.totalEnergy != 0)
     keyValueStore["pv0_totalEnergy"] = String(dtuGlobalData.pv0.totalEnergy, 3).c_str();
   // pv1
-  keyValueStore["pv1_U"] = String(dtuGlobalData.pv1.voltage).c_str();
-  keyValueStore["pv1_I"] = String(dtuGlobalData.pv1.current).c_str();
-  keyValueStore["pv1_P"] = String(dtuGlobalData.pv1.power).c_str();
+  keyValueStore["pv1_U"] = String(dtuGlobalData.pv1.voltage.getValue()).c_str();
+  keyValueStore["pv1_I"] = String(dtuGlobalData.pv1.current.getValue()).c_str();
+  keyValueStore["pv1_P"] = String(dtuGlobalData.pv1.power.getValue()).c_str();
   keyValueStore["pv1_dailyEnergy"] = String(dtuGlobalData.pv1.dailyEnergy, 3).c_str();
   if (dtuGlobalData.pv0.totalEnergy != 0)
     keyValueStore["pv1_totalEnergy"] = String(dtuGlobalData.pv1.totalEnergy, 3).c_str();
   // inverter
-  keyValueStore["grid_Freq"] = String(dtuGlobalData.gridFreq).c_str();
-  keyValueStore["inverter_Temp"] = String(dtuGlobalData.inverterTemp).c_str();
+  keyValueStore["grid_Freq"] = String(dtuGlobalData.gridFreq.getValue()).c_str();
+  keyValueStore["inverter_Temp"] = String(dtuGlobalData.inverterTemp.getValue()).c_str();
   keyValueStore["inverter_PowerLimit"] = String(dtuGlobalData.powerLimit).c_str();
   keyValueStore["inverter_PowerLimitSet"] = String(dtuGlobalData.powerLimitSet).c_str();
   keyValueStore["inverter_WifiRSSI"] = String(dtuGlobalData.dtuRssi).c_str();
@@ -1547,25 +1547,25 @@ void loop()
       RemoteInverterData remoteData = mqttHandler.getRemoteInverterData();
       if (remoteData.updateReceived == true)
       {
-        dtuGlobalData.grid.power = remoteData.grid.power;
-        dtuGlobalData.grid.current = remoteData.grid.current;
-        dtuGlobalData.grid.voltage = remoteData.grid.voltage;
+        dtuGlobalData.grid.power.update(remoteData.grid.power);
+        dtuGlobalData.grid.current.update(remoteData.grid.current);
+        dtuGlobalData.grid.voltage.update(remoteData.grid.voltage);
         dtuGlobalData.grid.dailyEnergy = remoteData.grid.dailyEnergy;
         dtuGlobalData.grid.totalEnergy = remoteData.grid.totalEnergy;
 
-        dtuGlobalData.pv0.power = remoteData.pv0.power;
-        dtuGlobalData.pv0.current = remoteData.pv0.current;
-        dtuGlobalData.pv0.voltage = remoteData.pv0.voltage;
+        dtuGlobalData.pv0.power.update(remoteData.pv0.power);
+        dtuGlobalData.pv0.current.update(remoteData.pv0.current);
+        dtuGlobalData.pv0.voltage.update(remoteData.pv0.voltage);
         dtuGlobalData.pv0.dailyEnergy = remoteData.pv0.dailyEnergy;
         dtuGlobalData.pv0.totalEnergy = remoteData.pv0.totalEnergy;
 
-        dtuGlobalData.pv1.power = remoteData.pv1.power;
-        dtuGlobalData.pv1.current = remoteData.pv1.current;
-        dtuGlobalData.pv1.voltage = remoteData.pv1.voltage;
+        dtuGlobalData.pv1.power.update(remoteData.pv1.power);
+        dtuGlobalData.pv1.current.update(remoteData.pv1.current);
+        dtuGlobalData.pv1.voltage.update(remoteData.pv1.voltage);
         dtuGlobalData.pv1.dailyEnergy = remoteData.pv1.dailyEnergy;
         dtuGlobalData.pv1.totalEnergy = remoteData.pv1.totalEnergy;
 
-        dtuGlobalData.inverterTemp = remoteData.inverterTemp;
+        dtuGlobalData.inverterTemp.update(remoteData.inverterTemp);
         dtuGlobalData.powerLimit = remoteData.powerLimit;
         dtuGlobalData.dtuRssi = remoteData.dtuRssi;
 

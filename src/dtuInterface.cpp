@@ -607,7 +607,7 @@ void DTUInterface::onDataReceived(void *arg, AsyncClient *client, void *data, si
 void DTUInterface::printDataAsTextToSerial()
 {
     Serial.print("power limit (set): " + String(dtuGlobalData.powerLimit) + " % (" + String(dtuGlobalData.powerLimitSet) + " %) --- inverter mode: " + String(dtuGlobalData.inverterControl.stateOn ? "On" : "Off") + " --- ");
-    Serial.print("inverter temp: " + String(dtuGlobalData.inverterTemp) + " °C - serial number: " + dtuGlobalData.device_serial_number_dtu + "\n");
+    Serial.print("inverter temp: " + String(dtuGlobalData.inverterTemp.getValue()) + " °C - serial number: " + dtuGlobalData.device_serial_number_dtu + "\n");
 
     Serial.print(F(" \t |_____current____|_____voltage___|_____power_____|________daily______|_____total_____|\n"));
     // 12341234 |1234 current  |1234 voltage  |1234 power1234|12341234daily 1234|12341234total 1234|
@@ -615,23 +615,23 @@ void DTUInterface::printDataAsTextToSerial()
     // pvO 1234 |1234 123456 A |1234 123456 V |1234 123456 W |1234 12345678 kWh |1234 12345678 kWh |
     // pvI 1234 |1234 123456 A |1234 123456 V |1234 123456 W |1234 12345678 kWh |1234 12345678 kWh |
     Serial.print(F("grid\t"));
-    Serial.printf(" |\t %6.2f A", dtuGlobalData.grid.current);
-    Serial.printf(" |\t %6.2f V", dtuGlobalData.grid.voltage);
-    Serial.printf(" |\t %6.2f W", dtuGlobalData.grid.power);
+    Serial.printf(" |\t %6.2f A", dtuGlobalData.grid.current.getValue());
+    Serial.printf(" |\t %6.2f V", dtuGlobalData.grid.voltage.getValue());
+    Serial.printf(" |\t %6.2f W", dtuGlobalData.grid.power.getValue());
     Serial.printf(" |\t %8.3f kWh", dtuGlobalData.grid.dailyEnergy);
     Serial.printf(" |\t %8.3f kWh |\n", dtuGlobalData.grid.totalEnergy);
 
     Serial.print(F("pv0\t"));
-    Serial.printf(" |\t %6.2f A", dtuGlobalData.pv0.current);
-    Serial.printf(" |\t %6.2f V", dtuGlobalData.pv0.voltage);
-    Serial.printf(" |\t %6.2f W", dtuGlobalData.pv0.power);
+    Serial.printf(" |\t %6.2f A", dtuGlobalData.pv0.current.getValue());
+    Serial.printf(" |\t %6.2f V", dtuGlobalData.pv0.voltage.getValue());
+    Serial.printf(" |\t %6.2f W", dtuGlobalData.pv0.power.getValue());
     Serial.printf(" |\t %8.3f kWh", dtuGlobalData.pv0.dailyEnergy);
     Serial.printf(" |\t %8.3f kWh |\n", dtuGlobalData.pv0.totalEnergy);
 
     Serial.print(F("pv1\t"));
-    Serial.printf(" |\t %6.2f A", dtuGlobalData.pv1.current);
-    Serial.printf(" |\t %6.2f V", dtuGlobalData.pv1.voltage);
-    Serial.printf(" |\t %6.2f W", dtuGlobalData.pv1.power);
+    Serial.printf(" |\t %6.2f A", dtuGlobalData.pv1.current.getValue());
+    Serial.printf(" |\t %6.2f V", dtuGlobalData.pv1.voltage.getValue());
+    Serial.printf(" |\t %6.2f W", dtuGlobalData.pv1.power.getValue());
     Serial.printf(" |\t %8.3f kWh", dtuGlobalData.pv1.dailyEnergy);
     Serial.printf(" |\t %8.3f kWh |\n", dtuGlobalData.pv1.totalEnergy);
 }
@@ -646,23 +646,23 @@ void DTUInterface::printDataAsJsonToSerial()
     doc["dtuRssi"] = dtuGlobalData.dtuRssi;
     doc["powerLimit"] = dtuGlobalData.powerLimit;
     doc["powerLimitSet"] = dtuGlobalData.powerLimitSet;
-    doc["inverterTemp"] = dtuGlobalData.inverterTemp;
+    doc["inverterTemp"] = dtuGlobalData.inverterTemp.getValue();
 
-    doc["grid"]["current"] = dtuGlobalData.grid.current;
-    doc["grid"]["voltage"] = dtuGlobalData.grid.voltage;
-    doc["grid"]["power"] = dtuGlobalData.grid.power;
+    doc["grid"]["current"] = dtuGlobalData.grid.current.getValue();
+    doc["grid"]["voltage"] = dtuGlobalData.grid.voltage.getValue();
+    doc["grid"]["power"] = dtuGlobalData.grid.power.getValue();
     doc["grid"]["dailyEnergy"] = dtuGlobalData.grid.dailyEnergy;
     doc["grid"]["totalEnergy"] = dtuGlobalData.grid.totalEnergy;
 
-    doc["pv0"]["current"] = dtuGlobalData.pv0.current;
-    doc["pv0"]["voltage"] = dtuGlobalData.pv0.voltage;
-    doc["pv0"]["power"] = dtuGlobalData.pv0.power;
+    doc["pv0"]["current"] = dtuGlobalData.pv0.current.getValue();
+    doc["pv0"]["voltage"] = dtuGlobalData.pv0.voltage.getValue();
+    doc["pv0"]["power"] = dtuGlobalData.pv0.power.getValue();
     doc["pv0"]["dailyEnergy"] = dtuGlobalData.pv0.dailyEnergy;
     doc["pv0"]["totalEnergy"] = dtuGlobalData.pv0.totalEnergy;
 
-    doc["pv1"]["current"] = dtuGlobalData.pv1.current;
-    doc["pv1"]["voltage"] = dtuGlobalData.pv1.voltage;
-    doc["pv1"]["power"] = dtuGlobalData.pv1.power;
+    doc["pv1"]["current"] = dtuGlobalData.pv1.current.getValue();
+    doc["pv1"]["voltage"] = dtuGlobalData.pv1.voltage.getValue();
+    doc["pv1"]["power"] = dtuGlobalData.pv1.power.getValue();
     doc["pv1"]["dailyEnergy"] = dtuGlobalData.pv1.dailyEnergy;
     doc["pv1"]["totalEnergy"] = dtuGlobalData.pv1.totalEnergy;
     serializeJson(doc, Serial);
@@ -719,7 +719,7 @@ void DTUInterface::initializeCRC()
 void DTUInterface::checkingForLastDataReceived()
 {
     // check if last data received - currentTimestamp + 5 sec (to debounce async current timestamp) - lastRespTimestamp > 3 min
-    if (((dtuGlobalData.currentTimestamp + 5) - dtuGlobalData.lastRespTimestamp) > (3 * 60) && dtuGlobalData.grid.voltage > 0 && dtuConnection.dtuErrorState != DTU_ERROR_LAST_SEND) // dtuGlobalData.grid.voltage > 0 indicates dtu/ inverter was working
+    if (((dtuGlobalData.currentTimestamp + 5) - dtuGlobalData.lastRespTimestamp) > (3 * 60) && dtuGlobalData.grid.voltage.getValue() > 0 && dtuConnection.dtuErrorState != DTU_ERROR_LAST_SEND) // dtuGlobalData.grid.voltage > 0 indicates dtu/ inverter was working
     {
         resetDtuGlobalData(DTU_ERROR_LAST_SEND, DTU_STATE_OFFLINE);
         Serial.println("DTUinterface:\t checkingForLastDataReceived >>>>> TIMEOUT 5 min for DTU -> NIGHT - send zero values +++ currentTimestamp: " + String(dtuGlobalData.currentTimestamp) + " - lastRespTimestamp: " + String(dtuGlobalData.lastRespTimestamp));
@@ -728,18 +728,29 @@ void DTUInterface::checkingForLastDataReceived()
 
 void DTUInterface::resetDtuGlobalData(uint8_t errorState, uint8_t dtuState)
 {
-    dtuGlobalData.grid.power = 0;
-    dtuGlobalData.grid.current = 0;
-    dtuGlobalData.grid.voltage = 0;
-
-    dtuGlobalData.pv0.power = 0;
-    dtuGlobalData.pv0.current = 0;
-    dtuGlobalData.pv0.voltage = 0;
-
-    dtuGlobalData.pv1.power = 0;
-    dtuGlobalData.pv1.current = 0;
-    dtuGlobalData.pv1.voltage = 0;
-
+    // On timeout, trigger cache mode for all metrics: hold last good value for CACHE_TIMEOUT_MS, then zero
+    // This prevents false zeros in charts when DTU temporarily disconnects
+    
+    // Grid metrics
+    dtuGlobalData.grid.voltage.resetOnTimeout();
+    dtuGlobalData.grid.current.resetOnTimeout();
+    dtuGlobalData.grid.power.resetOnTimeout();
+    
+    // PV0 metrics
+    dtuGlobalData.pv0.voltage.resetOnTimeout();
+    dtuGlobalData.pv0.current.resetOnTimeout();
+    dtuGlobalData.pv0.power.resetOnTimeout();
+    
+    // PV1 metrics
+    dtuGlobalData.pv1.voltage.resetOnTimeout();
+    dtuGlobalData.pv1.current.resetOnTimeout();
+    dtuGlobalData.pv1.power.resetOnTimeout();
+    
+    // Inverter metrics (temperature and frequency now consistent with other metrics)
+    dtuGlobalData.inverterTemp.resetOnTimeout();
+    dtuGlobalData.gridFreq.resetOnTimeout();
+    
+    // RSSI is not cached (immediate zero on timeout is acceptable for signal strength)
     dtuGlobalData.dtuRssi = 0;
 
     dtuConnection.dtuErrorState = errorState;
@@ -759,7 +770,7 @@ void DTUInterface::checkingDataUpdate()
 {
     // checking for hanging values on DTU side
     // fill grid voltage history
-    gridVoltHist[gridVoltCnt++] = dtuGlobalData.grid.voltage;
+    gridVoltHist[gridVoltCnt++] = dtuGlobalData.grid.voltage.getValue();
     if (gridVoltCnt > 9)
         gridVoltCnt = 0;
 
@@ -907,11 +918,11 @@ void DTUInterface::readRespRealDataNew(pb_istream_t istream)
         // Serial.printf("\ngridData temperature:\t %f C", calcValue(gridData.temperature));
         // Serial.printf("\nDTUinterface:\t readRespRealDataNew  - gridData warning_number:\t %i\n", gridData.warning_number);
 
-        dtuGlobalData.grid.current = calcValue(gridData.current, 100);
-        dtuGlobalData.grid.voltage = calcValue(gridData.voltage);
-        dtuGlobalData.grid.power = calcValue(gridData.active_power);
-        dtuGlobalData.inverterTemp = calcValue(gridData.temperature);
-        dtuGlobalData.gridFreq = calcValue(gridData.frequency, 100);
+        dtuGlobalData.grid.current.update(calcValue(gridData.current, 100));
+        dtuGlobalData.grid.voltage.update(calcValue(gridData.voltage));
+        dtuGlobalData.grid.power.update(calcValue(gridData.active_power));
+        dtuGlobalData.inverterTemp.update(calcValue(gridData.temperature));
+        dtuGlobalData.gridFreq.update(calcValue(gridData.frequency, 100));
 
         // Serial.printf("\npvData data count:\t %i\n", realdatanewreqdto.pv_data_count);
         // Serial.printf("\npvData 0 current:\t %f A", calcValue(pvData0.current, 100));
@@ -921,9 +932,9 @@ void DTUInterface::readRespRealDataNew(pb_istream_t istream)
         // Serial.printf("\npvData 0 energy_total:\t %f kWh", calcValue(pvData0.energy_total, 1000));
         // Serial.printf("\npvData 0 port_number:\t %i\n", pvData0.port_number);
 
-        dtuGlobalData.pv0.current = calcValue(pvData0.current, 100);
-        dtuGlobalData.pv0.voltage = calcValue(pvData0.voltage);
-        dtuGlobalData.pv0.power = calcValue(pvData0.power);
+        dtuGlobalData.pv0.current.update(calcValue(pvData0.current, 100));
+        dtuGlobalData.pv0.voltage.update(calcValue(pvData0.voltage));
+        dtuGlobalData.pv0.power.update(calcValue(pvData0.power));
         dtuGlobalData.pv0.dailyEnergy = calcValue(pvData0.energy_daily, 1000);
         if (pvData0.energy_total != 0)
         {
@@ -937,9 +948,9 @@ void DTUInterface::readRespRealDataNew(pb_istream_t istream)
         // Serial.printf("\npvData 1 energy_total:\t %f kWh", calcValue(pvData1.energy_total, 1000));
         // Serial.printf("\npvData 1 port_number:\t %i", pvData1.port_number);
 
-        dtuGlobalData.pv1.current = calcValue(pvData1.current, 100);
-        dtuGlobalData.pv1.voltage = calcValue(pvData1.voltage);
-        dtuGlobalData.pv1.power = calcValue(pvData1.power);
+        dtuGlobalData.pv1.current.update(calcValue(pvData1.current, 100));
+        dtuGlobalData.pv1.voltage.update(calcValue(pvData1.voltage));
+        dtuGlobalData.pv1.power.update(calcValue(pvData1.power));
         dtuGlobalData.pv1.dailyEnergy = calcValue(pvData1.energy_daily, 1000);
         if (pvData1.energy_total != 0)
         {

@@ -105,8 +105,8 @@ void DisplayTFT::drawScreen(String version, String time)
     lastDisplayData.totalYieldTotal = dtuGlobalData.grid.totalEnergy;
     lastDisplayData.rssiGW = dtuGlobalData.wifi_rssi_gateway;
     lastDisplayData.rssiDTU = dtuGlobalData.dtuRssi;
-    if (dtuGlobalData.grid.power > 0)
-        lastDisplayData.totalPower = round(dtuGlobalData.grid.power);
+    if (dtuGlobalData.grid.power.getValue() > 0)
+        lastDisplayData.totalPower = round(dtuGlobalData.grid.power.getValue());
     lastDisplayData.powerLimit = dtuGlobalData.powerLimit;
 
     drawHeader(version);
@@ -149,8 +149,8 @@ void DisplayTFT::drawScreen_RemoteSummary(String version, String time)
 {
     // store last shown value
     lastDisplayData.totalYieldDay = dtuGlobalData.grid.dailyEnergy;
-    if (dtuGlobalData.grid.power > 0)
-        lastDisplayData.totalPower = round(dtuGlobalData.grid.power);
+    if (dtuGlobalData.grid.power.getValue() > 0)
+        lastDisplayData.totalPower = round(dtuGlobalData.grid.power.getValue());
 
     drawHeaderSummary(version);
 
@@ -610,7 +610,7 @@ void DisplayTFT::drawFooterSummary(String time)
 void DisplayTFT::checkChangedValues()
 {
     valueChanged = false;
-    if (lastDisplayData.totalPower != round(dtuGlobalData.grid.power))
+    if (lastDisplayData.totalPower != round(dtuGlobalData.grid.power.getValue()))
         valueChanged = true;
 }
 

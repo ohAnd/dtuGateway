@@ -11,6 +11,9 @@
 #define DTU_EVENTS_MAX_ENTRIES 50
 #define DTU_EVENTS_MAX_FILE_SIZE 32768  // 32KB limit
 
+// Cache timeout for holding last good value before zeroing on DTU timeout (5 minutes)
+#define CACHE_TIMEOUT_MS 300000  // 5 minutes in milliseconds
+
 struct UserConfig
 {
     boolean protectSettings       = false;  // protect settings from changes

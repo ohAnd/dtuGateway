@@ -45,6 +45,7 @@
 - [API Reference](#api-reference)
 - [Advanced Configuration](#advanced-configuration)
 - [Developer Information](#developer-information)
+- [📜 Changelog](CHANGELOG.md) - View project history and recent updates
 
 > **📖 New User-Friendly Documentation**  
 > This README has been restructured for easier navigation and first-time setup. Looking for the original technical documentation? Find it in [`readme_old.md`](readme_old.md).

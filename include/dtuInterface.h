@@ -29,6 +29,64 @@
 #include <base/platformData.h>
 #include <Config.h>
 
+// ============ CachedValue Template ============
+// This template manages both current and cached values for metrics during DTU timeouts.
+// When data is successfully received, it updates both the current value and caches it with timestamp.
+// On timeout, values are held for CACHE_TIMEOUT_MS before being zeroed.
+// This prevents false zeros in database charts when DTU temporarily disconnects.
+
+template <typename T>
+struct CachedValue {
+  T value = 0;                      // Current value (live from DTU)
+  T cachedValue = 0;                // Last good cached value (held during timeout)
+  unsigned long lastUpdateTime = 0; // When value was last updated
+  unsigned long lastCacheTime = 0;  // When the cache was triggered (timeout moment)
+  boolean isCached = false;         // Whether we're in cache mode (after timeout)
+
+  // Update with a new value from DTU - stores both current and cache
+  void update(T newValue) {
+    value = newValue;
+    cachedValue = newValue;
+    lastUpdateTime = millis();
+    isCached = false;
+  }
+
+  // Get the value to publish: returns cached value if in cache mode and not expired, else current
+  T getValue() const {
+    if (isCached) {
+      unsigned long elapsedMs = millis() - lastCacheTime;
+      if (elapsedMs < CACHE_TIMEOUT_MS) {
+        return cachedValue;  // Still within cache window, return cached value
+      }
+      // Cache expired, return 0
+      return static_cast<T>(0);
+    }
+    return value;  // Not in cache mode, return live value
+  }
+
+  // Reset on timeout: enters cache mode, holds for CACHE_TIMEOUT_MS, then zeros
+  // This is called when DTU times out to trigger the hold-then-zero behavior
+  void resetOnTimeout() {
+    lastCacheTime = millis();
+    isCached = true;
+    // cachedValue already holds the last good value from previous update()
+  }
+
+  // Force reset to zero immediately (used for non-critical startup)
+  void reset() {
+    value = static_cast<T>(0);
+    cachedValue = static_cast<T>(0);
+    isCached = false;
+    lastUpdateTime = 0;
+    lastCacheTime = 0;
+  }
+
+  // Check if value is stale (older than given milliseconds)
+  boolean isStale(unsigned long timeoutMs) const {
+    return (millis() - lastUpdateTime) > timeoutMs;
+  }
+};
+
 #define DTU_TIME_OFFSET 28800
 #define DTU_CLOUD_UPLOAD_SECONDS 40
 
@@ -120,9 +178,9 @@ struct connectionControl
 
 struct baseData
 {
-  float current = 0;
-  float voltage = 0;
-  float power = -1;
+  CachedValue<float> current;
+  CachedValue<float> voltage;
+  CachedValue<float> power;
   float dailyEnergy = 0;
   float totalEnergy = 0;
 };
@@ -152,8 +210,8 @@ struct inverterData
   baseData grid;
   baseData pv0;
   baseData pv1;
-  float gridFreq = 0;
-  float inverterTemp = 0;
+  CachedValue<float> gridFreq;
+  CachedValue<float> inverterTemp;
   uint8_t powerLimit = 254;
   uint8_t powerLimitSet = 101; // init with not possible value for startup
   boolean powerLimitSetUpdate = false;

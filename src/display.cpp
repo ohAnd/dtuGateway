@@ -64,7 +64,7 @@ void Display::drawScreen()
     lastDisplayData.totalYieldTotal = dtuGlobalData.grid.totalEnergy;
     lastDisplayData.rssiGW = dtuGlobalData.wifi_rssi_gateway;
     lastDisplayData.rssiDTU = dtuGlobalData.dtuRssi;
-    lastDisplayData.totalPower = round(dtuGlobalData.grid.power);
+    lastDisplayData.totalPower = round(dtuGlobalData.grid.power.getValue());
     lastDisplayData.powerLimit = dtuGlobalData.powerLimit;
 
     u8g2.clearBuffer();
@@ -128,7 +128,7 @@ void Display::drawMainDTUOnline(bool pause)
     }
     else
     {
-        String wattage = ((dtuGlobalData.grid.power == -1) ? ("--") : String(lastDisplayData.totalPower));
+        String wattage = ((dtuGlobalData.grid.power.getValue() == 0) ? ("--") : String(lastDisplayData.totalPower));
         String powerLimit = ((dtuGlobalData.powerLimit == 254) ? ("--") : String(lastDisplayData.powerLimit));
 
         u8g2.setFont(u8g2_font_logisoso28_tf);
@@ -304,7 +304,7 @@ void Display::drawFooter()
 void Display::checkChangedValues()
 {
     valueChanged = false;
-    if (lastDisplayData.totalPower != round(dtuGlobalData.grid.power))
+    if (lastDisplayData.totalPower != round(dtuGlobalData.grid.power.getValue()))
         valueChanged = true;
 }
 
