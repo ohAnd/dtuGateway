@@ -44,18 +44,20 @@ void DTUwebserver::start()
     // Set up static file serving - serve directly from PROGMEM with caching
     // Note: Using deprecated beginResponse_P because newer beginResponse() doesn't serve PROGMEM files correctly
     // This is a known limitation of ESPAsyncWebServer library - warnings can be ignored until library is fixed
-    asyncDtuWebServer.on("/jquery.min.js", HTTP_GET, [](AsyncWebServerRequest *request)
+    asyncDtuWebServer.on("/index.js", HTTP_GET, [](AsyncWebServerRequest *request)
                          {
-        AsyncWebServerResponse *response = request->beginResponse_P(200, "application/javascript", jquery_min_js);
+        AsyncWebServerResponse *response = request->beginResponse_P(200, "application/javascript", index_js);
         response->addHeader("Cache-Control", "public, max-age=31536000"); // Cache for 1 year
-        response->addHeader("ETag", "\"jquery-3.6.0\"");
+        response->addHeader("ETag", "\"app-v2\"");
         request->send(response); });
+
+
 
     asyncDtuWebServer.on("/style.css", HTTP_GET, [](AsyncWebServerRequest *request)
                          {
         AsyncWebServerResponse *response = request->beginResponse_P(200, "text/css", style_css);
         response->addHeader("Cache-Control", "public, max-age=86400"); // Cache for 1 day
-        response->addHeader("ETag", "\"style-v1\"");
+        response->addHeader("ETag", "\"style-v2\"");
         request->send(response); });
 
     // index.html is handled by / which redirects to /index.html

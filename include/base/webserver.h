@@ -29,7 +29,7 @@
 #include <mqttHandler.h>
 
 #include "web/index_html.h"
-#include "web/jquery_min_js.h"
+#include "web/index_js.h"
 #include "web/style_css.h"
 
 

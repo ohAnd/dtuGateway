@@ -4,6 +4,11 @@ All notable changes to dtuGateway are documented here. This changelog focuses on
 
 ## [Unreleased] - Current Development
 
+### Changed (2026-05-14)
+- Dashboard loads faster and works fully offline — removed jQuery (~90 KB) and Font Awesome CDN dependency
+- All dashboard icons now embedded directly in the device firmware (no external requests)
+- JavaScript separated from HTML for cleaner structure and better browser caching
+
 ### Added (2026-05-10)
 - Comprehensive user-focused CHANGELOG.md with commit-based tracking
 - Development workflow instructions for automated changelog and commit preparation
