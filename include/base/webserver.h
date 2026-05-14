@@ -31,9 +31,14 @@
 #include "web/index_html.h"
 #include "web/index_js.h"
 #include "web/style_css.h"
+// New Alpine.js dashboard — served at /index2.html
+#include "web/index2_html.h"
+#include "web/style2_css.h"
+#include "web/app_js.h"
+#include "web/vendor_js.h"
 
-
-class DTUwebserver {
+class DTUwebserver
+{
 public:
     DTUwebserver(uint16_t port = 80); // Add port parameter with a default value
     ~DTUwebserver();
@@ -46,7 +51,7 @@ private:
     uint16_t serverPort; // Store the port number
     AsyncWebServer asyncDtuWebServer;
     Ticker webServerTimer; // Timer object
-    static void backgroundTask(DTUwebserver* instance);
+    static void backgroundTask(DTUwebserver *instance);
 
     static void handleRoot(AsyncWebServerRequest *request);
     static void handleCSS(AsyncWebServerRequest *request);
@@ -55,7 +60,7 @@ private:
     static void handleDoUpdate(AsyncWebServerRequest *request, const String &filename, size_t index, uint8_t *data, size_t len, bool final);
     static void printProgress(size_t prg, size_t sz);
     static void handleUpdateProgress(AsyncWebServerRequest *request);
-    
+
     static void handleDataJson(AsyncWebServerRequest *request);
     static void handleInfojson(AsyncWebServerRequest *request);
     static void handleDtuInfoJson(AsyncWebServerRequest *request);
@@ -73,9 +78,9 @@ private:
 
     static void handleUpdateOTASettings(AsyncWebServerRequest *request);
     static void handleUpdateInfoRequest(AsyncWebServerRequest *request);
-    
+
     static void handleConfigPage(AsyncWebServerRequest *request);
-    
+
     static void notFound(AsyncWebServerRequest *request);
 };
 

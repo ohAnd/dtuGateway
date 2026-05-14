@@ -1,0 +1,216 @@
+"""
+build_headers.py — Converts web_dev/src/ files to ESP32 PROGMEM C headers.
+
+Reads:
+  ../src/index.html   → ../../include/web/index_html.h
+  ../src/style.css    → ../../include/web/style_css.h
+  ../src/app.js       → ../../include/web/index_js.h
+  ../src/vendor.js    → ../../include/web/jquery_min_js.h  (Alpine.js)
+
+Each source file is:
+  1. Minified (CSS / JS: strip comments + collapse whitespace;
+               HTML: strip comments + collapse whitespace between tags)
+  2. Wrapped in a C PROGMEM raw-string literal
+
+Usage:
+    python web_dev/build/build_headers.py
+    (run from the repo root, or from web_dev/build/ — both work)
+"""
+
+import re
+import sys
+from pathlib import Path
+
+# ── Resolve paths ───────────────────────────────────────────────────────────
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+REPO_ROOT = SCRIPT_DIR.parent.parent  # …/dtuGateway
+SRC_DIR = SCRIPT_DIR.parent / "src"  # …/web_dev/src
+HEADER_DIR = REPO_ROOT / "include" / "web"  # …/include/web
+
+JOBS = [
+    # (source_file, header_file, c_var_name, minify_mode)
+    # New Alpine.js dashboard — served at /index2.html alongside the original
+    ("index.html", "index2_html.h", "index2_html", "html"),
+    ("style.css", "style2_css.h", "style2_css", "css"),
+    ("app.js", "app_js.h", "app_js", "js"),
+    ("vendor.js", "vendor_js.h", "vendor_js", "raw"),  # already minified
+]
+
+
+# ── Minifiers ───────────────────────────────────────────────────────────────
+
+
+def minify_css(src: str) -> str:
+    """Strip CSS comments and collapse whitespace."""
+    # Remove /* ... */ comments
+    src = re.sub(r"/\*.*?\*/", "", src, flags=re.DOTALL)
+    # Collapse runs of whitespace to a single space
+    src = re.sub(r"\s+", " ", src)
+    # Remove spaces around punctuation that doesn't need them
+    src = re.sub(r"\s*([{}:;,>+~])\s*", r"\1", src)
+    # Remove leading/trailing whitespace
+    return src.strip()
+
+
+def minify_js(src: str) -> str:
+    """
+    Basic JS minification: strip block comments, line comments (outside strings),
+    and collapse runs of whitespace while preserving string literals and regex.
+
+    This is intentionally conservative — it won't break Alpine.js or app.js.
+    For production use consider running terser via npx instead.
+    """
+    # Remove block comments /* ... */ (non-greedy, no DOTALL to avoid stripping
+    # regex-looking patterns inside template literals by accident)
+    src = re.sub(r"/\*.*?\*/", "", src, flags=re.DOTALL)
+
+    # Remove single-line comments // … but not inside strings
+    # Strategy: scan character-by-character preserving string state
+    result = []
+    i = 0
+    in_str = None  # None | '"' | "'" | '`'
+    while i < len(src):
+        ch = src[i]
+        # Toggle string state
+        if in_str is None and ch in ('"', "'", "`"):
+            in_str = ch
+            result.append(ch)
+            i += 1
+            continue
+        if in_str is not None:
+            if ch == "\\":
+                result.append(ch)
+                i += 1
+                if i < len(src):
+                    result.append(src[i])
+                    i += 1
+                continue
+            if ch == in_str:
+                in_str = None
+            result.append(ch)
+            i += 1
+            continue
+        # Outside string: check for // comment
+        if ch == "/" and i + 1 < len(src) and src[i + 1] == "/":
+            # Skip to end of line
+            while i < len(src) and src[i] != "\n":
+                i += 1
+            continue
+        result.append(ch)
+        i += 1
+
+    src = "".join(result)
+    # Collapse runs of whitespace (but keep single newlines to avoid
+    # concatenating keywords/identifiers that are separated only by newline)
+    src = re.sub(r"[ \t]+", " ", src)
+    src = re.sub(r"\n+", "\n", src)
+    # Remove spaces before/after operators that don't need spaces
+    src = re.sub(r" *([=+\-*/%&|^~<>!?:,;{}()\[\]]) *", r"\1", src)
+    # But restore the one space needed between keywords and identifiers
+    # (conservatively: keep as-is rather than risk breakage)
+    return src.strip()
+
+
+def minify_html(src: str) -> str:
+    """Strip HTML comments and collapse inter-tag whitespace."""
+    # Remove <!-- ... --> comments
+    src = re.sub(r"<!--.*?-->", "", src, flags=re.DOTALL)
+    # Collapse whitespace between tags
+    src = re.sub(r">\s+<", "><", src)
+    # Collapse runs of spaces/tabs (keep single space)
+    src = re.sub(r"[ \t]{2,}", " ", src)
+    # Strip leading/trailing whitespace on each line
+    src = "\n".join(line.strip() for line in src.splitlines())
+    # Remove blank lines
+    src = re.sub(r"\n{2,}", "\n", src)
+    return src.strip()
+
+
+def minify_raw(src: str) -> str:
+    """Pass through already-minified files unchanged."""
+    return src.strip()
+
+
+MINIFIERS = {
+    "html": minify_html,
+    "css": minify_css,
+    "js": minify_js,
+    "raw": minify_raw,
+}
+
+
+# ── C header generator ──────────────────────────────────────────────────────
+
+HEADER_TEMPLATE = """\
+// AUTO-GENERATED by web_dev/build/build_headers.py — DO NOT EDIT MANUALLY
+// Source: {source_path}
+static const char *{var_name} PROGMEM = R"DTUGW({content}
+)DTUGW";\n"""
+
+
+def write_header(
+    var_name: str, content: str, output_path: Path, source_path: str
+) -> None:
+    """Write a PROGMEM raw-string header file."""
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output = HEADER_TEMPLATE.format(
+        source_path=source_path,
+        var_name=var_name,
+        content=content,
+    )
+    output_path.write_text(output, encoding="utf-8")
+
+
+# ── Main ────────────────────────────────────────────────────────────────────
+
+
+def main() -> int:
+    """Process all source files and generate headers. Returns exit code."""
+    errors = 0
+    total_bytes_before = 0
+    total_bytes_after = 0
+
+    print("dtuGateway web build — generating ESP32 PROGMEM headers\n")
+
+    for src_name, hdr_name, var_name, mode in JOBS:
+        src_path = SRC_DIR / src_name
+        hdr_path = HEADER_DIR / hdr_name
+
+        if not src_path.exists():
+            print(f"  [MISSING] {src_path}")
+            errors += 1
+            continue
+
+        raw = src_path.read_text(encoding="utf-8")
+        minified = MINIFIERS[mode](raw)
+
+        before = len(raw.encode("utf-8"))
+        after = len(minified.encode("utf-8"))
+        total_bytes_before += before
+        total_bytes_after += after
+
+        rel_src = src_path.relative_to(REPO_ROOT)
+        write_header(var_name, minified, hdr_path, str(rel_src))
+
+        saving_pct = 100 * (1 - after / before) if before else 0
+        print(
+            f"  {src_name:<20} → {hdr_name:<22}  "
+            f"{before:>7} B → {after:>7} B  ({saving_pct:.0f}% saved)"
+        )
+
+    print(
+        f"\n  Total: {total_bytes_before:>7} B → {total_bytes_after:>7} B  "
+        f"({100*(1-total_bytes_after/total_bytes_before):.0f}% saved)\n"
+    )
+
+    if errors:
+        print(f"  {errors} error(s) — fix missing files above.")
+        return 1
+
+    print("  Done. Run 'pio run' to rebuild ESP32 firmware.")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

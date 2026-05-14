@@ -1,6 +1,6 @@
 {
-    "version": "2.3.683_localDev",
-    "versiondate": "10.05.2026 - 14:18:48",
-    "linksnapshot": "https://github.com/ohAnd/dtuGateway/releases/download/snapshot/dtuGateway_snapshot_2.3.683_localDev.bin",
-    "link": "https://github.com/ohAnd/dtuGateway/releases/latest/download/dtuGateway_release_2.3.683_localDev.bin"
+    "version": "2.4.0_localDev",
+    "versiondate": "14.05.2026 - 21:58:03",
+    "linksnapshot": "https://github.com/ohAnd/dtuGateway/releases/download/snapshot/dtuGateway_snapshot_2.4.0_localDev.bin",
+    "link": "https://github.com/ohAnd/dtuGateway/releases/latest/download/dtuGateway_release_2.4.0_localDev.bin"
 }
