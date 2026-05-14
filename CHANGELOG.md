@@ -4,6 +4,10 @@ All notable changes to dtuGateway are documented here. This changelog focuses on
 
 ## [Unreleased] - Current Development
 
+### Added (2026-05-14)
+- New Alpine.js dashboard (v2 UI) available at `/index2.html` — solar/battery HUD monitor overlay, settings drawer with connection and display mode sections, update-available badge, inverter offline indicator, and power limit overlay
+- All dashboard assets (Alpine.js, icons) are now embedded in firmware — no internet connection required at runtime
+
 ### Changed (2026-05-14)
 - Dashboard loads faster and works fully offline — removed jQuery (~90 KB) and Font Awesome CDN dependency
 - All dashboard icons now embedded directly in the device firmware (no external requests)
