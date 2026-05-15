@@ -476,14 +476,15 @@ document.addEventListener('alpine:init', () => {
       const interval = setInterval(async () => {
         try {
           const s = await this._get('/updateState');
-          this.updateProgress = s.progress ?? 0;
-          if (!s.updateRunning) {
+          this.updateProgress = s.updateProgress ?? 0;
+          if (this.updateProgress > 0 && !s.updateRunning) {
             clearInterval(interval);
-            this._toast('Update complete — rebooting…', 'success');
-            setTimeout(() => { this.updateProgress = -1; }, 4000);
+            this._toast('Update complete — reloading…', 'success');
+            setTimeout(() => { this.updateProgress = -1; location.reload(); }, 4000);
           }
         } catch (_) {
           clearInterval(interval);
+          this._toast('Could not read update progress', 'error');
           this.updateProgress = -1;
         }
       }, 500);
