@@ -371,6 +371,14 @@ void DTUwebserver::handleDataJson(AsyncWebServerRequest *request)
     JSON = JSON + "\"uptodate\": " + String(dtuGlobalData.uptodate);
     JSON = JSON + "},";
 
+    if (userConfig.remoteDisplay_BatteryMonitor)
+    {
+        JSON = JSON + "\"battery\": {";
+        JSON = JSON + "\"soc\": " + String(dtuGlobalData.batterySOC) + ",";
+        JSON = JSON + "\"stored_energy\": " + String(dtuGlobalData.batteryStoredEnergy, 3);
+        JSON = JSON + "},";
+    }
+
     JSON = JSON + "\"grid\": {";
     JSON = JSON + "\"v\": " + String(dtuGlobalData.grid.voltage.getValue()) + ",";
     JSON = JSON + "\"c\": " + String(dtuGlobalData.grid.current.getValue()) + ",";
@@ -446,7 +454,8 @@ void DTUwebserver::handleInfojson(AsyncWebServerRequest *request)
     JSON = JSON + "\"dtuCloudPause\": " + userConfig.dtuCloudPauseActive + ",";
     JSON = JSON + "\"dtuCloudPauseTime\": " + userConfig.dtuCloudPauseTime + ",";
     JSON = JSON + "\"dtuRemoteDisplay\": " + userConfig.remoteDisplayActive + ",";
-    JSON = JSON + "\"dtuRemoteSummaryDisplay\": " + userConfig.remoteSummaryDisplayActive + ",";
+    JSON = JSON + "\"dtuRemoteDisplay_SolarMonitor\": " + userConfig.remoteDisplay_SolarMonitor + ",";
+    JSON = JSON + "\"dtuRemoteDisplay_BatteryMonitor\": " + userConfig.remoteDisplay_BatteryMonitor + ",";
 
     // ADD FIRMWARE SECTION
     JSON = JSON + "\"deviceData\": {";
@@ -617,18 +626,21 @@ void DTUwebserver::handleUpdateDtuSettings(AsyncWebServerRequest *request)
         request->hasParam("dtuDataCycleSend", true) &&
         request->hasParam("dtuCloudPauseSend", true) &&
         request->hasParam("remoteDisplayActiveSend", true) &&
-        request->hasParam("remoteSummaryDisplayActiveSend", true))
+        request->hasParam("remoteSummaryDisplayActiveSend", true) &&
+        request->hasParam("remoteBatteryDisplayActiveSend", true))
     {
         String dtuHostIpDomainUser = request->getParam("dtuHostIpDomainSend", true)->value(); // retrieve message from webserver
         String dtuDataCycle = request->getParam("dtuDataCycleSend", true)->value();           // retrieve message from webserver
         String dtuCloudPause = request->getParam("dtuCloudPauseSend", true)->value();         // retrieve message from webserver
 
-        String remoteDisplayActive = request->getParam("remoteDisplayActiveSend", true)->value();               // retrieve message from webserver
-        String remoteSummaryDisplayActive = request->getParam("remoteSummaryDisplayActiveSend", true)->value(); // retrieve message from webserver
+        String remoteDisplayActive = request->getParam("remoteDisplayActiveSend", true)->value();
+        String remoteDisplay_SolarMonitor = request->getParam("remoteSummaryDisplayActiveSend", true)->value();
+        String remoteDisplay_BatteryMonitor = request->getParam("remoteBatteryDisplayActiveSend", true)->value();
 
         Serial.println("WEB:\t\t handleUpdateDtuSettings - got dtu ip: " + dtuHostIpDomainUser + "- got dtuDataCycle: " + dtuDataCycle + "- got dtu dtuCloudPause: " + dtuCloudPause);
         Serial.println("WEB:\t\t handleUpdateDtuSettings - got remoteDisplayActive: " + remoteDisplayActive);
-        Serial.println("WEB:\t\t handleUpdateDtuSettings - got remoteSummaryDisplayActive: " + remoteSummaryDisplayActive);
+        Serial.println("WEB:\t\t handleUpdateDtuSettings - got remoteDisplay_SolarMonitor: " + remoteDisplay_SolarMonitor);
+        Serial.println("WEB:\t\t handleUpdateDtuSettings - got remoteDisplay_BatteryMonitor: " + remoteDisplay_BatteryMonitor);
 
         dtuHostIpDomainUser.toCharArray(userConfig.dtuHostIpDomain, sizeof(userConfig.dtuHostIpDomain));
         userConfig.dtuUpdateTime = dtuDataCycle.toInt();
@@ -651,17 +663,23 @@ void DTUwebserver::handleUpdateDtuSettings(AsyncWebServerRequest *request)
         }
         userConfig.remoteDisplayActive = remoteDisplayActiveBool;
 
-        boolean remoteSummaryDisplayActiveBool = false;
-        if (remoteSummaryDisplayActive == "1")
-            remoteSummaryDisplayActiveBool = true;
-        else
-            remoteSummaryDisplayActiveBool = false;
-        if (remoteSummaryDisplayActiveBool != userConfig.remoteSummaryDisplayActive)
+        // solar monitor display
+        boolean remoteDisplay_SolarMonitorBool = (remoteDisplay_SolarMonitor == "1");
+        if (remoteDisplay_SolarMonitorBool != userConfig.remoteDisplay_SolarMonitor)
         {
             platformData.rebootRequestedInSec = 3;
             platformData.rebootRequested = true;
         }
-        userConfig.remoteSummaryDisplayActive = remoteSummaryDisplayActiveBool;
+        userConfig.remoteDisplay_SolarMonitor = remoteDisplay_SolarMonitorBool;
+
+        // battery monitor display
+        boolean remoteDisplay_BatteryMonitorBool = (remoteDisplay_BatteryMonitor == "1");
+        if (remoteDisplay_BatteryMonitorBool != userConfig.remoteDisplay_BatteryMonitor)
+        {
+            platformData.rebootRequestedInSec = 3;
+            platformData.rebootRequested = true;
+        }
+        userConfig.remoteDisplay_BatteryMonitor = remoteDisplay_BatteryMonitorBool;
 
         configManager.saveConfig(userConfig);
 

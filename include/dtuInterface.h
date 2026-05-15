@@ -36,7 +36,8 @@
 // This prevents false zeros in database charts when DTU temporarily disconnects.
 
 template <typename T>
-struct CachedValue {
+struct CachedValue
+{
   T value = 0;                      // Current value (live from DTU)
   T cachedValue = 0;                // Last good cached value (held during timeout)
   unsigned long lastUpdateTime = 0; // When value was last updated
@@ -44,7 +45,8 @@ struct CachedValue {
   boolean isCached = false;         // Whether we're in cache mode (after timeout)
 
   // Update with a new value from DTU - stores both current and cache
-  void update(T newValue) {
+  void update(T newValue)
+  {
     value = newValue;
     cachedValue = newValue;
     lastUpdateTime = millis();
@@ -52,28 +54,33 @@ struct CachedValue {
   }
 
   // Get the value to publish: returns cached value if in cache mode and not expired, else current
-  T getValue() const {
-    if (isCached) {
+  T getValue() const
+  {
+    if (isCached)
+    {
       unsigned long elapsedMs = millis() - lastCacheTime;
-      if (elapsedMs < CACHE_TIMEOUT_MS) {
-        return cachedValue;  // Still within cache window, return cached value
+      if (elapsedMs < CACHE_TIMEOUT_MS)
+      {
+        return cachedValue; // Still within cache window, return cached value
       }
       // Cache expired, return 0
       return static_cast<T>(0);
     }
-    return value;  // Not in cache mode, return live value
+    return value; // Not in cache mode, return live value
   }
 
   // Reset on timeout: enters cache mode, holds for CACHE_TIMEOUT_MS, then zeros
   // This is called when DTU times out to trigger the hold-then-zero behavior
-  void resetOnTimeout() {
+  void resetOnTimeout()
+  {
     lastCacheTime = millis();
     isCached = true;
     // cachedValue already holds the last good value from previous update()
   }
 
   // Force reset to zero immediately (used for non-critical startup)
-  void reset() {
+  void reset()
+  {
     value = static_cast<T>(0);
     cachedValue = static_cast<T>(0);
     isCached = false;
@@ -82,7 +89,8 @@ struct CachedValue {
   }
 
   // Check if value is stale (older than given milliseconds)
-  boolean isStale(unsigned long timeoutMs) const {
+  boolean isStale(unsigned long timeoutMs) const
+  {
     return (millis() - lastUpdateTime) > timeoutMs;
   }
 };
@@ -108,9 +116,9 @@ struct CachedValue {
 #define DTU_ERROR_LAST_SEND 4
 
 // Event monitoring thresholds
-#define DTU_EVENT_SHORT_CONNECTION_MS 1000    // Connections shorter than 1 second
-#define DTU_EVENT_BUFFER_SIZE 10              // Keep last 10 events
-#define DTU_EVENT_MIN_INTERVAL_MS 5000        // Minimum interval between similar events
+#define DTU_EVENT_SHORT_CONNECTION_MS 1000 // Connections shorter than 1 second
+#define DTU_EVENT_BUFFER_SIZE 10           // Keep last 10 events
+#define DTU_EVENT_MIN_INTERVAL_MS 5000     // Minimum interval between similar events
 
 // Event types for monitoring
 #define DTU_EVENT_SHORT_CONNECT 1
@@ -134,22 +142,22 @@ struct CachedValue {
 #define DTU_TXRX_STATE_WAIT_APP_INFORMATION 12
 #define DTU_TXRX_STATE_ERROR 99
 
-
 // Event monitoring structure for intelligent DTU issue tracking
-struct dtuEventRecord {
-  uint8_t eventType;              // Type of event (DTU_EVENT_*)
-  unsigned long timestamp;        // When event occurred
+struct dtuEventRecord
+{
+  uint8_t eventType;                // Type of event (DTU_EVENT_*)
+  unsigned long timestamp;          // When event occurred
   unsigned long connectionDuration; // Duration of connection (if applicable)
-  uint8_t dtuState;              // DTU state at time of event
-  uint16_t bufferSpace;          // Available buffer space (if known)
-  char description[64];          // Brief event description
+  uint8_t dtuState;                 // DTU state at time of event
+  uint16_t bufferSpace;             // Available buffer space (if known)
+  char description[64];             // Brief event description
 };
 
 struct connectionControl
 {
   boolean preventCloudErrors = true;
   boolean dtuActiveOffToCloudUpdate = false;
-  boolean dtuConnectionOnline = false;          // true if connection is online as a valued summary
+  boolean dtuConnectionOnline = false; // true if connection is online as a valued summary
   uint8_t dtuConnectState = DTU_STATE_OFFLINE;
   uint8_t dtuErrorState = DTU_ERROR_NO_ERROR;
   uint8_t dtuTxRxState = DTU_TXRX_STATE_IDLE;
@@ -158,22 +166,22 @@ struct connectionControl
   uint8_t dtuConnectRetriesShort = 0;
   uint8_t dtuConnectRetriesLong = 0;
   unsigned long pauseStartTime = 0;
-  
+
   // DIAGNOSTIC: Track connection patterns to detect DTU state changes
   unsigned long lastConnectTime = 0;
   unsigned long lastDisconnectTime = 0;
   uint16_t totalConnections = 0;
-  uint16_t shortConnections = 0;  // connections < 1 second
+  uint16_t shortConnections = 0; // connections < 1 second
   unsigned long longestConnection = 0;
   unsigned long averageConnectionTime = 0;
-  
+
   // EVENT MONITORING: Intelligent issue tracking
-  dtuEventRecord events[DTU_EVENT_BUFFER_SIZE];  // Circular buffer of events
-  uint8_t eventIndex = 0;                        // Current index in circular buffer
-  unsigned long lastEventTime[6] = {0};          // Last time each event type occurred
-  boolean healthyStateDetected = false;          // Flag when DTU returns to healthy state
-  unsigned long lastHealthyStateTime = 0;        // When healthy state was detected
-  uint16_t consecutiveShortConnections = 0;      // Counter for pattern detection
+  dtuEventRecord events[DTU_EVENT_BUFFER_SIZE]; // Circular buffer of events
+  uint8_t eventIndex = 0;                       // Current index in circular buffer
+  unsigned long lastEventTime[6] = {0};         // Last time each event type occurred
+  boolean healthyStateDetected = false;         // Flag when DTU returns to healthy state
+  unsigned long lastHealthyStateTime = 0;       // When healthy state was detected
+  uint16_t consecutiveShortConnections = 0;     // Counter for pattern detection
 };
 
 struct baseData
@@ -192,7 +200,7 @@ struct inverterCtrl
   uint32_t lastSwitchedToOff = 0;
 };
 
-struct warnDataBlock 
+struct warnDataBlock
 {
   uint16_t num = 0;
   uint32_t code = 0;
@@ -222,7 +230,7 @@ struct inverterData
   uint32_t wifi_rssi_gateway = 0;
   uint32_t respTimestamp = 1704063600;     // init with start time stamp > 0
   uint32_t lastRespTimestamp = 1704063600; // init with start time stamp > 0
-  uint32_t currentTimestamp = 1704063600; // init with start time stamp > 0
+  uint32_t currentTimestamp = 1704063600;  // init with start time stamp > 0
   boolean uptodate = false;
   boolean updateReceived = false;
   int dtuResetRequested = 0;
@@ -238,140 +246,142 @@ struct inverterData
   bool dtuFirmwareVersionValid = false;      // Flag if DTU firmware version is valid
   bool inverterFirmwareVersionValid = false; // Flag if inverter firmware version is valid
   // Inverter model information
-  String inverterModel = "";                 // Inverter model name (e.g., "HMS-800W-2T")
-  bool inverterModelValid = false;           // Flag if inverter model is valid
+  String inverterModel = "";       // Inverter model name (e.g., "HMS-800W-2T")
+  bool inverterModelValid = false; // Flag if inverter model is valid
+  // Battery monitor data (populated via MQTT when battery monitor mode active)
+  float batterySOC = -1;          // State of Charge in % (-1 = no data)
+  float batteryStoredEnergy = -1; // Stored energy in kWh (-1 = no data)
 };
 
 extern inverterData dtuGlobalData;
 extern connectionControl dtuConnection;
 
-typedef void (*DataRetrievalCallback)(const char* data, size_t dataSize, void* userContext);
+typedef void (*DataRetrievalCallback)(const char *data, size_t dataSize, void *userContext);
 
-
-class DTUInterface {
+class DTUInterface
+{
 public:
-    DTUInterface(const char* server, uint16_t port=10081);
-    ~DTUInterface();
-   
-    void setup(const char *server);
-    void setServer(const char* server);
-   
-    void connect();
-    void disconnect(uint8_t tgtState);
-    void flushConnection();    
+  DTUInterface(const char *server, uint16_t port = 10081);
+  ~DTUInterface();
 
-    void getDataUpdate();
-    void setPowerLimit(int limit);
-    void requestRestartDevice();
-    void requestRestartMi();
-    void requestInverterTargetState(boolean OnOff);
-    void requestAlarms();
-    void requestEventHistory();  // Display DTU event monitoring history
-    
-    // Connection status methods for API access
-    bool isConnected();
-    uint16_t getConnectionBufferSpace();
-    unsigned long getCurrentConnectionDuration();
+  void setup(const char *server);
+  void setServer(const char *server);
 
-    String getTimeStringByTimestamp(unsigned long timestamp);
-    void printDataAsTextToSerial();
-    void printDataAsJsonToSerial();  
+  void connect();
+  void disconnect(uint8_t tgtState);
+  void flushConnection();
 
-    void requestDeviceInfoPeriodically();
-    
-    // Static utility functions for formatting firmware versions
-    static String formatDtuVersion(uint32_t version);         // DTU version formatting
-    static String formatPvHardwareVersion(uint32_t version);  // PV hardware version formatting
-    static String formatPvSoftwareVersion(uint32_t version);  // PV software version formatting
-    
-    // Inverter model detection from serial number
-    static String getInverterModelFromIntSerial(int64_t serialNumber);
-    static int format_serial_for_display(int64_t serial_int, char* display_str, size_t max_len);
+  void getDataUpdate();
+  void setPowerLimit(int limit);
+  void requestRestartDevice();
+  void requestRestartMi();
+  void requestInverterTargetState(boolean OnOff);
+  void requestAlarms();
+  void requestEventHistory(); // Display DTU event monitoring history
+
+  // Connection status methods for API access
+  bool isConnected();
+  uint16_t getConnectionBufferSpace();
+  unsigned long getCurrentConnectionDuration();
+
+  String getTimeStringByTimestamp(unsigned long timestamp);
+  void printDataAsTextToSerial();
+  void printDataAsJsonToSerial();
+
+  void requestDeviceInfoPeriodically();
+
+  // Static utility functions for formatting firmware versions
+  static String formatDtuVersion(uint32_t version);        // DTU version formatting
+  static String formatPvHardwareVersion(uint32_t version); // PV hardware version formatting
+  static String formatPvSoftwareVersion(uint32_t version); // PV software version formatting
+
+  // Inverter model detection from serial number
+  static String getInverterModelFromIntSerial(int64_t serialNumber);
+  static int format_serial_for_display(int64_t serial_int, char *display_str, size_t max_len);
 
 private:
-    Ticker keepAliveTimer; // Timer to send keep-alive messages
-    static void keepAliveStatic(DTUInterface* dtuInterface); // Static method for timer callback
-    void keepAlive(); // Method to send keep-alive messages
+  Ticker keepAliveTimer;                                   // Timer to send keep-alive messages
+  static void keepAliveStatic(DTUInterface *dtuInterface); // Static method for timer callback
+  void keepAlive();                                        // Method to send keep-alive messages
 
-    Ticker loopTimer; // local loop to handle 
-    static void dtuLoopStatic(DTUInterface* instance);
-    void dtuLoop();
-       
+  Ticker loopTimer; // local loop to handle
+  static void dtuLoopStatic(DTUInterface *instance);
+  void dtuLoop();
 
-    static void onConnect(void* arg, AsyncClient* c);
-    static void onDisconnect(void* arg, AsyncClient* c);
-    static void onError(void* arg, AsyncClient* c, int8_t error);
-    static void onDataReceived(void* arg, AsyncClient* client, void* data, size_t len);
+  static void onConnect(void *arg, AsyncClient *c);
+  static void onDisconnect(void *arg, AsyncClient *c);
+  static void onError(void *arg, AsyncClient *c, int8_t error);
+  static void onDataReceived(void *arg, AsyncClient *client, void *data, size_t len);
 
-    void handleError(uint8_t errorState = DTU_ERROR_NO_ERROR);
-    void initializeCRC();
+  void handleError(uint8_t errorState = DTU_ERROR_NO_ERROR);
+  void initializeCRC();
 
-    static void txrxStateObserver();
-    boolean lastOnlineOfflineState = false;
-    unsigned long lastOnlineOfflineChange = 0;
-    void dtuConnectionObserver();
+  static void txrxStateObserver();
+  boolean lastOnlineOfflineState = false;
+  unsigned long lastOnlineOfflineChange = 0;
+  void dtuConnectionObserver();
 
-    void checkingDataUpdate();
-    void checkingForLastDataReceived();
-    void resetDtuGlobalData(uint8_t errorState,uint8_t dtuState);
-    boolean cloudPauseActiveControl();
-    
-    // EVENT MONITORING: Intelligent DTU issue tracking
-    void logDtuEvent(uint8_t eventType, const char* description, unsigned long connectionDuration = 0);
-    void checkConnectionAnomalies();
-    void detectHealthyStateRecovery();
-    void printEventHistory();
-        
-    // Protobuf functions
-    void writeReqAppGetHistPower();
-    void readRespAppGetHistPower(pb_istream_t istream);
+  void checkingDataUpdate();
+  void checkingForLastDataReceived();
+  void resetDtuGlobalData(uint8_t errorState, uint8_t dtuState);
+  boolean cloudPauseActiveControl();
 
-    void writeReqRealDataNew();
-    void readRespRealDataNew(pb_istream_t istream);
+  // EVENT MONITORING: Intelligent DTU issue tracking
+  void logDtuEvent(uint8_t eventType, const char *description, unsigned long connectionDuration = 0);
+  void checkConnectionAnomalies();
+  void detectHealthyStateRecovery();
+  void printEventHistory();
 
-    boolean writeReqAppInformation();
-    boolean readRespAppInformation(pb_istream_t istream);
+  // Protobuf functions
+  void writeReqAppGetHistPower();
+  void readRespAppGetHistPower(pb_istream_t istream);
 
-    void writeReqGetConfig();
-    void readRespGetConfig(pb_istream_t istream);
-    
-    boolean writeReqCommandSetPowerlimit(uint8_t setPercent);
-    boolean readRespCommandSetPowerlimit(pb_istream_t istream);
-    
-    boolean writeReqCommandRestartDevice();
-    boolean readRespCommandRestartDevice(pb_istream_t istream);
+  void writeReqRealDataNew();
+  void readRespRealDataNew(pb_istream_t istream);
 
-    boolean writeReqCommandInverterTurnOff();
-    boolean readRespCommandInverterTurnOff(pb_istream_t istream);
+  boolean writeReqAppInformation();
+  boolean readRespAppInformation(pb_istream_t istream);
 
-    boolean writeReqCommandInverterTurnOn();
-    boolean readRespCommandInverterTurnOn(pb_istream_t istream);
+  void writeReqGetConfig();
+  void readRespGetConfig(pb_istream_t istream);
 
-    boolean writeReqCommandPerformanceDataMode();
-    boolean readRespCommandPerformanceDataMode(pb_istream_t istream);
+  boolean writeReqCommandSetPowerlimit(uint8_t setPercent);
+  boolean readRespCommandSetPowerlimit(pb_istream_t istream);
 
-    boolean writeReqCommandRequestAlarms();
-    boolean readRespCommandRequestAlarms(pb_istream_t istream);
+  boolean writeReqCommandRestartDevice();
+  boolean readRespCommandRestartDevice(pb_istream_t istream);
 
-    boolean writeReqCommandGetAlarms();
-    boolean readRespCommandGetAlarms(pb_istream_t istream);
+  boolean writeReqCommandInverterTurnOff();
+  boolean readRespCommandInverterTurnOff(pb_istream_t istream);
 
-    boolean writeReqCommandRestartMi();
-    boolean readRespCommandRestartMi(pb_istream_t istream);
+  boolean writeReqCommandInverterTurnOn();
+  boolean readRespCommandInverterTurnOn(pb_istream_t istream);
 
-    const char* serverIP;
-    uint16_t serverPort;
-    AsyncClient* client;
+  boolean writeReqCommandPerformanceDataMode();
+  boolean readRespCommandPerformanceDataMode(pb_istream_t istream);
 
-    CRC16 crc;
-    
-    float gridVoltHist[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-    uint8_t gridVoltCnt = 0;
-    unsigned long lastSwOff = 0;
-    unsigned long lastAppInfoRequest = 0;  // Track last device info request time
-    bool initialAppInfoRequested = false;  // Track if initial device info has been requested
+  boolean writeReqCommandRequestAlarms();
+  boolean readRespCommandRequestAlarms(pb_istream_t istream);
 
-    static float calcValue(int32_t value, int32_t divider = 10);
+  boolean writeReqCommandGetAlarms();
+  boolean readRespCommandGetAlarms(pb_istream_t istream);
+
+  boolean writeReqCommandRestartMi();
+  boolean readRespCommandRestartMi(pb_istream_t istream);
+
+  const char *serverIP;
+  uint16_t serverPort;
+  AsyncClient *client;
+
+  CRC16 crc;
+
+  float gridVoltHist[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+  uint8_t gridVoltCnt = 0;
+  unsigned long lastSwOff = 0;
+  unsigned long lastAppInfoRequest = 0; // Track last device info request time
+  bool initialAppInfoRequested = false; // Track if initial device info has been requested
+
+  static float calcValue(int32_t value, int32_t divider = 10);
 };
 
 extern DTUInterface dtuInterface;

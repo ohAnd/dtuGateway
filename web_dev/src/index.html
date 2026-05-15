@@ -463,7 +463,10 @@
 
         <!-- HUD textures & effects -->
         <div class="mc-bg-dots"></div>
-        <div class="mc-scan"></div>
+        <!-- Sweeping scan line — only for solar+battery combined mode -->
+        <template x-if="$store.app.info?.dtuConnection?.dtuRemoteDisplay_SolarMonitor && $store.app.info?.dtuConnection?.dtuRemoteDisplay_BatteryMonitor">
+          <div class="mc-scan"></div>
+        </template>
         <span class="mc-corner mc-corner--tl"></span>
         <span class="mc-corner mc-corner--tr"></span>
         <span class="mc-corner mc-corner--bl"></span>

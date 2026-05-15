@@ -47,6 +47,12 @@ def index():
     return redirect("/index.html")
 
 
+@app.route("/style2.css")
+def serve_style2():
+    """Serve style.css as style2.css for dev server."""
+    return send_from_directory(SRC_DIR, "style.css")
+
+
 @app.route("/<path:filename>")
 def static_files(filename: str):
     """Serve dashboard source files from web_dev/src/."""

@@ -4,6 +4,21 @@ All notable changes to dtuGateway are documented here. This changelog focuses on
 
 ## [Unreleased] - Current Development
 
+### Added (2026-05-15)
+- Battery and Solar+Battery remote monitor modes — new distributed monitoring capability with dual independent flags
+  - Battery monitoring: SOC gauge, stored energy display, special -1234 trigger for yield display
+  - Combined Solar+Battery: unified power + SOC gauges with yield and stored energy indicators
+  - New MQTT subscriptions: `/Battery_SOC/state`, `/Battery_Stored_Energy/state`
+  - 5-second sweeping scan line animation on monitor card (solar+battery mode only) — yellow-lime gradient with cubic-bezier easing
+- Three TFT display render methods for distributed monitoring: Solar, Battery, and Combined modes
+- Dynamic text spacing calculation for display values — eliminates ghosting and ensures consistent unit positioning
+- Copilot workflow instructions in `.github/copilot-instructions.md` — "prepare for commit" automation
+
+### Changed (2026-05-15)
+- Configuration split `remoteDisplay` flags into `remoteDisplay_SolarMonitor` and `remoteDisplay_BatteryMonitor` — more flexible mode selection
+- TFT display mode selection now mutual-exclusive: Solar XOR Battery XOR Both (prevents conflicting configurations)
+- Alpine.js UI detects firmware capabilities and enforces mode constraints via JavaScript logic
+
 ### Added (2026-05-14)
 - New Alpine.js dashboard (v2 UI) available at `/index2.html` — solar/battery HUD monitor overlay, settings drawer with connection and display mode sections, update-available badge, inverter offline indicator, and power limit overlay
 - All dashboard assets (Alpine.js, icons) are now embedded in firmware — no internet connection required at runtime

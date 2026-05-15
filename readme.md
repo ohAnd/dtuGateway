@@ -436,20 +436,63 @@ Access expert mode at `http://<device-ip>/config`:
 - **Solar Monitor**: Multi-source power aggregation display
 - **Remote Display**: Mirror another dtuGateway's data
 
-### Solar Monitor Mode
-<img src="doc/images/dtuGateway_solarMonitor_1.jpg" alt="Solar Monitor" width="200"/>
+### Solar / Battery Monitor Mode
 
-Special TFT mode for monitoring multiple solar sources:
-- **Aggregate display**: Combined power from multiple inverters
-- **MQTT-based**: Receives data from other dtuGateways
-- **Clean interface**: Gauge + daily yield + real-time clock
-- **Perfect for**: Main monitoring point in multi-inverter setups
+These modes allow one dtuGateway to act as a remote display for aggregated solar and/or battery data from other dtuGateway instances or external sources via MQTT. When enabled, the device disables direct DTU connection and subscribes to specific MQTT topics to receive data. Perfect for monitoring multiple inverters or battery systems in one place.
+
+#### Solar Monitor
+<img src="doc/images/dtuGateway_solar_monitor.jpg" alt="Solar Monitor" width="170"/>
+<img src="doc/images/dtuGateway_solar_monitor_value.jpg" alt="Solar Monitor Value" width="170"/>
+
+Displays aggregated solar power and daily energy from multiple sources.
+- **Features**: Power gauge, daily yield, real-time clock with blinking colon.
+- **MQTT Topics Required** (subscribed under the configured main topic path):
+  - `<main-topic>/PV_Power_Sum/state`: Current aggregated power (e.g., total watts from all sources).
+  - `<main-topic>/PV_Energy_Sum_Day/state`: Daily aggregated energy (e.g., total kWh produced today).
+- **Display Logic**: Updates [`lastDisplayData.totalPower`](include/displayTFT.h ) and [`lastDisplayData.totalYieldDay`](include/displayTFT.h ) from received MQTT data. Resets max power daily at midnight.
+
+#### Battery Monitor
+
+<img src="doc/images/dtuGateway_bat_monitor.jpg" alt="Battery Monitor" width="170"/>
+<img src="doc/images/dtuGateway_bat_monitor_value.jpg" alt="Battery Monitor Value" width="170"/>
+
+Displays battery state of charge (SOC) and stored energy.
+- **Features**: SOC gauge, stored energy value, real-time clock.
+- **MQTT Topics Required** (subscribed under the configured main topic path):
+  - `<main-topic>/Battery_SOC/state`: Battery state of charge (e.g., percentage, 0-100).
+  - `<main-topic>/Battery_Stored_Energy/state`: Stored energy in the battery (e.g., kWh).
+- **Display Logic**: Updates [`lastDisplayData.battery_SOC`](include/displayTFT.h ) and [`lastDisplayData.battery_StoredEnergy`](include/displayTFT.h ) from received MQTT data. Limits SOC to 100% and handles invalid values.
+
+**Special Feature: Daily Yield Mode** ( Dedicated for @checkersky )
+- **Normal Mode**: SOC gauge (big), stored energy (small text).
+- **Special Mode Trigger**: If stored energy arrives as -1234 via MQTT, the display switches to special mode: SOC gauge (big), daily yield (small text).
+- This mode provides an alternative view for battery monitoring, ideal for specific setups. The daily yield is derived from aggregated solar data (from `PV_Energy_Sum_Day/state`). Ensure your MQTT source sends -1234 for stored energy to activate this mode.
+
+#### Solar & Battery Monitor
+
+<img src="doc/images/dtuGateway_solar_battery_monitor.jpg" alt="Solar & Battery Monitor" width="170"/>
+
+Combines solar power monitoring with battery status for a comprehensive view.
+- **Features**: Power gauge with SOC ring overlay, daily yield, stored energy, real-time clock.
+- **MQTT Topics Required** (subscribed under the configured main topic path; all topics from Solar and Battery Monitor above):
+  - `<main-topic>/PV_Power_Sum/state`: Current aggregated power.
+  - `<main-topic>/PV_Energy_Sum_Day/state`: Daily aggregated energy.
+  - `<main-topic>/Battery_SOC/state`: Battery SOC.
+  - `<main-topic>/Battery_Stored_Energy/state`: Stored energy.
+- **Display Logic**: Merges solar and battery data into a single screen (e.g., power ring with SOC arc in [`drawGauge_SolarBatteryMonitor`](src/displayTFT.cpp )). Updates both solar and battery display data structures.
 
 **Configuration:**
-1. Enable "run as remote summary display" in DTU settings
-2. Configure MQTT broker connection
-3. Set main topic path for data sources
-4. Expects data at: `<path>/PV_Power_Sum/state` and `<path>/PV_Energy_Sum_Day/state`
+1. Enable "run as remote summary display" in DTU settings (web interface).
+2. Check the appropriate monitor checkboxes: Solar Monitor, Battery Monitor, or both for combined mode.
+3. Configure MQTT broker connection (same as the data sources).
+4. Set the main topic path to match the publishing sources.
+5. Data sources must publish to the required topics (e.g., other dtuGateway instances in standard mode can publish aggregated data).
+
+**Notes:**
+- When enabled, DTU connection settings are hidden, and the device relies entirely on MQTT.
+- If both Solar and Battery Monitor are checked, the display combines elements (implementation in [`drawScreen_monitorSolarBattery`](src/displayTFT.cpp )).
+- Night mode, brightness, and orientation apply as configured for the TFT display.
+- For setup help, see Remote Display Configuration in Advanced Configuration.
 
 ---
 
@@ -795,7 +838,7 @@ For secure connections (e.g., HiveMQ Cloud):
     "dtuCloudPause": 1,
     "dtuCloudPauseTime": 30,
     "dtuRemoteDisplay": 0,
-    "dtuRemoteSummaryDisplay": 0,
+    "dtuRemoteDisplay_SolarMonitor": 0,
     "deviceData": {
       "dtu_version": 4097,
       "dtu_version_string": "01.00.01",
@@ -1149,14 +1192,7 @@ Use one dtuGateway as display for another:
 3. **Result**: Display gateway shows main gateway's data
 
 ### Solar Monitor Setup
-Aggregate multiple solar sources on one display:
-
-1. **Enable monitor mode**: Check "run as remote summary display"
-2. **Configure MQTT**: Set broker connecting all sources
-3. **Set data path**: Configure main topic for aggregated data
-4. **Data format**: Sources publish to:
-   - `<main-topic>/PV_Power_Sum/state` (current power)
-   - `<main-topic>/PV_Energy_Sum_Day/state` (daily energy)
+See the [Solar Monitor](#solar-monitor) subsection under [Solar / Battery Monitor Mode](#solar--battery-monitor-mode) for full details on aggregating solar sources, required MQTT topics, and configuration.
 
 ### Custom MQTT Topics
 Override default topic structure:

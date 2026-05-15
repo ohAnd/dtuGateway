@@ -948,22 +948,22 @@ void setup()
     Serial.println(F("Failed to load user config"));
     dtuWebServer = new DTUwebserver();
   }
-  // ------- user config loaded --------------------------------------------
+// ------- user config loaded --------------------------------------------
 
-  // init display according to userConfig
-  #ifndef DGC9A01_MOUNTED
+// init display according to userConfig
+#ifndef DGC9A01_MOUNTED
   if (userConfig.displayConnected == 0)
   {
     displayOLED.setup();
     displayOLED.setRemoteDisplayMode(userConfig.remoteDisplayActive);
   }
   else if (userConfig.displayConnected == 1)
-  #else
-  // For DGC9A01_MOUNTED, always use TFT display
-  #endif
+#else
+// For DGC9A01_MOUNTED, always use TFT display
+#endif
   {
     displayTFT.setup();
-    displayTFT.setRemoteDisplayMode(userConfig.remoteDisplayActive, userConfig.remoteSummaryDisplayActive);
+    displayTFT.setRemoteDisplayMode(userConfig.remoteDisplayActive, userConfig.remoteDisplay_SolarMonitor, userConfig.remoteDisplay_BatteryMonitor);
   }
 
   if (userConfig.wifiAPstart)
@@ -1014,17 +1014,17 @@ void setup()
     Serial.println(F("Ready! Open http://dtuGateway.local in your browser"));
     Serial.println("Or connect to AP '" + platformData.espUniqueName + "' and navigate to " + WiFi.softAPIP().toString());
 
-    // display - change every reboot in first start mode
-    #ifndef DGC9A01_MOUNTED
+// display - change every reboot in first start mode
+#ifndef DGC9A01_MOUNTED
     if (userConfig.displayConnected == 0)
     {
       displayOLED.drawFactoryMode(String(platformData.fwVersion), platformData.espUniqueName, apIP.toString());
       userConfig.displayConnected = 1;
     }
     else if (userConfig.displayConnected == 1)
-    #else
-    // For DGC9A01_MOUNTED, always use TFT display
-    #endif
+#else
+// For DGC9A01_MOUNTED, always use TFT display
+#endif
     {
       displayTFT.drawFactoryMode(String(platformData.fwVersion), platformData.espUniqueName, apIP.toString());
       userConfig.displayConnected = 0;
@@ -1082,12 +1082,12 @@ void startServices()
 
     dtuWebServer->start();
 
-    if (!userConfig.remoteDisplayActive && !userConfig.remoteSummaryDisplayActive)
+    if (!userConfig.remoteDisplayActive && !userConfig.remoteDisplay_SolarMonitor && !userConfig.remoteDisplay_BatteryMonitor)
       dtuInterface.setup(userConfig.dtuHostIpDomain);
 
     mqttHandler.setConfiguration(userConfig.mqttBrokerIpDomain, userConfig.mqttBrokerPort, userConfig.mqttBrokerUser, userConfig.mqttBrokerPassword, userConfig.mqttUseTLS, (platformData.espUniqueName).c_str(), userConfig.mqttBrokerMainTopic, userConfig.mqttHAautoDiscoveryON, ((platformData.dtuGatewayIP).toString()).c_str());
     mqttHandler.setup();
-    mqttHandler.setRemoteDisplayData(userConfig.remoteDisplayActive, userConfig.remoteSummaryDisplayActive);
+    mqttHandler.setRemoteDisplayData(userConfig.remoteDisplayActive, userConfig.remoteDisplay_SolarMonitor, userConfig.remoteDisplay_BatteryMonitor);
 
     mqttHandler.setTopicStructure(userConfig.mqttOpenDTUtopics);
     // autodiscovery for home assistant with opendtu topics not implemented yet
@@ -1402,25 +1402,25 @@ void loop()
       // dtuInterface.disconnect(DTU_STATE_STOPPED);
       dtuInterface.flushConnection();
       mqttHandler.stopConnection();
-      #ifndef DGC9A01_MOUNTED
+#ifndef DGC9A01_MOUNTED
       if (userConfig.displayConnected == 0)
         displayOLED.drawUpdateMode("update running ...");
       else if (userConfig.displayConnected == 1)
-      #else
-      // For DGC9A01_MOUNTED, always use TFT display
-      #endif
+#else
+// For DGC9A01_MOUNTED, always use TFT display
+#endif
         displayTFT.drawUpdateMode("update running ...");
       updateInfo.updateState = UPDATE_STATE_INSTALLING;
     }
     if (updateInfo.updateState == UPDATE_STATE_DONE)
     {
-      #ifndef DGC9A01_MOUNTED
+#ifndef DGC9A01_MOUNTED
       if (userConfig.displayConnected == 0)
         displayOLED.drawUpdateMode("update done", "rebooting ...");
       else if (userConfig.displayConnected == 1)
-      #else
-      // For DGC9A01_MOUNTED, always use TFT display
-      #endif
+#else
+// For DGC9A01_MOUNTED, always use TFT display
+#endif
         displayTFT.drawUpdateMode("update done", "rebooting ...");
       updateInfo.updateState = UPDATE_STATE_RESTART;
     }
@@ -1448,38 +1448,38 @@ void loop()
     // reboot screen
     if (platformData.rebootRequested)
     {
-      #ifndef DGC9A01_MOUNTED
+#ifndef DGC9A01_MOUNTED
       if (userConfig.displayConnected == 0)
         displayOLED.drawUpdateMode("rebooting ...", "in " + String(platformData.rebootRequestedInSec) + " s");
       else if (userConfig.displayConnected == 1)
-      #else
-      // For DGC9A01_MOUNTED, always use TFT display
-      #endif
+#else
+// For DGC9A01_MOUNTED, always use TFT display
+#endif
         displayTFT.drawUpdateMode("rebooting ...", "in " + String(platformData.rebootRequestedInSec) + " s");
     }
     // reboot screen
     else if (platformData.rebootStarted)
     {
-      #ifndef DGC9A01_MOUNTED
+#ifndef DGC9A01_MOUNTED
       if (userConfig.displayConnected == 0)
         displayOLED.drawUpdateMode("rebooting ...", "now");
       else if (userConfig.displayConnected == 1)
-      #else
-      // For DGC9A01_MOUNTED, always use TFT display
-      #endif
+#else
+// For DGC9A01_MOUNTED, always use TFT display
+#endif
         displayTFT.drawUpdateMode("rebooting ...", "now");
     }
     // normal screen
     else if (!userConfig.wifiAPstart)
     {
-      // display tasks every 50ms = 20Hz
-      #ifndef DGC9A01_MOUNTED
+// display tasks every 50ms = 20Hz
+#ifndef DGC9A01_MOUNTED
       if (userConfig.displayConnected == 0)
         displayOLED.renderScreen(getCurrentTimeString(), String(platformData.fwVersion));
       else if (userConfig.displayConnected == 1)
-      #else
-      // For DGC9A01_MOUNTED, always use TFT display
-      #endif
+#else
+// For DGC9A01_MOUNTED, always use TFT display
+#endif
         displayTFT.renderScreen(getCurrentTimeString(), String(platformData.fwVersion));
     }
   }
@@ -1577,6 +1577,8 @@ void loop()
         dtuGlobalData.warningsActive = remoteData.warningsActive;
         dtuGlobalData.lastRespTimestamp = remoteData.respTimestamp;
         dtuGlobalData.currentTimestamp = remoteData.respTimestamp; // setting the local counter
+        dtuGlobalData.batterySOC = remoteData.batterySOC;
+        dtuGlobalData.batteryStoredEnergy = remoteData.batteryStoredEnergy;
         Serial.println("\nMQTT: changed remote inverter data");
       }
     }
@@ -1630,14 +1632,14 @@ void loop()
       if (dtuConnection.dtuActiveOffToCloudUpdate)
         blinkCode = BLINK_PAUSE_CLOUD_UPDATE;
 
-      if (userConfig.openhabActive && !userConfig.remoteDisplayActive && !userConfig.remoteSummaryDisplayActive)
+      if (userConfig.openhabActive && !userConfig.remoteDisplayActive && !userConfig.remoteDisplay_SolarMonitor && !userConfig.remoteDisplay_BatteryMonitor)
         getPowerSetDataFromOpenHab();
 
       // direct request of new powerLimit
       if (dtuGlobalData.powerLimitSet != 101 &&
           dtuGlobalData.uptodate &&
           dtuConnection.dtuConnectState == DTU_STATE_CONNECTED &&
-          !userConfig.remoteDisplayActive && !userConfig.remoteSummaryDisplayActive)
+          !userConfig.remoteDisplayActive && !userConfig.remoteDisplay_SolarMonitor && !userConfig.remoteDisplay_BatteryMonitor)
       {
         if (!(dtuGlobalData.powerLimitSet == 1 && dtuGlobalData.inverterControl.stateOn) &&
             ((dtuGlobalData.powerLimitSet != dtuGlobalData.powerLimit && dtuGlobalData.inverterControl.stateOn) ||
@@ -1731,7 +1733,7 @@ void loop()
     // -------->
 
     // requesting data from DTU
-    if (WiFi.status() == WL_CONNECTED && !userConfig.remoteDisplayActive && !userConfig.remoteSummaryDisplayActive)
+    if (WiFi.status() == WL_CONNECTED && !userConfig.remoteDisplayActive && !userConfig.remoteDisplay_SolarMonitor && !userConfig.remoteDisplay_BatteryMonitor)
       dtuInterface.getDataUpdate();
   }
 

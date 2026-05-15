@@ -318,8 +318,7 @@ static const char *app_js PROGMEM = R"DTUGW(document.addEventListener('alpine:in
  remoteDisplayActiveSend:(this.form.remoteDisplay&&!this.form.remoteSummary&&!this.form.batteryMonitor)?'1':'0',
  remoteSummaryDisplayActiveSend:(!this.form.remoteDisplay&&this.form.remoteSummary)?'1':'0',
  ...('dtuRemoteDisplay_SolarMonitor' in(this.info.dtuConnection??{})?{
- solarMonitorActiveSend:(!this.form.remoteDisplay&&this.form.remoteSummary)?'1':'0',
- batteryMonitorActiveSend:(!this.form.remoteDisplay&&this.form.batteryMonitor)?'1':'0',
+ remoteBatteryDisplayActiveSend:(!this.form.remoteDisplay&&this.form.batteryMonitor)?'1':'0',
 }:{}),
 });
  this._toast('DTU settings saved','success');

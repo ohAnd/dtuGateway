@@ -33,8 +33,8 @@ settings = {
         "dtuRemoteSummaryDisplay": False,
         # Feature-branch flags (both False = normal gateway mode)
         # Set SolarMonitor=True and/or BatteryMonitor=True to test monitor modes
-        "dtuRemoteDisplay_SolarMonitor": False,
-        "dtuRemoteDisplay_BatteryMonitor": False,
+        "dtuRemoteDisplay_SolarMonitor": True,
+        "dtuRemoteDisplay_BatteryMonitor": True,
         "dtuRssi": 72,
         "dtuResetRequested": 2,
         "deviceData": {
