@@ -126,9 +126,21 @@ void DTUwebserver::start()
     asyncDtuWebServer.on("/updateGetInfo", handleUpdateInfoRequest);
 
     // OTA update
-    asyncDtuWebServer.on("/doupdate", HTTP_POST, [](AsyncWebServerRequest *request) {}, [](AsyncWebServerRequest *request, const String &filename, size_t index, uint8_t *data, size_t len, bool final)
+    asyncDtuWebServer.on("/doupdate", HTTP_POST, [](AsyncWebServerRequest *request)
+                         {
+        // Send acknowledgment - actual upload happens in the onData callback
+        request->send(200, "application/json", "{\"status\":\"uploading\"}"); }, [](AsyncWebServerRequest *request, const String &filename, size_t index, uint8_t *data, size_t len, bool final)
                          { handleDoUpdate(request, filename, index, data, len, final); });
     asyncDtuWebServer.on("/updateState", HTTP_GET, handleUpdateProgress);
+
+    // Debug endpoint - check if API is working
+    asyncDtuWebServer.on("/api/debug/updateState", HTTP_GET, [](AsyncWebServerRequest *request)
+                         {
+        String JSON = "{\"updateRunning\":" + String(updateInfo.updateRunning ? 1 : 0) + ",";
+        JSON += "\"updateState\":" + String(updateInfo.updateState) + ",";
+        JSON += "\"updateProgress\":" + String(updateInfo.updateProgress);
+        JSON += ",\"timestamp\":" + String(millis()) + "}";
+        request->send(200, "application/json", JSON); });
 
     // Captive Portal Detection Endpoints
     // Android captive portal detection - redirect to captive portal
@@ -215,6 +227,7 @@ void DTUwebserver::start()
 #ifdef ESP32
     Update.onProgress(printProgress);
 #endif
+    updateInfo.updateState = UPDATE_STATE_IDLE; // Initialize update state
 }
 
 void DTUwebserver::stop()
@@ -230,13 +243,18 @@ void DTUwebserver::handleDoUpdate(AsyncWebServerRequest *request, const String &
     {
         updateInfo.updateRunning = true;
         updateInfo.updateState = UPDATE_STATE_PREPARE;
-        Serial.println("OTA UPDATE:\t Update Start with file: " + filename);
-        Serial.println("OTA UPDATE:\t waiting to stop services");
+        updateInfo.updateProgress = 0;
+        Serial.println("OTA UPDATE:\t ====== UPDATE START ======");
+        Serial.println("OTA UPDATE:\t Filename: " + filename);
+        Serial.println("OTA UPDATE:\t File size: " + String(request->contentLength()) + " bytes");
+        Serial.println("OTA UPDATE:\t Stopping services...");
         delay(500);
-        Serial.println("OTA UPDATE:\t services stopped - start update");
+        Serial.println("OTA UPDATE:\t Services stopped - beginning update");
         content_len = request->contentLength();
+        Serial.println("OTA UPDATE:\t Content length set to: " + String(content_len) + " bytes");
         // if filename includes spiffs, update the spiffs partition
         int cmd = (filename.indexOf("spiffs") > -1) ? U_PART : U_FLASH;
+        Serial.println("OTA UPDATE:\t Update type: " + String(cmd == U_PART ? "SPIFFS" : "FLASH"));
 #ifdef ESP8266
         Update.runAsync(true);
         if (!Update.begin(content_len, cmd))
@@ -245,13 +263,20 @@ void DTUwebserver::handleDoUpdate(AsyncWebServerRequest *request, const String &
         if (!Update.begin(UPDATE_SIZE_UNKNOWN, cmd))
         {
 #endif
+            Serial.println("OTA UPDATE:\t ERROR - Failed to begin update!");
             Update.printError(Serial);
             updateInfo.updateState = UPDATE_STATE_FAILED;
+        }
+        else
+        {
+            updateInfo.updateState = UPDATE_STATE_INSTALLING;
+            Serial.println("OTA UPDATE:\t Update.begin() successful");
         }
     }
 
     if (Update.write(data, len) != len)
     {
+        Serial.println("OTA UPDATE:\t ERROR - Write failed!");
         Update.printError(Serial);
         updateInfo.updateState = UPDATE_STATE_FAILED;
 #ifdef ESP8266
@@ -259,24 +284,29 @@ void DTUwebserver::handleDoUpdate(AsyncWebServerRequest *request, const String &
     else
     {
         updateInfo.updateProgress = (Update.progress() * 100) / Update.size();
-        // Serial.println("OTA UPDATE:\t ESP8266 Progress: " + String(updateInfo.updateProgress, 1) + " %");
+        Serial.println("OTA UPDATE:\t ESP8266 Progress: " + String(updateInfo.updateProgress) + "% ");
 #endif
     }
 
     if (final)
     {
+        Serial.println("OTA UPDATE:\t Finalizing update...");
         // AsyncWebServerResponse *response = request->beginResponse(302, "text/plain", "Please wait while the device reboots");
         // response->addHeader("Refresh", "20");
         // response->addHeader("Location", "/");
         // request->send(response);
         if (!Update.end(true))
         {
+            Serial.println("OTA UPDATE:\t ERROR - Update.end() failed!");
             Update.printError(Serial);
             updateInfo.updateState = UPDATE_STATE_FAILED;
+            updateInfo.updateRunning = false;
         }
         else
         {
-            Serial.println("OTA UPDATE:\t Update complete");
+            Serial.println("OTA UPDATE:\t ====== UPDATE SUCCESSFUL ======");
+            Serial.println("OTA UPDATE:\t Rebooting in 3 seconds...");
+            updateInfo.updateProgress = 100;
             updateInfo.updateState = UPDATE_STATE_DONE;
             updateInfo.updateRunning = false;
             Serial.flush();
@@ -290,15 +320,46 @@ void DTUwebserver::handleDoUpdate(AsyncWebServerRequest *request, const String &
 void DTUwebserver::printProgress(size_t prg, size_t sz)
 {
     updateInfo.updateProgress = (prg * 100) / content_len;
-    // Serial.println("OTA UPDATE:\t ESP32 Progress: " + String(updateInfo.updateProgress, 1) + " %");
+    Serial.println("OTA UPDATE:\t ESP32 Progress: " + String(updateInfo.updateProgress) + "% (" + String(prg) + "/" + String(content_len) + " bytes)");
 }
 void DTUwebserver::handleUpdateProgress(AsyncWebServerRequest *request)
 {
+    String stateStr;
+    switch (updateInfo.updateState)
+    {
+    case UPDATE_STATE_IDLE:
+        stateStr = "idle";
+        break;
+    case UPDATE_STATE_PREPARE:
+        stateStr = "preparing";
+        break;
+    case UPDATE_STATE_START:
+        stateStr = "starting";
+        break;
+    case UPDATE_STATE_INSTALLING:
+        stateStr = "installing";
+        break;
+    case UPDATE_STATE_DONE:
+        stateStr = "done";
+        break;
+    case UPDATE_STATE_RESTART:
+        stateStr = "restarting";
+        break;
+    case UPDATE_STATE_FAILED:
+        stateStr = "failed";
+        break;
+    default:
+        stateStr = "unknown";
+        break;
+    }
+
     String JSON = "{";
-    JSON += "\"updateRunning\": " + String(updateInfo.updateRunning) + ",";
-    JSON += "\"updateState\": " + String(updateInfo.updateState) + ",";
-    JSON += "\"updateProgress\": " + String(updateInfo.updateProgress);
+    JSON += "\"updateRunning\":" + String(updateInfo.updateRunning ? 1 : 0) + ",";
+    JSON += "\"updateState\":" + String(updateInfo.updateState) + ",";
+    JSON += "\"updateStateStr\":\"" + stateStr + "\",";
+    JSON += "\"updateProgress\":" + String(updateInfo.updateProgress);
     JSON += "}";
+
     request->send(200, "application/json", JSON);
 }
 

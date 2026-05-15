@@ -116,7 +116,7 @@
       <div class="form-field">
         <label>Password <span class="passshow" @click="$store.app.togglePassVis('wifiPass')">show</span></label>
         <input :type="$store.app.passVis.wifiPass?'text':'password'"
-               x-model="$store.app.form.wifiPass" maxlength="64" id="wifiPass">
+               x-model="$store.app.form.wifiPass" maxlength="64" id="wifiPass" type="password">
       </div>
 
       <div class="btn-row">
@@ -232,7 +232,7 @@
         <div class="form-field">
           <label>MQTT password <span class="passshow" @click="$store.app.togglePassVis('mqttPass')">show</span></label>
           <input :type="$store.app.passVis.mqttPass?'text':'password'"
-                 x-model="$store.app.form.mqttPass" maxlength="64">
+                 x-model="$store.app.form.mqttPass" maxlength="64" type="password">
         </div>
         <div class="form-field">
           <label>Main topic <small>(e.g. dtu_12345678)</small></label>
@@ -264,21 +264,24 @@
           <span class="update-ver-label">Available</span>
           <span class="update-ver-val"
                 :class="{'update-ver-val--new': $store.app.info.firmware?.updateAvailable}"
-                x-text="$store.app.info.firmware?.versionServer ?? '…'"></span>
+                x-text="$store.app.info.firmware?.versionServer === 'checking' ? 'disabled' : ($store.app.info.firmware?.versionServer ?? '…')"></span>
         </div>
       </div>
 
       <div class="release-channel">
-        <button class="channel-btn"
+        <button class="channel-btn" disabled
+                title="Online updates disabled — under redevelopment"
                 :class="{'active': ($store.app.info.firmware?.selectedUpdateChannel??0)===0}"
                 @click="$store.app.setChannel(0)">stable</button>
-        <button class="channel-btn"
+        <button class="channel-btn" disabled
+                title="Online updates disabled — under redevelopment"
                 :class="{'active': ($store.app.info.firmware?.selectedUpdateChannel??0)===1}"
                 @click="$store.app.setChannel(1)">snapshot</button>
       </div>
 
       <div class="btn-row" style="margin-top:1rem;">
-        <button class="btn btn--primary"
+        <button class="btn btn--primary" disabled
+                title="Online updates disabled — under redevelopment. Use manual firmware upload instead."
                 :disabled="!$store.app.info.firmware?.updateAvailable"
                 @click="$store.app.startOnlineUpdate()">Start online update</button>
       </div>
@@ -751,6 +754,38 @@
     </footer>
 
   </main>
+
+  <!-- ── Firmware Update Modal Overlay ───────────────────────────── -->
+  <div class="update-modal" :class="{ 'is-active': $store.app.updateProgress >= 0 }">
+    <div class="update-modal__box">
+      <h2 class="update-modal__title">Firmware Update</h2>
+      <p class="update-modal__message">
+        <span x-show="$store.app.fwFile">Updating with <span x-text="$store.app.fwFile?.name"></span>…</span>
+        <span x-show="!$store.app.fwFile">Updating firmware…</span><br>
+        <span style="font-size: 0.85rem; opacity: 0.8;">Do not disconnect power or network.</span>
+      </p>
+      
+      <!-- Status message -->
+      <div class="update-modal__status" x-show="$store.app._updateStatus !== 'done'">
+        <p x-text="'Status: ' + ($store.app._updateStatus || 'preparing…')"></p>
+      </div>
+      
+      <div class="update-modal__progress-track">
+        <div class="update-modal__progress-fill"
+             :style="`width:${$store.app.updateProgress}%`"
+             x-show="$store.app.updateProgress > 0">
+          <span x-text="`${$store.app.updateProgress}%`"></span>
+        </div>
+      </div>
+      <div x-show="$store.app._updateStatus !== 'done'">
+        <p class="update-modal__timeout" x-text="$store.app._updateTimeout ? `Timeout in: ${$store.app._updateTimeout}s` : ''"></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Page dimmer when updating (disables all interactions) ────── -->
+  <div class="update-in-progress" x-show="$store.app.updateProgress >= 0"
+       style="position: fixed; inset: 0; z-index: 9400; pointer-events: auto;"></div>
 
   <script src="app.js"></script>
   <script src="vendor.js"></script>

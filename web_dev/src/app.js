@@ -31,6 +31,9 @@ document.addEventListener('alpine:init', () => {
     rebootTarget:   null,
     fwFile:         null,
     updateProgress: -1,
+    _updateTimeout: 0,      // countdown timer during update (60 sec max)
+    _updateInterval: null,  // interval handle for progress polling
+    _updateStatus:  '',     // human-readable status message
     toasts:         [],
     _toastSeq:      0,
 
@@ -442,49 +445,132 @@ document.addEventListener('alpine:init', () => {
     },
 
     async startOnlineUpdate() {
+      console.log('[UPDATE] Starting online update...');
       this.updateProgress = 0;
+      this._updateTimeout = 60;
+      this._updateStatus = 'preparing';
       try {
+        console.log('[UPDATE] Posting to /doupdate');
         await this._post('/doupdate', {});
+        console.log('[UPDATE] Post successful, starting progress poll');
         this._pollUpdateProgress();
       } catch (e) {
+        console.error('[UPDATE] Update failed:', e);
         this._toast('Update failed: ' + e.message, 'error');
         this.updateProgress = -1;
+        this._updateTimeout = 0;
+        this._updateStatus = '';
       }
     },
 
     manualFwSelected(event) {
       this.fwFile = event.target.files[0] ?? null;
+      console.log('[UPDATE] File selected:', this.fwFile?.name);
     },
 
     async uploadManualFirmware() {
+      console.log('[UPDATE] Starting manual firmware upload...');
       if (!this.fwFile) return;
       const fd = new FormData();
       fd.append('update', this.fwFile);
       this.updateProgress = 0;
+      this._updateTimeout = 60;
+      this._updateStatus = 'preparing';
+      
+      // Start polling immediately - don't wait for upload to complete
+      console.log('[UPDATE] Starting progress poll immediately');
+      this._pollUpdateProgress();
+      
+      // Send upload in background - don't await it
       try {
-        const res = await fetch('/doupdate', { method: 'POST', body: fd });
-        if (!res.ok) throw new Error(res.statusText);
-        this._pollUpdateProgress();
+        console.log('[UPDATE] Uploading file:', this.fwFile.name);
+        fetch('/doupdate', { method: 'POST', body: fd })
+          .then(res => {
+            console.log('[UPDATE] Upload response received:', res.status);
+            if (!res.ok) throw new Error('Upload returned: ' + res.statusText);
+            console.log('[UPDATE] Upload completed successfully');
+          })
+          .catch(e => {
+            console.error('[UPDATE] Upload error:', e);
+            // Poll will catch the error state via /updateState
+          });
       } catch (e) {
+        console.error('[UPDATE] Upload failed to start:', e);
         this._toast('Upload failed: ' + e.message, 'error');
         this.updateProgress = -1;
+        this._updateTimeout = 0;
+        this._updateStatus = '';
+        this.fwFile = null;
       }
     },
 
     _pollUpdateProgress() {
-      const interval = setInterval(async () => {
+      console.log('[UPDATE] Starting poll for firmware update progress...');
+      const MAX_TIMEOUT_SEC = 60;
+      let timeoutCounter = MAX_TIMEOUT_SEC;
+      this._updateTimeout = MAX_TIMEOUT_SEC;
+      
+      // Start timeout countdown (every second)
+      const timeoutInterval = setInterval(() => {
+        timeoutCounter--;
+        this._updateTimeout = timeoutCounter;
+        console.log('[UPDATE] Timeout countdown:', timeoutCounter + 's');
+        
+        if (timeoutCounter <= 0) {
+          console.log('[UPDATE] Timeout reached - clearing intervals');
+          clearInterval(timeoutInterval);
+          clearInterval(this._updateInterval);
+          this._toast('⏱ Update timeout (60s) — restoring control…', 'warn');
+          this.updateProgress = -1;
+          this._updateTimeout = 0;
+          this._updateStatus = '';
+          this.fwFile = null;
+        }
+      }, 1000);
+      
+      // Poll update state (every 500ms)
+      this._updateInterval = setInterval(async () => {
         try {
           const s = await this._get('/updateState');
+          console.log('[UPDATE] API Response:', s);
+          
           this.updateProgress = s.updateProgress ?? 0;
-          if (this.updateProgress > 0 && !s.updateRunning) {
-            clearInterval(interval);
-            this._toast('Update complete — reloading…', 'success');
-            setTimeout(() => { this.updateProgress = -1; location.reload(); }, 4000);
+          this._updateStatus = s.updateStateStr ?? 'unknown';
+          
+          console.log('[UPDATE] Progress:', this.updateProgress + '%, Status:', this._updateStatus);
+          
+          // Check for error state
+          if (s.updateState === 6) { // UPDATE_STATE_FAILED = 6
+            console.log('[UPDATE] Error state detected!');
+            clearInterval(timeoutInterval);
+            clearInterval(this._updateInterval);
+            this._toast('✗ Update failed — check serial logs for details', 'error');
+            this.updateProgress = -1;
+            this._updateTimeout = 0;
+            this._updateStatus = '';
+            this.fwFile = null;
+            return;
           }
-        } catch (_) {
-          clearInterval(interval);
-          this._toast('Could not read update progress', 'error');
-          this.updateProgress = -1;
+          
+          // Update complete when progress >= 100 and updateRunning is false
+          if (s.updateProgress >= 100 && !s.updateRunning) {
+            console.log('[UPDATE] Update complete!');
+            clearInterval(timeoutInterval);
+            clearInterval(this._updateInterval);
+            this._toast('✓ Update complete — reloading in 3 seconds…', 'success');
+            
+            // Reload after brief delay to let user see completion message
+            setTimeout(() => {
+              this.updateProgress = -1;
+              this._updateTimeout = 0;
+              this._updateStatus = '';
+              this.fwFile = null;  // Clear filename after update
+              location.reload();
+            }, 3000);
+          }
+        } catch (e) {
+          // Network errors during poll don't immediately fail - timeout handles recovery
+          console.warn('[UPDATE] Poll error:', e);
         }
       }, 500);
     },

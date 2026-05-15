@@ -16,6 +16,9 @@ static const char *app_js PROGMEM = R"DTUGW(document.addEventListener('alpine:in
  rebootTarget:null,
  fwFile:null,
  updateProgress:-1,
+ _updateTimeout:0,
+ _updateInterval:null,
+ _updateStatus:'',
  toasts:[],
  _toastSeq:0,
  passVis:{wifiPass:false,mqttPass:false},
@@ -368,46 +371,129 @@ static const char *app_js PROGMEM = R"DTUGW(document.addEventListener('alpine:in
 }
 },
  async startOnlineUpdate(){
+ console.log('[UPDATE]Starting online update...');
  this.updateProgress=0;
+ this._updateTimeout=60;
+ this._updateStatus='preparing';
  try{
+ console.log('[UPDATE]Posting to/doupdate');
  await this._post('/doupdate',{});
+ console.log('[UPDATE]Post successful,starting progress poll');
  this._pollUpdateProgress();
 }catch(e){
+ console.error('[UPDATE]Update failed:',e);
  this._toast('Update failed:'+e.message,'error');
  this.updateProgress=-1;
+ this._updateTimeout=0;
+ this._updateStatus='';
 }
 },
  manualFwSelected(event){
  this.fwFile=event.target.files[0]??null;
+ console.log('[UPDATE]File selected:',this.fwFile?.name);
 },
  async uploadManualFirmware(){
+ console.log('[UPDATE]Starting manual firmware upload...');
  if(!this.fwFile)return;
  const fd=new FormData();
  fd.append('update',this.fwFile);
  this.updateProgress=0;
- try{
- const res=await fetch('/doupdate',{method:'POST',body:fd});
- if(!res.ok)throw new Error(res.statusText);
+ this._updateTimeout=60;
+ this._updateStatus='preparing';
+ 
+ 
+ console.log('[UPDATE]Starting progress poll immediately');
  this._pollUpdateProgress();
+ 
+ 
+ try{
+ console.log('[UPDATE]Uploading file:',this.fwFile.name);
+ fetch('/doupdate',{method:'POST',body:fd})
+ .then(res=>{
+ console.log('[UPDATE]Upload response received:',res.status);
+ if(!res.ok)throw new Error('Upload returned:'+res.statusText);
+ console.log('[UPDATE]Upload completed successfully');
+})
+ .catch(e=>{
+ console.error('[UPDATE]Upload error:',e);
+ 
+});
 }catch(e){
+ console.error('[UPDATE]Upload failed to start:',e);
  this._toast('Upload failed:'+e.message,'error');
  this.updateProgress=-1;
+ this._updateTimeout=0;
+ this._updateStatus='';
+ this.fwFile=null;
 }
 },
  _pollUpdateProgress(){
- const interval=setInterval(async()=>{
+ console.log('[UPDATE]Starting poll for firmware update progress...');
+ const MAX_TIMEOUT_SEC=60;
+ let timeoutCounter=MAX_TIMEOUT_SEC;
+ this._updateTimeout=MAX_TIMEOUT_SEC;
+ 
+ 
+ const timeoutInterval=setInterval(()=>{
+ timeoutCounter--;
+ this._updateTimeout=timeoutCounter;
+ console.log('[UPDATE]Timeout countdown:',timeoutCounter+'s');
+ 
+ if(timeoutCounter<=0){
+ console.log('[UPDATE]Timeout reached-clearing intervals');
+ clearInterval(timeoutInterval);
+ clearInterval(this._updateInterval);
+ this._toast('⏱ Update timeout(60s)— restoring control…','warn');
+ this.updateProgress=-1;
+ this._updateTimeout=0;
+ this._updateStatus='';
+ this.fwFile=null;
+}
+},1000);
+ 
+ 
+ this._updateInterval=setInterval(async()=>{
  try{
  const s=await this._get('/updateState');
+ console.log('[UPDATE]API Response:',s);
+ 
  this.updateProgress=s.updateProgress??0;
- if(this.updateProgress>0&&!s.updateRunning){
- clearInterval(interval);
- this._toast('Update complete — reloading…','success');
- setTimeout(()=>{this.updateProgress=-1;location.reload();},4000);
-}
-}catch(_){
- clearInterval(interval);
- this._toast('Could not read update progress','error');
+ this._updateStatus=s.updateStateStr??'unknown';
+ 
+ console.log('[UPDATE]Progress:',this.updateProgress+'%,Status:',this._updateStatus);
+ 
+ 
+ if(s.updateState===6){
+ console.log('[UPDATE]Error state detected!');
+ clearInterval(timeoutInterval);
+ clearInterval(this._updateInterval);
+ this._toast('✗ Update failed — check serial logs for details','error');
  this.updateProgress=-1;
+ this._updateTimeout=0;
+ this._updateStatus='';
+ this.fwFile=null;
+ return;
+}
+ 
+ 
+ if(s.updateProgress>=100&&!s.updateRunning){
+ console.log('[UPDATE]Update complete!');
+ clearInterval(timeoutInterval);
+ clearInterval(this._updateInterval);
+ this._toast('✓ Update complete — reloading in 3 seconds…','success');
+ 
+ 
+ setTimeout(()=>{
+ this.updateProgress=-1;
+ this._updateTimeout=0;
+ this._updateStatus='';
+ this.fwFile=null;
+ location.reload();
+},3000);
+}
+}catch(e){
+ 
+ console.warn('[UPDATE]Poll error:',e);
 }
 },500);
 },

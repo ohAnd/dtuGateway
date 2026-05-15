@@ -5,6 +5,30 @@ All notable changes to dtuGateway are documented here. This changelog focuses on
 ## [Unreleased] - Current Development
 
 ### Added (2026-05-15)
+- **Firmware update progress UI** — real-time visual feedback with modal overlay, animated progress bar, and status badges
+  - 60-second timeout protection for hung updates with countdown display
+  - Automatic page reload 3 seconds after successful completion
+  - Non-blocking firmware upload with immediate progress polling
+  - Manual firmware upload with visual feedback (.bin file support)
+
+### Changed (2026-05-15)
+- Fixed `/doupdate` POST endpoint — now returns HTTP 200 OK instead of 501 error
+- Firmware upload now non-blocking — progress polling starts immediately instead of waiting for full file transfer
+- Online update features (channel selection, "start online update" button) temporarily disabled — greyed out with tooltips explaining redevelopment status
+- Modal status badge and timeout counter now hidden when update is complete — cleaner UI
+
+### Fixed (2026-05-15)
+- Disabled buttons now properly greyed out with visual feedback (channel buttons and online update)
+- "Available" version no longer shows misleading "checking" status when online updates disabled — shows "disabled" instead
+- Modal message now shows actual firmware filename during manual update ("Updating with filename.bin") instead of "checking"
+- Filename automatically cleared after update completes, fails, or times out — prevents stale display
+- Browser accessibility warnings for password input fields — added proper form context
+- Duplicate percentage display below progress bar — removed redundant element
+- Modal no longer reopens after page reload following successful update
+
+---
+
+### Added (2026-05-15)
 - Battery and Solar+Battery remote monitor modes — new distributed monitoring capability with dual independent flags
   - Battery monitoring: SOC gauge, stored energy display, special -1234 trigger for yield display
   - Combined Solar+Battery: unified power + SOC gauges with yield and stored energy indicators
