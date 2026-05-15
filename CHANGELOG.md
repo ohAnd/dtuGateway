@@ -25,6 +25,8 @@ All notable changes to dtuGateway are documented here. This changelog focuses on
 - Browser accessibility warnings for password input fields — added proper form context
 - Duplicate percentage display below progress bar — removed redundant element
 - Modal no longer reopens after page reload following successful update
+- Development workflow: snapshot release now overwrites previous build artifacts instead of accumulating them
+- Development workflow: release notes now show complete commit history from last version tag instead of showing false "no previous release tag found" message
 
 ---
 

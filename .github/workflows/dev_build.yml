@@ -220,6 +220,7 @@ jobs:
 
       - name: Generate release notes
         run: |
+          git fetch --tags --all
           python3 << 'PYEOF'
           import re, subprocess
 
@@ -229,20 +230,31 @@ jobs:
           changelog_section = m.group(1).strip() if m else '_No unreleased changes documented in CHANGELOG.md_'
 
           # Get commits since last release tag (v*)
+          commit_header = 'Recent commits'
           try:
-              last_tag = subprocess.check_output(
-                  ['git', 'describe', '--tags', '--abbrev=0', '--match=v*'],
-                  stderr=subprocess.DEVNULL
-              ).decode().strip()
+              # Try to find the last version tag (could be from any branch)
+              result = subprocess.run(
+                  ['git', 'tag', '--list', 'v*', '--sort=-version:refname'],
+                  capture_output=True, text=True
+              )
+              tags = result.stdout.strip().split('\n')
+              last_tag = tags[0] if tags and tags[0] else None
+              
+              if last_tag:
+                  commits_raw = subprocess.check_output(
+                      ['git', 'log', f'{last_tag}..HEAD', '--oneline', '--no-merges']
+                  ).decode().strip()
+                  commit_header = f'All changes since `{last_tag}`'
+              else:
+                  commits_raw = subprocess.check_output(
+                      ['git', 'log', '--oneline', '--no-merges', '-50']
+                  ).decode().strip()
+                  commit_header = 'Recent commits (no previous version tag found)'
+          except subprocess.CalledProcessError as e:
               commits_raw = subprocess.check_output(
-                  ['git', 'log', f'{last_tag}..HEAD', '--oneline', '--no-merges']
+                  ['git', 'log', '--oneline', '--no-merges', '-50']
               ).decode().strip()
-              commit_header = f'Commits since `{last_tag}`'
-          except subprocess.CalledProcessError:
-              commits_raw = subprocess.check_output(
-                  ['git', 'log', '--oneline', '--no-merges', '-30']
-              ).decode().strip()
-              commit_header = 'Recent commits _(no previous release tag found)_'
+              commit_header = 'Recent commits (tag lookup failed)'
 
           commit_lines = '\n'.join(f'- {line}' for line in commits_raw.splitlines()) if commits_raw else '_none_'
 
@@ -266,6 +278,7 @@ jobs:
           prerelease: true
           name: "Latest snapshot v${{ env.CURRENT_VERSIONNUMBER }}"
           body_path: release_notes.md
+          overwrite: true
           files: |
             .pio/build/dtuGateway_ESP32_${{ env.CURRENT_VERSIONNUMBER }}.bin
             .pio/build/dtuGateway_ESP32_S3_${{ env.CURRENT_VERSIONNUMBER }}.bin
