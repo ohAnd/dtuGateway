@@ -117,11 +117,13 @@ This snapshot release system uses **purposeful separation of responsibilities** 
 2. **Auto-detect latest main tag** (e.g., `v2.3.0018`) using: `git tag --list "v*" --sort=-version:refname --merged main`
 3. **Get commit history** since that tag
 4. **Combine both**:
-   - User summaries (readable, curated by Copilot)
-   - Commit log (technical details, for developers)
+   - User summaries (readable, curated by Copilot - PRIMARY)
+   - Commit log (technical details, for developers - OPTIONAL, only if main tag found)
 5. **Generate snapshot release notes** at GitHub
 
-**Result**: Snapshot users see = User summaries + Full commit history
+**Result**: Snapshot users see = User summaries (always) + Commit history (optional, if found)
+
+**Important**: Release notes are ALWAYS user-centric. Commit history is omitted if main release tags can't be found (no error messages, no fallback technical content).
 
 ### Why This Distribution Works
 

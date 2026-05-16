@@ -28,8 +28,8 @@ All notable changes to dtuGateway are documented here. This changelog focuses on
 - Development workflow: snapshot release now properly deletes old artifacts before creating new release (prevents accumulation)
 - Development workflow: release notes regex now correctly captures entire [Unreleased] section including all subsections (works even when no next version header exists)
 - Development workflow: release notes now show complete commit history from last version tag instead of showing false "no previous release tag found" message
-- Development workflow: refactored snapshot release to use `.snapshot-summary.md` (Copilot automatically generates user-centric summaries from code changes, developer reviews before commit)
-- Development workflow: documented division of work between Copilot (auto-generate summaries) and GitHub workflow (auto-detect tags, combine, publish)
+- Development workflow: cleaned up snapshot release notes — removed non-user-centric fallback messages (only shows commit history when main release tag found, otherwise just user summaries)
+- Development workflow: improved release notes generation to be user-focused (no technical error messages like "no main release tags found")
 
 ---
 

@@ -243,7 +243,7 @@ jobs:
               snapshot_summary = m.group(1).strip() if m else '_No unreleased changes documented_'
 
           # Get commits since last main release tag (v*) - auto-detect latest main release
-          commit_header = 'Commits'
+          commit_section = ''
           try:
               # Find latest release tag on MAIN branch (not develop)
               result = subprocess.run(
@@ -257,27 +257,14 @@ jobs:
                   commits_raw = subprocess.check_output(
                       ['git', 'log', f'{last_main_tag}..HEAD', '--oneline', '--no-merges']
                   ).decode().strip()
-                  commit_header = f'All changes since `{last_main_tag}` (last main release)'
-              else:
-                  commits_raw = subprocess.check_output(
-                      ['git', 'log', '--oneline', '--no-merges', '-50']
-                  ).decode().strip()
-                  commit_header = 'Recent commits (no main release tags found)'
+                  commit_lines = '\n'.join(f'- {line}' for line in commits_raw.splitlines()) if commits_raw else ''
+                  if commit_lines:
+                      commit_section = f'\n\n---\n\n## 📝 Commits since `{last_main_tag}`\n\n{commit_lines}\n'
           except subprocess.CalledProcessError:
-              commits_raw = subprocess.check_output(
-                  ['git', 'log', '--oneline', '--no-merges', '-50']
-              ).decode().strip()
-              commit_header = 'Recent commits (tag lookup failed)'
+              pass  # If tag lookup fails, just skip commit history
 
-          commit_lines = '\n'.join(f'- {line}' for line in commits_raw.splitlines()) if commits_raw else '_none_'
-
-          # Build release notes: snapshot summary + commit history
-          body = (
-              f"{snapshot_summary}\n\n"
-              f"---\n\n"
-              f"## {commit_header}\n\n"
-              f"{commit_lines}\n"
-          )
+          # Build release notes: snapshot summary only (commit history is optional)
+          body = f"{snapshot_summary}{commit_section}"
 
           with open('release_notes.md', 'w') as f:
               f.write(body)
