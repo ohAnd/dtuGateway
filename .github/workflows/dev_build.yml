@@ -224,9 +224,9 @@ jobs:
           python3 << 'PYEOF'
           import re, subprocess
 
-          # Extract [Unreleased] section from CHANGELOG.md (includes content until next ## [version] header)
+          # Extract [Unreleased] section from CHANGELOG.md (includes content until next ## [version] header or end of file)
           content = open('CHANGELOG.md').read()
-          m = re.search(r'## \[Unreleased\][^\n]*\n(.*?)(?=\n## \[[0-9])', content, re.DOTALL)
+          m = re.search(r'## \[Unreleased\][^\n]*\n(.*?)(?=\n## \[|\Z)', content, re.DOTALL)
           changelog_section = m.group(1).strip() if m else '_No unreleased changes documented in CHANGELOG.md_'
 
           # Get commits since last release tag (v*)

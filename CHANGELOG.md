@@ -26,7 +26,7 @@ All notable changes to dtuGateway are documented here. This changelog focuses on
 - Duplicate percentage display below progress bar — removed redundant element
 - Modal no longer reopens after page reload following successful update
 - Development workflow: snapshot release now properly deletes old artifacts before creating new release (prevents accumulation)
-- Development workflow: release notes now show complete [Unreleased] changelog section including all subsections (Battery/Solar+Battery features)
+- Development workflow: release notes regex now correctly captures entire [Unreleased] section including all subsections (works even when no next version header exists)
 - Development workflow: release notes now show complete commit history from last version tag instead of showing false "no previous release tag found" message
 
 ---
