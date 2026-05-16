@@ -222,35 +222,48 @@ jobs:
         run: |
           git fetch --tags --all
           python3 << 'PYEOF'
-          import re, subprocess
+          import re, subprocess, os
 
-          # Extract [Unreleased] section from CHANGELOG.md (includes content until next ## [version] header or end of file)
-          content = open('CHANGELOG.md').read()
-          m = re.search(r'## \[Unreleased\][^\n]*\n(.*?)(?=\n## \[|\Z)', content, re.DOTALL)
-          changelog_section = m.group(1).strip() if m else '_No unreleased changes documented in CHANGELOG.md_'
+          # Try to read .snapshot-summary.md as primary source
+          snapshot_summary = ""
+          if os.path.exists('.snapshot-summary.md'):
+              with open('.snapshot-summary.md', 'r', encoding='utf-8') as f:
+                  # Extract content between header and any trailing notes/footer
+                  content = f.read()
+                  # Extract from title through the last section before notes
+                  m = re.search(r'(# Snapshot Release Summary.*?)(?=\n---\n## 📋|---\n## 🔄|\Z)', content, re.DOTALL)
+                  snapshot_summary = m.group(1).strip() if m else content.strip()
 
-          # Get commits since last release tag (v*)
-          commit_header = 'Recent commits'
+          # Fallback: Extract [Unreleased] section from CHANGELOG.md if snapshot summary not found
+          if not snapshot_summary:
+              print("⚠️ .snapshot-summary.md not found, falling back to CHANGELOG")
+              with open('CHANGELOG.md', 'r', encoding='utf-8') as f:
+                  content = f.read()
+              m = re.search(r'## \[Unreleased\][^\n]*\n(.*?)(?=\n## \[|\Z)', content, re.DOTALL)
+              snapshot_summary = m.group(1).strip() if m else '_No unreleased changes documented_'
+
+          # Get commits since last main release tag (v*) - auto-detect latest main release
+          commit_header = 'Commits'
           try:
-              # Try to find the last version tag (could be from any branch)
+              # Find latest release tag on MAIN branch (not develop)
               result = subprocess.run(
-                  ['git', 'tag', '--list', 'v*', '--sort=-version:refname'],
+                  ['git', 'tag', '--list', 'v*', '--sort=-version:refname', '--merged', 'main'],
                   capture_output=True, text=True
               )
-              tags = result.stdout.strip().split('\n')
-              last_tag = tags[0] if tags and tags[0] else None
+              main_tags = [t for t in result.stdout.strip().split('\n') if t]
+              last_main_tag = main_tags[0] if main_tags else None
               
-              if last_tag:
+              if last_main_tag:
                   commits_raw = subprocess.check_output(
-                      ['git', 'log', f'{last_tag}..HEAD', '--oneline', '--no-merges']
+                      ['git', 'log', f'{last_main_tag}..HEAD', '--oneline', '--no-merges']
                   ).decode().strip()
-                  commit_header = f'All changes since `{last_tag}`'
+                  commit_header = f'All changes since `{last_main_tag}` (last main release)'
               else:
                   commits_raw = subprocess.check_output(
                       ['git', 'log', '--oneline', '--no-merges', '-50']
                   ).decode().strip()
-                  commit_header = 'Recent commits (no previous version tag found)'
-          except subprocess.CalledProcessError as e:
+                  commit_header = 'Recent commits (no main release tags found)'
+          except subprocess.CalledProcessError:
               commits_raw = subprocess.check_output(
                   ['git', 'log', '--oneline', '--no-merges', '-50']
               ).decode().strip()
@@ -258,9 +271,9 @@ jobs:
 
           commit_lines = '\n'.join(f'- {line}' for line in commits_raw.splitlines()) if commits_raw else '_none_'
 
+          # Build release notes: snapshot summary + commit history
           body = (
-              f"## What's new (unreleased changes)\n\n"
-              f"{changelog_section}\n\n"
+              f"{snapshot_summary}\n\n"
               f"---\n\n"
               f"## {commit_header}\n\n"
               f"{commit_lines}\n"
