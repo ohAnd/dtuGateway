@@ -224,9 +224,9 @@ jobs:
           python3 << 'PYEOF'
           import re, subprocess
 
-          # Extract [Unreleased] section from CHANGELOG.md
+          # Extract [Unreleased] section from CHANGELOG.md (includes content until next ## [version] header)
           content = open('CHANGELOG.md').read()
-          m = re.search(r'## \[Unreleased\][^\n]*\n(.*?)(?=\n---|\n## [0-9])', content, re.DOTALL)
+          m = re.search(r'## \[Unreleased\][^\n]*\n(.*?)(?=\n## \[[0-9])', content, re.DOTALL)
           changelog_section = m.group(1).strip() if m else '_No unreleased changes documented in CHANGELOG.md_'
 
           # Get commits since last release tag (v*)
@@ -271,6 +271,12 @@ jobs:
           print("Release notes generated successfully")
           PYEOF
 
+      - name: Clean up old snapshot release
+        run: |
+          gh release delete snapshot --yes || true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - uses: softprops/action-gh-release@v2
         with:
           token: "${{ secrets.GITHUB_TOKEN }}"
@@ -278,7 +284,6 @@ jobs:
           prerelease: true
           name: "Latest snapshot v${{ env.CURRENT_VERSIONNUMBER }}"
           body_path: release_notes.md
-          overwrite: true
           files: |
             .pio/build/dtuGateway_ESP32_${{ env.CURRENT_VERSIONNUMBER }}.bin
             .pio/build/dtuGateway_ESP32_S3_${{ env.CURRENT_VERSIONNUMBER }}.bin
