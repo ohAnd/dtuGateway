@@ -147,6 +147,14 @@ This snapshot release system uses **purposeful separation of responsibilities** 
 
 The [.snapshot-summary.md](../../.snapshot-summary.md) file is **automatically updated** when you run "prepare for commit" on the develop branch. It serves as the source for snapshot release notes shown on GitHub releases.
 
+**Important**: `.snapshot-summary.md` is **purely user-facing content**. Do NOT include:
+
+- Internal process notes ("Copilot maintains this", "Last updated", etc.)
+- Developer-only documentation
+- Implementation details
+
+The file serves end-users reading snapshot release notes; all sections must answer: "What changed that matters to me?"
+
 **Guidelines for Summary Entries**:
 
 - ✨ **Features**: New capabilities (one-liner, max ~80 chars)
