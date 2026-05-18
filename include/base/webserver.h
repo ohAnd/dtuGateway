@@ -29,11 +29,7 @@
 #include <mqttHandler.h>
 
 #include "web/index_html.h"
-#include "web/index_js.h"
 #include "web/style_css.h"
-// New Alpine.js dashboard — served at /index2.html
-#include "web/index2_html.h"
-#include "web/style2_css.h"
 #include "web/app_js.h"
 #include "web/vendor_js.h"
 

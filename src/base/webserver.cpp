@@ -44,27 +44,8 @@ void DTUwebserver::start()
     // Set up static file serving - serve directly from PROGMEM with caching
     // Note: Using deprecated beginResponse_P because newer beginResponse() doesn't serve PROGMEM files correctly
     // This is a known limitation of ESPAsyncWebServer library - warnings can be ignored until library is fixed
-    asyncDtuWebServer.on("/index.js", HTTP_GET, [](AsyncWebServerRequest *request)
-                         {
-        AsyncWebServerResponse *response = request->beginResponse_P(200, "application/javascript", index_js);
-        response->addHeader("Cache-Control", "public, max-age=31536000"); // Cache for 1 year
-        response->addHeader("ETag", "\"app-v2\"");
-        request->send(response); });
 
-    // ── New Alpine.js dashboard — accessible at /index2.html ────────
-    asyncDtuWebServer.on("/index2.html", HTTP_GET, [](AsyncWebServerRequest *request)
-                         {
-        AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", index2_html);
-        response->addHeader("Cache-Control", "no-cache");
-        request->send(response); });
-
-    asyncDtuWebServer.on("/style2.css", HTTP_GET, [](AsyncWebServerRequest *request)
-                         {
-        AsyncWebServerResponse *response = request->beginResponse_P(200, "text/css", style2_css);
-        response->addHeader("Cache-Control", "public, max-age=86400");
-        response->addHeader("ETag", "\"style2-v1\"");
-        request->send(response); });
-
+    // ── Alpine.js v3 dashboard ────────
     asyncDtuWebServer.on("/app.js", HTTP_GET, [](AsyncWebServerRequest *request)
                          {
         AsyncWebServerResponse *response = request->beginResponse_P(200, "application/javascript", app_js);
@@ -78,8 +59,6 @@ void DTUwebserver::start()
         response->addHeader("Cache-Control", "public, max-age=31536000");
         response->addHeader("ETag", "\"vendor-v1\"");
         request->send(response); });
-    ;
-
     asyncDtuWebServer.on("/style.css", HTTP_GET, [](AsyncWebServerRequest *request)
                          {
         AsyncWebServerResponse *response = request->beginResponse_P(200, "text/css", style_css);

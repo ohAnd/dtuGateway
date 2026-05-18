@@ -1,12 +1,12 @@
 # dtuGateway — Web Dashboard Development
 
-This folder contains the source files for the new Alpine.js dashboard and the tooling to build and test it without ESP32 hardware.
+This folder contains the source files for the Alpine.js dashboard and the tooling to build and test it without ESP32 hardware.
 
 ```
 web_dev/
   src/               Dashboard source files (edit these)
-    index.html         Main HTML — served at /index2.html on the ESP32
-    style.css          All CSS — served at /style2.css
+    index.html         Main HTML — served at /index.html on the ESP32
+    style.css          All CSS — served at /style.css
     app.js             Alpine.js store + all logic
     vendor.js          Self-hosted Alpine.js 3.x (already minified, do not edit)
   mock_server/       Local dev server
@@ -60,8 +60,8 @@ This writes to `include/web/`:
 
 | Source file       | Header           | ESP32 route    |
 |-------------------|------------------|----------------|
-| `src/index.html`  | `index2_html.h`  | `/index2.html` |
-| `src/style.css`   | `style2_css.h`   | `/style2.css`  |
+| `src/index.html`  | `index_html.h`   | `/index.html`  |
+| `src/style.css`   | `style_css.h`    | `/style.css`   |
 | `src/app.js`      | `app_js.h`       | `/app.js`      |
 | `src/vendor.js`   | `vendor_js.h`    | `/vendor.js`   |
 
@@ -75,9 +75,9 @@ Then build and upload with PlatformIO:
 C:\Users\User\.platformio\penv\Scripts\platformio.exe run --target upload --environment esp32
 ```
 
-The new dashboard coexists with the original jQuery dashboard:
-- Original dashboard → `http://<device>/` (unchanged)
-- New Alpine.js dashboard → `http://<device>/index2.html`
+The Alpine.js dashboard is now the primary UI:
+- Dashboard → `http://<device>/` (redirects to `/index.html`)
+- Dashboard → `http://<device>/index.html`
 
 ---
 

@@ -1,587 +1,134 @@
-static const char *index_html PROGMEM = R"=====(
-
-<html lang="de">
-
-<head>
-    <meta http-equiv="Content-Type" content="text/html; charset=windows-1252">
-    <title id="title">dtuGateway</title>
-    <meta name="viewport"
-        content="user-scalable=no, initial-scale=1, maximum-scale=1, minimum-scale=1, width=device-width">
-    <link rel="stylesheet" type="text/css" href="style.css">
-    <!-- Font Awesome CDN removed: icons embedded as SVG in style.css -->
-</head>
-
-<body>
-    <div style="width: 100%;float:left;">
-        <div class="bar" id="updateTime" style="width: 100%;">
-        </div>
-    </div>
-    <div class="alert" id="alertBox">
-        <button onclick="this.parentElement.style.display='none';" style="margin-right: 10px;">X</button>
-        <div id="alertText">...</div>
-    </div>
-    <div class="popup" id="changeSettings">
-        <div class="popupHeader">
-            <div class="popupHeaderTitle" id="popHeadTitle">settings <span id="settings_message" style="border: 1px solid; padding: 2px; font-size: small; color: darksalmon;display:none;"></span>
-                <!-- <span style="font-size: small;float:right;"> -->
-                <span style="float:right;">
-                    <span style="display: inline-block; text-align: center;">
-                        <div style="position: relative; display: inline-block;">
-                            <i class="fa-solid fa-rotate" style="position: absolute; top: 0; left: 65%; cursor: pointer; color: #2196f3; font-size: 0.45em; z-index: 1;"></i>
-                            <i class="fa-solid fa-house-laptop" onclick="hide('#changeSettings');show('#rebootDtuGw')" id="showRebootDtuGwBtn" style="position: relative; font-size: 0.9em; cursor: pointer; color: #888;" title="Restart dtuGateway"></i>
-                        </div>
-                        <span style="display: block; font-size: 0.3em; line-height: 1; margin-top: 2px; color: #888;">dtuGateway</span>
-                    </span>
-                    &nbsp;
-                    <span style="display: inline-block; text-align: center;">
-                        <div style="position: relative; display: inline-block;">
-                            <i class="fa-solid fa-rotate" style="position: absolute; top: 0; left: 65%; cursor: pointer; color: #2196f3; font-size: 0.45em;"></i>
-                            <i class="fa-solid fa-wifi" onclick="hide('#changeSettings');show('#rebootDtu')" id="showRebootDtuBtn" style="position: relative; cursor: pointer; z-index: 1; color: #888;" title="Restart DTU"></i>
-                        </div>
-                        <span style="display: block; font-size: 0.3em; line-height: 1; margin-top: 2px; color: #888;">DTU</span>
-                    </span>
-                    &nbsp;
-                    <span style="display: inline-block; text-align: center;">
-                        <div style="position: relative; display: inline-block;">
-                            <i class="fa-solid fa-rotate" style="position: absolute; top: 0; left: 65%; cursor: pointer; color: #2196f3; font-size: 0.45em;"></i>
-                            <i class="fa-solid fa-plug-circle-bolt" onclick="hide('#changeSettings');show('#rebootMi')" id="showRebootMiBtn" style="position: relative; cursor: pointer; z-index: 1; color: #888;" title="Restart micro inverter"></i>
-                        </div>
-                        <span style="display: block; font-size: 0.3em; line-height: 1; margin-top: 2px; color: #888;">micro Inverter</span>
-                    </span>
-                    
-                    <span style="display: inline-block; text-align: center;">
-                        <a href="/config" target="_blank" style="color: #888; text-decoration: none;"><i class="fa-solid fa-gears" title="open advanced settings in a new tab"></i></a>
-                        <span style="display: block; font-size: 0.3em; line-height: 1; margin-top: 2px; color: #888;">advanced settings</span>
-                    </span>
-                </span>
-                <!-- <h2>settings</h2> -->
-            </div>
-            <div class="popupHeaderTabs">
-                <div>bindings</div>
-                <div>dtu</div>
-                <div class="selected">wifi</div>
-            </div>
-        </div>
-        <div class="popupContent" id="wifi" style="display: block;">
-            <div id="wifiSearchBox"
-                style="display: none; position: relative;top: 45%;z-index: 1;text-align: center;background-color: lightgray;">
-                <h2 id="wifiSearch">searching for wifi networks ... </h2>
-            </div>
-            <div id="wifiContent">
-                <div style="padding-bottom: 10px;">
-                    <p>available wifi's (<b id="networkCount">0</b>) - currently connected: <b id="wifiSSID"></b>
-                    </p>
-                    <div id="networks">
-                    </div>
-                </div>
-                <div>
-                    connect to wifi:
-                </div>
-                <div>
-                    <input type="text" id="wifiSSIDsend" value="please choose above or type in" required maxlength="64">
-                </div>
-                <div>
-                    wifi password (<i class="passcheck" value="invisible">show</i>):
-                </div>
-                <div>
-                    <input type="password" id="wifiPASSsend" value="admin12345" required maxlength="64">
-                </div>
-                <div style="text-align: center;">
-                    <b onclick="changeWifiData()" id="btnSaveWifiSettings" class="form-button btn">save</b>
-                    <b onclick="hide('#changeSettings')" id="btnSettingsClose" class="form-button btn">close</b>
-                </div>
-            </div>
-        </div>
-        <div class="popupContent" id="bindings">
-            <div id="openhabSection">
-                <h3 id="test"><input type="checkbox" id="openhabActive"> openhab</h3>
-                <div>
-                    <p>define your openhab instance</p>
-                </div>
-                <div>
-                    IP to openhab:
-                </div>
-                <div>
-                    <input type="text" id="openhabIP" class="ipv4Input" name="ipv4" placeholder="xxx.xxx.xxx.xxx">
-                </div>
-                <div>
-                    openHab item prefix for U,I,P,dE,TE per channel:
-                </div>
-                <div>
-                    <input type="text" id="ohItemPrefix" maxlength="32">
-                </div>
-            </div>
-            <hr>
-            <div id="mqttSection">
-                <h3 id="mqttSelect"><input type="checkbox" id="mqttActive"> MQTT connection</h3>
-                <div>
-                    <small id="mqttSectionComment">publish all data to a specific MQTT broker and subscribing to the
-                        requested powersetting<br></small>
-                </div>
-                <div>
-                    <br>IP/port to MQTT broker (e.g. 192.168.178.100:1883):
-                </div>
-                <div>
-                    <input type="text" id="mqttIP" class="ipv4Input" name="ipv4" placeholder="xxx.xxx.xxx.xxx">
-                </div>
-                <div>
-                    <input type="checkbox" id="mqttUseTLS"> <small>TLS connection (e.g.
-                        123456789.s1.eu.hivemq.cloud:8883) - works only with ESP32</small>
-                </div>
-                <div>
-                    <br>specify user on your mqtt broker instance:
-                </div>
-                <div>
-                    <input type="text" id="mqttUser" value="please type in" required maxlength="64">
-                </div>
-                <div>
-                    password for the given mqtt user (<i class="passcheck" value="invisible">show</i>):
-                </div>
-                <div>
-                    <input type="password" id="mqttPassword" value="admin12345" required maxlength="64">
-                </div>
-                <div id="mqttMainTopicComment">
-                    MQTT main topic for this dtu: <br><small>(e.g. dtu_12345678 will appear as 'dtu_12345678/grid/U' in
-                        the broker -
-                        has to be unique in your setup)</small>
-                </div>
-                <div>
-                    <input type="text" id="mqttMainTopic" maxlength="64">
-                </div>
-                <div id="mqttHAautoDiscovery">
-                    <input type="checkbox" id="mqttHAautoDiscoveryON"> HomeAssistant Auto Discovery <br><small>(On =
-                        config is send once after every restart, Off = delete the sensor from HA instantly - using the
-                        same main topic as set above)</small><br>
-                </div>
-            </div>
-            <hr>
-            <div style="text-align: center;">
-                <b onclick="changeBindingsData()" id="btnSaveBindingsSettings" class="form-button btn">save</b>
-                <b onclick="hide('#changeSettings')" id="btnSettingsClose" class="form-button btn">close</b>
-            </div>
-        </div>
-        <div class="popupContent" id="dtu">
-            <div id="remoteDisplaySettings">
-                <input type="checkbox" id="remoteDisplayActive"> run as a remote display<br>
-                <small>option to use this device as an remote display for a different dtu gateway and get current data
-                    from a given MQTT broker</small>
-            </div>
-            <div id="remoteSummaryDisplaySettings">
-                <input type="checkbox" id="remoteSummaryDisplayActive"> run as a remote summary display (Solar
-                Monitor)<br>
-                <small>option to use this device as an remote display based on current data from a given MQTT broker to
-                    show PV power and yield of current day</small>
-            </div>
-            <hr>
-            <div id="dtuSettings">
-                <div>
-                    dtu host IP in your local network:
-                </div>
-                <div>
-                    <input type="text" id="dtuHostIpDomain" class="ipv4Input" name="ipv4" placeholder="xxx.xxx.xxx.xxx">
-                </div>
-                <hr>
-                <div>
-                    dtu request cycle in seconds (data update):
-                </div>
-                <div>
-                    <input type="number" id="dtuDataCycle" min="1" max="60" placeholder="31">
-                </div>
-                <div>
-                    dtu cloud update pause (no cycle update every 5 min):
-                    <input type="checkbox" id="dtuCloudPause">
-                </div>
-            </div>
-            <hr>
-            <div style="text-align: center;">
-                <b onclick="changeDtuData()" id="btnSaveDtuSettings" class="form-button btn">save</b>
-                <b onclick="hide('#changeSettings')" id="btnSettingsClose" class="form-button btn">close</b>
-            </div>
-        </div>
-    </div>
-    <div class="popup" id="updatePowerLimit" style="display: none;">
-        <h2>Update power limit</h2>
-        <div>
-            <div id="PowerLimitInfo">
-                <div> power limit now in %
-                    <p id="powerLimitNow"></p>
-                </div>
-                <hr>
-                <div> power limit set in %
-                    <input type="number" id="powerLimitSetNew" min="0" max="100" placeholder="">
-                </div>
-            </div>
-
-            <hr>
-
-            <div style="text-align: center;">
-                <b onclick="changePowerLimit()" id="btnSetPowerLimit" class="form-button btn" style="opacity: 1;">set
-                    power limit</b>
-            </div>
-
-            <div style="text-align: center;">
-                <b onclick="hide('#updatePowerLimit')" class="form-button btn">close</b>
-            </div>
-        </div>
-    </div>
-    <div class="popup2" id="rebootMi" style="display: none;">
-        <h2><i class="fa-solid fa-plug-circle-bolt"></i> Restart Micro Inverter</h2>
-        <div style="padding-bottom: 10px;">
-            <small>restarting the micro inverter <br /><br /><i style="font-size: small;">(hint: this will not rebooting
-                    the communication unit 'dtu')</i></small>
-        </div>
-        <div>
-            <div style="text-align: center;">
-                <b onclick="rebootMi()" id="btnRebootMi" class="form-button btn" style="opacity: 1;">Reboot Mi</b>
-            </div>
-
-            <div style="text-align: center;">
-                <b onclick="hide('#rebootMi')" class="form-button btn">close</b>
-            </div>
-        </div>
-    </div>
-    <div class="popup2" id="rebootDtu" style="display: none;">
-        <h2><i class="fa-solid fa-repeat"></i> Restart DTU</h2>
-        <div style="padding-bottom: 10px;">
-            <small>restarting the DTU <br /><br /><i style="font-size: small;">(hint: this will not rebooting the micro
-                    inverter)</i></small>
-        </div>
-        <div>
-            <div style="text-align: center;">
-                <b onclick="rebootDtu()" id="btnRebootDtu" class="form-button btn" style="opacity: 1;">Reboot DTU</b>
-            </div>
-
-            <div style="text-align: center;">
-                <b onclick="hide('#rebootDtu')" class="form-button btn">close</b>
-            </div>
-        </div>
-    </div>
-    <div class="popup2" id="rebootDtuGw" style="display: none;">
-        <h2><i class="fa-solid fa-repeat"></i> Restart dtuGateway</h2>
-        <div style="padding-bottom: 10px;">
-            <small>restarting the dtuGateway <br /><br /><i style="font-size: small;">(hint: this will not rebooting the
-                    dtu or the micro inverter)</i></small>
-        </div>
-        <div>
-            <div style="text-align: center;">
-                <b onclick="rebootDtuGw()" id="btnRebootDtuGw" class="form-button btn" style="opacity: 1;">Reboot
-                    dtuGateway</b>
-            </div>
-
-            <div style="text-align: center;">
-                <b onclick="hide('#rebootDtuGw')" class="form-button btn">close</b>
-            </div>
-        </div>
-    </div>
-    <div class="popup" id="updateMenu">
-        <h2>Update</h2>
-        <h6 id="chipType">controller architecture type: ...</h6>
-        <hr>
-        <div style="padding-bottom: 10px;">
-
-            <div style="padding-bottom: 10px;"></div>
-
-            <label class="switch">
-                <input type="checkbox" checked onChange="changeUpdateType(this.checked)">
-                <span class="slider"></span>
-            </label>
-            <label id="updateSwitch">manual/ auto</label>
-        </div>
-        <label id="updateType" style="color: gray;">direct online update - </label>
-        <i id="updateState" style="color: gray;">currently no update available</i>
-        <div id="autoUpdate" style="color: gray;">
-            <div id="updateInfo">
-                <div>
-                    <div class="tableCell" style="text-align:right;">
-                        <div id="firmwareVersion"></div>
-                        <i>installed version</i>
-                    </div>
-                    <div class="tableCell">
-                        <div id="builddateVersion"></div>
-                        <i>release date</i>
-                    </div>
-                </div>
-                <div>
-                    <div class="tableCell" style="text-align:right;">
-                        <div id="firmwareVersionServer"></div>
-                        <i>available version</i>
-                    </div>
-                    <div class="tableCell">
-                        <div id="builddateVersionServer"></div>
-                        <i>release date</i>
-                    </div>
-                </div>
-            </div>
-            <hr>
-            <div style="display: grid;align-items: center;justify-content: center;width:100%;">
-                <div onclick="changeReleaseChannel(0)" id="relChanStable" class="updateChannel selected"
-                    style="border-radius: 5px 0px 0px 5px;">stable</div>
-                <div onclick="changeReleaseChannel(1)" id="relChanSnapshot" class="updateChannel"
-                    style="border-radius: 0px 5px 5px 0px;position:relative;top:-1.25em;left:50%;color: gray;">snapshot
-                </div>
-                <i style="font-size:x-small;">switch update channels (stable/ latest snapshot)</i>
-            </div>
-            <hr>
-            <div style="text-align: center;">
-                <!-- <input id="btnUpdateStart" class="btn" type="submit" name="doUpdate" value="Update starten"> -->
-                <b onclick="" id="btnUpdateStart" class="form-button btn">start update</b>
-            </div>
-        </div>
-        <div id="updateManual" style="text-align: center; padding-top: 20px; display:none;">
-            <!-- <input type='file' name='update'> -->
-            <input type="file" id="fileInput" style="display: none;" accept=".bin" onchange="showFileName(this);">
-            <label for="fileInput" class="form-button btn">choose file</label>
-            <div id="fileNameDisplay" style="padding:20px 0 20px 0;"></div>
-            <b id="manualUpdateStart" onClick="updateManualWithFile()" class="form-button btn"
-                style="display: none;">update firmware</b>
-        </div>
-        <hr>
-        <div style="text-align: center;">
-            <b onclick="hide('#updateMenu')" class="form-button btn">close</b>
-        </div>
-    </div>
-    <div class="popup" id="updateProgress">
-        <h2>Update</h2>
-        <hr>
-        <div style="padding-bottom: 10px;text-align: center;">
-            <p id="updateStateNow">update to version <span id="newVersionProgress">0.0.0</span> in progress
-            </p>
-            <p id="remainingTime">remaining time: <span id="updateTimeout"></span></p>
-        </div>
-        <div style="border-color: #3498db; border-style: solid;border-radius: 5px;border-width: 1px;">
-            <div id="progressbar" class="ui-progressbar-value" style="width:0%;">&nbsp;</div>
-        </div>
-        <b>
-            <p id="updateProgressPercent" style="text-align: center;"></p>
-        </b>
-        <hr>
-    </div>
-    <div class="popup" id="warningOverview" style="flex-direction: column;">
-        <div>
-            <h2>current dtu warnings</h2>
-            <h6>Displays the entries in the DTU sorted by the time they occurred <i id="warningsLastUpdate">(last
-                    updated: 01.01.2024 - 00:00:00)</i><br><i id="warningDetailsHint">... rotate the screen to see more
-                    details at the warning entry ...</i></h6>
-            <hr>
-        </div>
-        <div id="activeWarnings" style="flex-grow: 1;padding-bottom: 10px;text-align: center; overflow-y: auto;">
-        </div>
-        <hr><br>
-        <div style="text-align: center;">
-            <b onclick="hide('#warningOverview')" class="form-button btn">close</b>
-        </div>
-    </div>
-    <div class="popup" id="summaryDisplay"
-        style="flex-direction: column; width: 95%; left: 2.5%; height: 85%; top: 2.5%; background-color: #1c1c1c; border-radius: 10px; border-width: 1px; border-color: #2196f3; border-style: solid; box-shadow: 0px 0px 19px 11px rgb(255 165 0); z-index: 19;">
-        <div>
-            <h2>remote summary display</h2>
-            <h6>this dtuGateway is configured as a remote summary display</h6>
-            <i style="font-size: x-small;float:right;">change this in <a href="/config" target=_blank>advanced
-                    config</a></i>
-            <br>
-            <hr>
-        </div>
-        <div>
-            solar monitor
-        </div>
-        <div class="panelValueBox">
-            <p>current PV power</p><br>
-            <b id="grid_power2" class="panelValue valueText">--.- W</b><br><br>
-            <small class="panelHead">solar yield today</small><br><br>
-            <b id="grid_daily_energy2" class="panelValueSmall valueText">00.0 </b>kWh<br>
-        </div>
-    </div>
-    </div>
-    <div id="frame">
-        <div class="header">
-            <b id="titleHeader">Hoymiles HMS-800W-2T - Gateway</b>
-            <div id="dtuWarnings" style="display: none;">
-                <i class="fa fa-exclamation-triangle" style="color: darkcyan;" onclick="show('#warningOverview')"></i>
-                <span class="numBadge" id="dtuWarningsBadge">20</span>
-            </div>
-        </div>
-        <div class="row">
-            <div class="column">
-                <div>
-                    PV 0
-                </div>
-                <div class="panelValueBox">
-                    <b id="pv0_power" class="panelValue valueText">--.- W</b>
-                    <div class="panelValueBoxDetail">
-                        <small>U</small>
-                        <b id="pv0_voltage" class="panelValueSmall valueText">00.0 V</b>
-                    </div>
-                    <div class="panelValueBoxDetail">
-                        <small>I</small>
-                        <b id="pv0_current" class="panelValueSmall valueText">00.0 A</b>
-                    </div>
-                </div>
-            </div>
-
-            <div class="column">
-                <div>
-                    PV 1
-                </div>
-                <div class="panelValueBox">
-                    <b id="pv1_power" class="panelValue valueText">--.- W</b>
-                    <div class="panelValueBoxDetail">
-                        <small>U</small>
-                        <b id="pv1_voltage" class="panelValueSmall valueText">00.0 V</b>
-                    </div>
-                    <div class="panelValueBoxDetail">
-                        <small>I</small>
-                        <b id="pv1_current" class="panelValueSmall valueText">00.0 A</b>
-                    </div>
-                </div>
-            </div>
-
-            <div class="column">
-                <div>
-                    Grid
-                </div>
-                <div class="panelValueBox">
-                    <b id="grid_power" class="panelValue valueText">--.- W</b>
-                    <div class="panelValueBoxDetail">
-                        <small>U</small>
-                        <b id="grid_voltage" class="panelValueSmall valueText">00.0 V</b>
-                    </div>
-                    <div class="panelValueBoxDetail">
-                        <small>I</small>
-                        <b id="grid_current" class="panelValueSmall valueText">00.0 A</b>
-                    </div>
-                    <i id="infoInveterOff" class="fa fa-power-off" style="color: orange;display:none;"></i>
-                </div>
-            </div>
-            <div class="column" id="time">
-                <div>
-                    gateway local time
-                </div>
-                <div class="panelValueBox">
-                    <b id="gwtime" class="panelValue">00:00:00</b><br>
-                    <b id="gwtime2" class="panelValueSmall">00.00.</b>
-                </div>
-            </div>
-            <div class="column" id="inverter_energy">
-                <div>
-                    inverter energy
-                </div>
-                <div class="panelValueBox">
-
-                    <div class="panelValueBoxDetail">
-                        <small class="panelHead">grid day</small>
-                        <b id="grid_daily_energy" class="panelValueSmall valueText">00.0 </b>kWh
-                    </div>
-                    <div class="panelValueBoxDetail">
-                        <small class="panelHead">tot</small>
-                        <b id="grid_total_energy" class="panelValueSmall valueText">00.0 </b>kWh
-                    </div>
-                    <div class="panelValueBoxDetail">
-                        <small class="panelHead">pv0 day</small>
-                        <b id="pv0_daily_energy" class="panelValueSmall valueText">00.0 </b>kWh
-                    </div>
-                    <div class="panelValueBoxDetail">
-                        <small class="panelHead">tot</small>
-                        <b id="pv0_total_energy" class="panelValueSmall valueText">00.0 </b>kWh
-                    </div>
-                    <div class="panelValueBoxDetail">
-                        <small class="panelHead">pv1 day</small>
-                        <b id="pv1_daily_energy" class="panelValueSmall valueText">00.0 </b>kWh
-                    </div>
-                    <div class="panelValueBoxDetail">
-                        <small class="panelHead">tot</small>
-                        <b id="pv1_total_energy" class="panelValueSmall valueText">00.0 </b>kWh
-                    </div>
-                    <div class="panelValueBoxDetail">
-                        <small class="panelHead">limit set</small>
-                        <b id="powerLimitSet" class="panelValueButton valueText " onclick="show('#updatePowerLimit')">00
-                        </b>%
-                    </div>
-                    <div class="panelValueBoxDetail">
-                        <small class="panelHead">limit now</small>
-                        <b id="powerLimit" class="panelValueSmall valueText">00 </b>%
-                    </div>
-                </div>
-            </div>
-            <div class="column" id="connection_state">
-                <div>
-                    connection state
-                </div>
-                <div class="panelValueBox">
-                    <div class="panelValueBoxDetail">
-                        <small class="panelHead">last DTU rx</small>
-                        <b id="last_response" class="panelValueSmall" style="color: rgb(0, 153, 255);">00:00:00</b>
-                    </div>
-                    <div class="panelValueBoxDetail">
-                        <small class="panelHead">gw local</small>
-                        <b id="gwtime_small" class="panelValueSmall" style="color: rgb(0, 153, 255);">00:00:00</b>
-                    </div>
-
-                    <div class="panelValueBoxDetail">
-                        <small class="panelHead">gw start</small>
-                        <b id="gwStartTime" class="panelValueSmall">00:00:00</b>
-                    </div>
-                    <div class="panelValueBoxDetail">
-                        <small class="panelHead">gw ntp</small>
-                        <b id="gwNTPtime" class="panelValueSmall">00:00:00</b>
-                    </div>
-                    <div class="panelValueBoxDetail">
-                        <small class="panelHead">DTU</small>
-                        <b id="dtu_connect_state" class="panelValueSmall valueText"> offline </b>
-                    </div>
-                    <div class="panelValueBoxDetail">
-                        <small class="panelHead">DTU state</small>
-                        <b id="dtu_error_state" class="panelValueSmall valueText"> ok </b>
-                    </div>
-                    <div class="panelValueBoxDetail">
-                        <small class="panelHead">DTU reboots</small>
-                        <b id="dtu_reboots_no" class="panelValueSmall valueText"> 0 </b>
-                    </div>
-                    <div class="panelValueBoxDetail">
-                        <small class="panelHead">temperature</small>
-                        <b id="inverterTemp" class="panelValueSmall valueText">--.- &deg;C</b>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="footer">
-            <div id="footer_left">
-                <div class="footerButton">
-                    <i class="fa fa-hourglass-start" alt="uptime"></i>
-                    <b id="uptime" style="text-align: right;top: 20px; font-size: 2vmin;">00:00:00</b>
-                </div>
-                <div class="footerButton">
-                    <i class="fa fa-signal" alt="wifi DTU"></i>
-                    <span id="rssitext_dtu" style="text-align: right;top: 20px; font-size: 2vmin;">50 %</span>
-                </div>
-                <div class="footerButton">
-                    <i class="fa fa-wifi" alt="wifi local"></i>
-                    <span id="rssitext_local" style="text-align: right;top: 20px; font-size: 2vmin;">50 %</span>
-                </div>
-            </div>
-            <div id="footer_center">
-                <br>
-                <i id="firmware">version: 0.0.00</i>
-                <br>
-                <!-- <i id="builddate">Jan 01 2023 - 00:00:00</i> -->
-            </div>
-            <div id="footer_right">
-                <div class="menuButton notification">
-                    <i class="fa-solid fa-cloud-download" onclick="show('#updateMenu')" alt="update" id="updateBtn"></i>
-                    <span class="badge" id="updateBadge" style="display: none;"></span>
-                </div>
-                <div class="menuButton notification">
-                    <i class="fa-solid fa-sliders" onclick="show('#changeSettings')" alt="settings"
-                        id="settingsBtn"></i>
-                    <!-- <span class="badge">0</span> -->
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <script src="index.js"></script>
-
-</body>
-
-</html>
-
-)=====";
+// AUTO-GENERATED by web_dev/build/build_headers.py — DO NOT EDIT MANUALLY
+// Source: web_dev\src\index.html
+static const char *index_html PROGMEM = R"DTUGW(<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"><title id="page-title">dtuGateway</title><link rel="stylesheet" href="style.css"></head><body x-data x-init="$store.app.init()"><div class="reload-bar"><div class="reload-bar__fill"
+:style="`width:${$store.app.reloadBarPct}%`"></div></div><div class="toast-container" aria-live="polite"><template x-for="t in $store.app.toasts" :key="t.id"><div class="toast" :class="`toast--${t.type}`" x-text="t.msg"></div></template></div><div class="drawer-backdrop"
+:class="{ 'is-open': $store.app.drawerOpen }"
+@click="$store.app.closeDrawer()"></div><aside class="drawer" :class="{ 'is-open': $store.app.drawerOpen }" role="dialog" aria-label="Settings"><div class="drawer__header"><span class="drawer__title">
+Settings
+<span class="drawer__protect-msg"
+x-show="$store.app.info.protectSettings"
+x-text="'read-only — use serial console to unlock'"></span></span><div class="drawer__header-actions"><button class="icon-btn"
+title="Restart dtuGateway"
+@click="$store.app.confirmReboot('dtuGw')"><svg viewBox="0 0 24 24"><path d="M17.65 6.35A8 8 0 1 0 19.73 14h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg><span class="icon-btn__label">dtuGW</span></button><button class="icon-btn"
+title="Restart DTU"
+@click="$store.app.confirmReboot('dtu')"><svg viewBox="0 0 24 24"><path d="M1 9l2 2c4.97-4.97 13.03-4.97 18 0l2-2C16.93 2.93 7.08 2.93 1 9zm8 8l3 3 3-3c-1.65-1.66-4.34-1.66-6 0zm-4-4 2 2c2.76-2.76 7.24-2.76 10 0l2-2C15.14 9.14 8.87 9.14 5 13z"/></svg><span class="icon-btn__label">DTU</span></button><button class="icon-btn"
+title="Restart micro inverter"
+@click="$store.app.confirmReboot('mi')"><svg viewBox="0 0 24 24"><path d="M16 7H5c-1.1 0-2 .9-2 2v6c0 1.1.9 2 2 2h11l4-5-4-5zm-9 7v-4h2v4H7zm4 0v-4h2v4h-2z"/></svg><span class="icon-btn__label">Inverter</span></button><a class="icon-btn" href="/config" target="_blank" title="Advanced settings"><svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg><span class="icon-btn__label">Advanced</span></a><button class="drawer__close" @click="$store.app.closeDrawer()" aria-label="Close">✕</button></div></div><div class="drawer__reboot-confirm"
+x-show="$store.app.rebootTarget"
+x-transition><p>Restart <strong x-text="$store.app.rebootLabel()"></strong>?</p><div class="btn-row"><button class="btn btn--danger"
+@click="$store.app.executeReboot()"
+x-text="'Reboot ' + $store.app.rebootLabel()"></button><button class="btn btn--ghost" @click="$store.app.rebootTarget = null">Cancel</button></div></div><div class="drawer__tabs"><button class="drawer__tab" :class="{'active': $store.app.drawerTab==='wifi'}" @click="$store.app.drawerTab='wifi'">WiFi</button><button class="drawer__tab" :class="{'active': $store.app.drawerTab==='dtu'}" @click="$store.app.drawerTab='dtu'">DTU</button><button class="drawer__tab" :class="{'active': $store.app.drawerTab==='bindings'}" @click="$store.app.drawerTab='bindings'">Bindings</button><button class="drawer__tab" :class="{'active': $store.app.drawerTab==='update', 'has-badge': $store.app.info.firmware?.updateAvailable}" @click="$store.app.drawerTab='update'">Update</button></div><div class="drawer__content" x-show="$store.app.drawerTab==='wifi'"><p>
+Available networks (<b x-text="$store.app.info.wifiConnection?.networkCount ?? 0"></b>)
+— connected: <b x-text="$store.app.info.wifiConnection?.wifiSsid ?? '…'"></b></p><div class="wifi-scan-status"
+x-show="$store.app.info.wifiConnection?.wifiScanIsRunning">
+Scanning for networks…
+</div><div class="wifi-network-list" x-show="!$store.app.info.wifiConnection?.wifiScanIsRunning"><template x-for="(nw, idx) in ($store.app.info.wifiConnection?.foundNetworks ?? [])"
+:key="idx"><label class="wifi-item"><input type="radio" name="wifi-select"
+:value="nw.name"
+x-model="$store.app.form.wifiSSID"><span x-text="`${nw.wifi}% · ch${nw.chan} · ${nw.name}`"></span></label></template></div><div class="form-field"><label>SSID</label><input type="text" x-model="$store.app.form.wifiSSID" maxlength="64"></div><div class="form-field"><label>Password <span class="passshow" @click="$store.app.togglePassVis('wifiPass')">show</span></label><input :type="$store.app.passVis.wifiPass?'text':'password'"
+x-model="$store.app.form.wifiPass" maxlength="64" id="wifiPass" type="password"></div><div class="btn-row"><button class="btn btn--primary"
+:disabled="$store.app.info.protectSettings"
+@click="$store.app.saveWifi()">Save WiFi</button><button class="btn btn--ghost" @click="$store.app.requestWifiScan()">Scan</button></div></div><div class="drawer__content" x-show="$store.app.drawerTab==='dtu'"><div class="form-section-header">Connection</div><div class="form-field"><label>DTU host IP / domain</label><input type="text" x-model="$store.app.form.dtuIp" class="ip-input" maxlength="64"></div><div class="form-field"><label>Data cycle (seconds)</label><input type="number" x-model.number="$store.app.form.dtuCycle" min="1" max="60"></div><div class="form-field form-field--inline"><input type="checkbox" id="dtuCloudPause" x-model="$store.app.form.dtuCloudPause"><label for="dtuCloudPause">Cloud update pause (5 min window)</label></div><div class="form-section-header">Display modes</div><p class="form-hint" style="margin-bottom:0.6rem">Use this gateway as a standalone display node, fed via MQTT from another dtuGateway.</p><div class="form-field form-field--inline"
+:class="{ 'section-disabled': $store.app.form.remoteSummary || $store.app.form.batteryMonitor }"><input type="checkbox" id="remoteDisplay" x-model="$store.app.form.remoteDisplay"
+:disabled="$store.app.form.remoteSummary || $store.app.form.batteryMonitor"><label for="remoteDisplay">Remote display <span class="form-hint" style="display:inline">(full dashboard mirror)</span></label></div><template x-if="!('dtuRemoteDisplay_SolarMonitor' in ($store.app.info.dtuConnection ?? {}))"><div :class="{ 'section-disabled': $store.app.form.remoteDisplay }"><div class="form-field form-field--inline"><input type="checkbox" id="remoteSummary" x-model="$store.app.form.remoteSummary"
+:disabled="$store.app.form.remoteDisplay"><label for="remoteSummary">Solar monitor <span class="form-hint" style="display:inline">(summary display)</span></label></div></div></template><template x-if="'dtuRemoteDisplay_SolarMonitor' in ($store.app.info.dtuConnection ?? {})"><div :class="{ 'section-disabled': $store.app.form.remoteDisplay }"><div class="form-field form-field--inline"><input type="checkbox" id="solarMonitor" x-model="$store.app.form.remoteSummary"
+:disabled="$store.app.form.remoteDisplay"><label for="solarMonitor">Solar monitor</label></div><div class="form-field form-field--inline"><input type="checkbox" id="batteryMonitor" x-model="$store.app.form.batteryMonitor"
+:disabled="$store.app.form.remoteDisplay"><label for="batteryMonitor">Battery monitor</label></div><p class="form-hint">Both active = solar &amp; battery summary · single = dedicated monitor.</p></div></template><div class="btn-row"><button class="btn btn--primary"
+:disabled="$store.app.info.protectSettings"
+@click="$store.app.saveDtu()">Save DTU</button></div></div><div class="drawer__content" x-show="$store.app.drawerTab==='bindings'"><div :class="{'section-disabled': !$store.app.form.ohActive}"><div class="form-field form-field--inline"><input type="checkbox" id="ohActive" x-model="$store.app.form.ohActive"><label for="ohActive"><strong>openHAB</strong></label></div><div class="form-field"><label>openHAB IP</label><input type="text" x-model="$store.app.form.ohIp" class="ip-input" maxlength="64"></div><div class="form-field"><label>Item prefix (U, I, P, dE, tE per channel)</label><input type="text" x-model="$store.app.form.ohPrefix" maxlength="32"></div></div><hr class="divider"><div :class="{'section-disabled': !$store.app.form.mqttActive}"><div class="form-field form-field--inline"><input type="checkbox" id="mqttActive" x-model="$store.app.form.mqttActive"><label for="mqttActive"><strong>MQTT</strong></label></div><p class="form-hint" x-text="$store.app.mqttSectionHint()"></p><div class="form-field"><label>Broker IP:port</label><input type="text" x-model="$store.app.form.mqttIpPort" class="ip-input" maxlength="64"
+placeholder="192.168.178.100:1883"></div><div class="form-field form-field--inline"><input type="checkbox" id="mqttTLS" x-model="$store.app.form.mqttTLS"><label for="mqttTLS">TLS (ESP32 only, e.g. broker.cloud:8883)</label></div><div class="form-field"><label>MQTT user</label><input type="text" x-model="$store.app.form.mqttUser" maxlength="64"></div><div class="form-field"><label>MQTT password <span class="passshow" @click="$store.app.togglePassVis('mqttPass')">show</span></label><input :type="$store.app.passVis.mqttPass?'text':'password'"
+x-model="$store.app.form.mqttPass" maxlength="64" type="password"></div><div class="form-field"><label>Main topic <small>(e.g. dtu_12345678)</small></label><input type="text" x-model="$store.app.form.mqttTopic" maxlength="64"></div><div class="form-field form-field--inline"><input type="checkbox" id="mqttHA" x-model="$store.app.form.mqttHA"><label for="mqttHA">HomeAssistant auto-discovery</label></div></div><div class="btn-row"><button class="btn btn--primary"
+:disabled="$store.app.info.protectSettings"
+@click="$store.app.saveBindings()">Save Bindings</button></div></div><div class="drawer__content" x-show="$store.app.drawerTab==='update'"><p class="form-hint" x-text="'Controller: ' + ($store.app.info.chipType ?? '…')"></p><div class="update-versions"><div class="update-ver-row"><span class="update-ver-label">Installed</span><span class="update-ver-val" x-text="$store.app.info.firmware?.version ?? '…'"></span></div><div class="update-ver-row"><span class="update-ver-label">Available</span><span class="update-ver-val"
+:class="{'update-ver-val--new': $store.app.info.firmware?.updateAvailable}"
+x-text="$store.app.info.firmware?.versionServer === 'checking' ? 'disabled' : ($store.app.info.firmware?.versionServer ?? '…')"></span></div></div><div class="release-channel"><button class="channel-btn" disabled
+title="Online updates disabled — under redevelopment"
+:class="{'active': ($store.app.info.firmware?.selectedUpdateChannel??0)===0}"
+@click="$store.app.setChannel(0)">stable</button><button class="channel-btn" disabled
+title="Online updates disabled — under redevelopment"
+:class="{'active': ($store.app.info.firmware?.selectedUpdateChannel??0)===1}"
+@click="$store.app.setChannel(1)">snapshot</button></div><div class="btn-row" style="margin-top:1rem;"><button class="btn btn--primary" disabled
+title="Online updates disabled — under redevelopment. Use manual firmware upload instead."
+:disabled="!$store.app.info.firmware?.updateAvailable"
+@click="$store.app.startOnlineUpdate()">Start online update</button></div><hr class="divider"><p class="form-hint">Manual firmware upload (.bin file):</p><div class="btn-row"><label class="btn btn--ghost" for="fw-file-input">Choose .bin file</label><input type="file" id="fw-file-input" accept=".bin" style="display:none"
+@change="$store.app.manualFwSelected($event)"><button class="btn btn--danger"
+x-show="$store.app.fwFile"
+@click="$store.app.uploadManualFirmware()">Upload firmware</button></div><p class="form-hint" x-show="$store.app.fwFile" x-text="$store.app.fwFile?.name"></p><div class="update-progress" x-show="$store.app.updateProgress >= 0"><p>Updating to <span x-text="$store.app.info.firmware?.versionServer"></span>…</p><div class="progress-track"><div class="progress-fill"
+:style="`width:${$store.app.updateProgress}%`"></div></div><p class="progress-pct" x-text="`${$store.app.updateProgress}%`"></p></div></div></aside><div class="overlay" x-show="$store.app.showWarnings" @click.self="$store.app.showWarnings=false"><div class="overlay__box"><div class="overlay__header"><h2>DTU Warnings</h2><button @click="$store.app.showWarnings=false">✕</button></div><div class="overlay__body"><template x-for="(w, i) in $store.app.dtuData.warnings" :key="i"><div class="warning-item" :class="w.timestampStop === 0 ? 'warning-item--active' : 'warning-item--resolved'"><div class="warning-item__header"><span class="warning-code" x-text="'#' + w.code"></span><span class="warning-num" x-text="'No.' + w.num"></span><span class="warning-status" x-text="w.timestampStop === 0 ? 'ACTIVE' : 'resolved'"
+:class="w.timestampStop === 0 ? 'warning-status--active' : 'warning-status--resolved'"></span></div><div class="warning-item__body" x-text="w.message"></div><div class="warning-item__times"><div class="warning-time-pair"><span class="warning-time-label">Start</span><span class="warning-time-val" x-text="$store.app.formatTs(w.timestampStart, 'datetime')"></span></div><div class="warning-time-pair" x-show="w.timestampStop !== 0"><span class="warning-time-label">End</span><span class="warning-time-val" x-text="$store.app.formatTs(w.timestampStop, 'datetime')"></span></div></div><template x-if="$store.app.warnDetail(w)"><div class="warning-item__detail"><div class="warning-detail-row"><span class="warning-detail-label" x-text="$store.app.warnDetail(w).l0 + ': '"></span><span class="warning-detail-val" x-text="$store.app.warnDetail(w).v0"></span></div><div class="warning-detail-row"><span class="warning-detail-label" x-text="$store.app.warnDetail(w).l1 + ': '"></span><span class="warning-detail-val" x-text="$store.app.warnDetail(w).v1"></span></div></div></template></div></template><p x-show="!$store.app.dtuData.warnings?.length" style="opacity:0.6">No active warnings</p></div><div class="overlay__footer"><span class="overlay__footer-note"
+x-show="$store.app.dtuData.warningsLastUpdate"
+x-text="'last updated: ' + $store.app.formatTs($store.app.dtuData.warningsLastUpdate, 'datetime')"></span><button class="btn btn--ghost" @click="$store.app.showWarnings=false">Close</button></div></div></div><div class="overlay" x-show="$store.app.showPowerLimit" @click.self="$store.app.showPowerLimit=false"><div class="overlay__box overlay__box--sm"><div class="overlay__header"><h2>Power Limit</h2><button @click="$store.app.showPowerLimit=false">✕</button></div><div class="overlay__body"><div class="plimit-row"><span class="plimit-label">Current</span><span class="plimit-val" x-text="`${$store.app.data.inverter?.pLim ?? '--'} %`"></span></div><div class="plimit-row"><span class="plimit-label">Last set</span><span class="plimit-val" x-text="`${$store.app.data.inverter?.pLimSet ?? '--'} %`"></span></div><hr class="divider"><div class="form-field"><label>New limit (%)</label><input type="number" x-model.number="$store.app.form.powerLimit" min="0" max="100"></div></div><div class="overlay__footer"><button class="btn btn--primary" @click="$store.app.savePowerLimit()">Set limit</button><button class="btn btn--ghost" @click="$store.app.showPowerLimit=false">Cancel</button></div></div></div><div class="overlay" x-show="$store.app.showEvents" @click.self="$store.app.showEvents=false"><div class="overlay__box"><div class="overlay__header"><h2>DTU Events
+<span class="overlay-count" x-text="'(' + ($store.app.events.statistics?.eventCount ?? 0) + ')'"></span></h2><button @click="$store.app.showEvents=false">✕</button></div><div class="events-stats" x-show="$store.app.events.statistics"><span x-text="'Connections: ' + ($store.app.events.statistics?.totalConnections ?? 0)"></span><span x-text="'Avg: ' + $store.app.formatMillis($store.app.events.statistics?.averageConnectionTime)"></span><span x-text="'Longest: ' + $store.app.formatMillis($store.app.events.statistics?.longestConnection)"></span><span :class="$store.app.events.currentConnection?.state === 'connected' ? 'ev-state--ok' : 'ev-state--err'"
+x-text="$store.app.events.currentConnection?.state ?? '--'"></span></div><div class="overlay__body"><template x-for="(e, i) in $store.app.events.events" :key="i"><div class="event-item"><span class="event-type" x-text="e.eventType"></span><span class="event-desc" x-text="e.description"></span><div class="event-meta"><span class="event-meta-item" x-text="'uptime: ' + $store.app.formatMillis(e.timestamp)"></span><span class="event-meta-item" x-text="'conn: ' + $store.app.formatMillis(e.connectionDuration)"></span></div></div></template><p x-show="!$store.app.events.events?.length" style="opacity:0.6">No events recorded</p></div><div class="overlay__footer"><button class="btn btn--danger" @click="$store.app.clearEvents()">Clear events</button><button class="btn btn--ghost" @click="$store.app.showEvents=false">Close</button></div></div></div><template x-if="$store.app.setupMode"><div class="setup-screen" role="main"><div class="setup-screen__container"><div class="setup-screen__header"><h1 class="setup-screen__title">Welcome! Let's get you online</h1><p class="setup-screen__subtitle">Select your WiFi network and enter the password</p></div><div class="setup-screen__section"><label class="setup-screen__label">Available Networks</label><div class="setup-screen__networks"><template x-if="$store.app.setupLoading"><div class="setup-screen__loading"><div class="spinner"></div><p>Scanning for networks...</p></div></template><template x-if="!$store.app.setupLoading && $store.app.info.wifiConnection?.foundNetworks?.length"><template x-for="net in $store.app.info.wifiConnection.foundNetworks" :key="net.name"><button class="setup-screen__network-btn"
+:class="{ 'is-selected': $store.app.setupSelectedSSID === net.name }"
+@click="$store.app.setupSelectedSSID = net.name"
+type="button"><div class="setup-screen__network-info"><span class="setup-screen__network-name" x-text="net.name"></span><span class="setup-screen__network-signal"
+x-text="`Signal: ${net.wifi}%`"
+:title="`Signal strength: ${net.wifi}% · Ch${net.chan}`"></span></div><svg class="setup-screen__network-check" viewBox="0 0 24 24" width="24" height="24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" fill="currentColor"/></svg></button></template></template><template x-if="!$store.app.setupLoading && !$store.app.info.wifiConnection?.foundNetworks?.length"><div class="setup-screen__empty"><p>No networks found</p><button class="setup-screen__retry-btn"
+@click="$store.app._scanWifiNetworks()"
+:disabled="$store.app.setupLoading"
+type="button">
+Try again
+</button></div></template></div></div><div class="setup-screen__section" x-show="$store.app.setupSelectedSSID"><label class="setup-screen__label" for="setup-password">WiFi Password</label><div class="setup-screen__password-group"><input class="setup-screen__input"
+id="setup-password"
+type="password"
+placeholder="Enter password"
+x-model="$store.app.setupPassword"
+:disabled="$store.app.setupLoading"
+@keyup.enter="$store.app.setupConnectWifi()"></div></div><div class="setup-screen__actions"><button class="setup-screen__connect-btn"
+@click="$store.app.setupConnectWifi()"
+:disabled="!$store.app.setupSelectedSSID || !$store.app.setupPassword || $store.app.setupLoading"
+type="button"><template x-if="!$store.app.setupLoading"><span>Connect to WiFi</span></template><template x-if="$store.app.setupLoading"><span>Connecting...</span></template></button></div><p class="setup-screen__hint">💡 The device will restart after connecting. This page will refresh automatically.</p></div></div></template><main class="dashboard" x-show="!$store.app.setupMode"><header class="card header-card"><button class="header-menu-btn" @click="$store.app.openDrawer('wifi')" title="Settings"><svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg></button><div class="header-card__title"><h1 id="page-heading" x-text="$store.app.pageTitle()"></h1></div><div class="header-card__status" x-show="!$store.app.isMonitorMode()"><span class="conn-badge" :class="`conn-badge--${$store.app.connBadgeClass()}`"
+x-text="$store.app.connStateLabel()"></span><button class="warn-btn"
+:class="$store.app.dtuData.warningsActive > 0 ? 'warn-btn--active' : ($store.app.dtuData.warningCount > 0 ? 'warn-btn--resolved' : 'warn-btn--none')"
+@click="$store.app.showWarnings=true"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg><span x-text="$store.app.dtuData.warningsActive > 0 ? $store.app.dtuData.warningsActive : $store.app.dtuData.warningCount"></span></button></div></header><template x-if="!$store.app.info.wifiConnection?.wifiSsid && $store.app.info.wifiConnection !== undefined"><div class="alert-banner alert-banner--warning" role="alert"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg><div class="alert-banner__content"><strong>Setup required:</strong> Please configure WiFi to enable network features.
+<button class="alert-banner__link" @click="$store.app.openDrawer('wifi')">Configure now →</button></div></div></template><template x-if="$store.app.isMonitorMode()"><section class="monitor-card" :class="$store.app.monitorGlow()" aria-label="Remote summary display"><div class="mc-bg-dots"></div><template x-if="$store.app.info?.dtuConnection?.dtuRemoteDisplay_SolarMonitor && $store.app.info?.dtuConnection?.dtuRemoteDisplay_BatteryMonitor"><div class="mc-scan"></div></template><span class="mc-corner mc-corner--tl"></span><span class="mc-corner mc-corner--tr"></span><span class="mc-corner mc-corner--bl"></span><span class="mc-corner mc-corner--br"></span><div class="monitor-header"><div class="monitor-live-badge"><span class="monitor-live-dot"></span><span>LIVE</span></div><h2>remote summary display</h2><p>dtuGateway configured as remote display node</p><div class="monitor-divider"></div><span class="monitor-fn" x-text="$store.app.monitorLabel()"></span></div><div class="monitor-panels"><template x-if="$store.app.isSolarMonitor()"><div class="monitor-panel"><p class="monitor-panel__label">PV power</p><div class="monitor-panel__value"
+x-text="$store.app.fmt($store.app.data.grid?.p, 1, 'W')"></div><p class="monitor-panel__sublabel">yield today</p><div class="monitor-panel__subvalue"
+x-text="$store.app.fmt($store.app.data.grid?.dE, 3, 'kWh')"></div></div></template><template x-if="$store.app.isBatteryMonitor()"><div class="monitor-panel"><p class="monitor-panel__label">battery SOC</p><div class="monitor-panel__value"
+x-text="$store.app.fmt($store.app.data.battery?.soc, 1, '%')"></div><p class="monitor-panel__sublabel"
+x-show="$store.app.data.battery?.stored_energy != null">stored energy</p><div class="monitor-panel__subvalue"
+x-show="$store.app.data.battery?.stored_energy != null"
+x-text="$store.app.fmt($store.app.data.battery?.stored_energy, 1, 'kWh')"></div></div></template></div></section></template><section class="card hero-card" x-show="!$store.app.isMonitorMode()" aria-label="Grid output"><div class="hero-card__label">Grid output</div><div class="hero-card__power"><span class="hero-power-val"
+:class="{'val-flash': $store.app.ui.gridFlash}"
+x-text="$store.app.fmt($store.app.data.grid?.p, 1, 'W')"></span></div><div class="hero-card__details"><div class="hero-detail"><span class="hero-detail__label">Voltage</span><span class="hero-detail__val"
+x-text="$store.app.fmt($store.app.data.grid?.v, 1, 'V')"></span></div><div class="hero-detail"><span class="hero-detail__label">Current</span><span class="hero-detail__val"
+x-text="$store.app.fmt($store.app.data.grid?.c, 2, 'A')"></span></div><div class="hero-detail"><span class="hero-detail__label">Frequency</span><span class="hero-detail__val"
+x-text="$store.app.fmt($store.app.data.grid?.f, 2, 'Hz')"></span></div><div class="hero-detail"><span class="hero-detail__label">Today</span><span class="hero-detail__val"
+x-text="$store.app.fmt($store.app.data.grid?.dE, 3, 'kWh')"></span></div><div class="hero-detail"><span class="hero-detail__label">Total</span><span class="hero-detail__val"
+x-text="$store.app.fmt($store.app.data.grid?.tE, 3, 'kWh')"></span></div></div></section><section class="card pv-card" x-show="!$store.app.isMonitorMode()" aria-label="PV string 0"><div class="pv-card__label">PV 0</div><div class="pv-card__power"
+x-text="$store.app.fmt($store.app.data.pv0?.p, 1, 'W')"
+:class="{'val-flash': $store.app.ui.pv0Flash}"></div><div class="pv-card__row"><span class="pv-card__key">U</span><span class="pv-card__val"
+x-text="$store.app.fmt($store.app.data.pv0?.v, 1, 'V')"></span></div><div class="pv-card__row"><span class="pv-card__key">I</span><span class="pv-card__val"
+x-text="$store.app.fmt($store.app.data.pv0?.c, 2, 'A')"></span></div><hr class="divider"><div class="pv-card__row"><span class="pv-card__key">Today</span><span class="pv-card__val"
+x-text="$store.app.fmt($store.app.data.pv0?.dE, 3, 'kWh')"></span></div><div class="pv-card__row"><span class="pv-card__key">Total</span><span class="pv-card__val"
+x-text="$store.app.fmt($store.app.data.pv0?.tE, 3, 'kWh')"></span></div></section><section class="card pv-card" x-show="!$store.app.isMonitorMode()" aria-label="PV string 1"><div class="pv-card__label">PV 1</div><div class="pv-card__power"
+x-text="$store.app.fmt($store.app.data.pv1?.p, 1, 'W')"
+:class="{'val-flash': $store.app.ui.pv1Flash}"></div><div class="pv-card__row"><span class="pv-card__key">U</span><span class="pv-card__val"
+x-text="$store.app.fmt($store.app.data.pv1?.v, 1, 'V')"></span></div><div class="pv-card__row"><span class="pv-card__key">I</span><span class="pv-card__val"
+x-text="$store.app.fmt($store.app.data.pv1?.c, 2, 'A')"></span></div><hr class="divider"><div class="pv-card__row"><span class="pv-card__key">Today</span><span class="pv-card__val"
+x-text="$store.app.fmt($store.app.data.pv1?.dE, 3, 'kWh')"></span></div><div class="pv-card__row"><span class="pv-card__key">Total</span><span class="pv-card__val"
+x-text="$store.app.fmt($store.app.data.pv1?.tE, 3, 'kWh')"></span></div></section><section class="card info-card" x-show="!$store.app.isMonitorMode()" aria-label="Connection and system info"><div class="info-card__label">Gateway</div><div class="info-row"><span class="info-row__key">Local time</span><span class="info-row__val accent"
+x-text="$store.app.formatTs($store.app.data.localtime, 'time')"></span></div><div class="info-row"><span class="info-row__key">Date</span><span class="info-row__val"
+x-text="$store.app.formatTs($store.app.data.localtime, 'date')"></span></div><div class="info-row"><span class="info-row__key">NTP sync</span><span class="info-row__val"
+x-text="$store.app.formatTs($store.app.data.ntpStamp, 'time')"></span></div><div class="info-row"><span class="info-row__key">Last DTU rx</span><span class="info-row__val accent"
+x-text="$store.app.formatTs($store.app.data.lastResponse, 'time')"></span></div><div class="info-row"><span class="info-row__key">Started</span><span class="info-row__val"
+x-text="$store.app.formatTs($store.app.data.starttime, 'short')"></span></div><div class="info-row"><span class="info-row__key">DTU state</span><span class="info-row__val"
+x-text="$store.app.dtuErrorLabel()"></span></div><div class="info-row"><span class="info-row__key">DTU reboots</span><span class="info-row__val"
+x-text="$store.app.info.dtuConnection?.dtuResetRequested ?? '--'"></span></div><div class="info-row"><span class="info-row__key">Temperature</span><span class="info-row__val"
+x-text="$store.app.fmt($store.app.data.inverter?.temp, 1, '°C')"></span></div><div class="inverter-off-badge"
+x-show="$store.app.data.inverter?.active === 0">
+Inverter offline
+</div></section><section class="card energy-card" x-show="!$store.app.isMonitorMode()" aria-label="Energy summary"><div class="energy-card__label">Energy</div><table class="energy-table"><thead><tr><th></th><th>Today</th><th>Total</th></tr></thead><tbody><tr><td class="energy-ch">Grid</td><td x-text="$store.app.fmt($store.app.data.grid?.dE, 3, 'kWh')"></td><td x-text="$store.app.fmt($store.app.data.grid?.tE, 3, 'kWh')"></td></tr><tr><td class="energy-ch">PV 0</td><td x-text="$store.app.fmt($store.app.data.pv0?.dE, 3, 'kWh')"></td><td x-text="$store.app.fmt($store.app.data.pv0?.tE, 3, 'kWh')"></td></tr><tr><td class="energy-ch">PV 1</td><td x-text="$store.app.fmt($store.app.data.pv1?.dE, 3, 'kWh')"></td><td x-text="$store.app.fmt($store.app.data.pv1?.tE, 3, 'kWh')"></td></tr></tbody></table><hr class="divider"><div class="plimit-section"><div class="plimit-row"><span class="plimit-label">Power limit (set)</span><button class="plimit-btn"
+@click="$store.app.showPowerLimit=true"
+x-text="`${$store.app.data.inverter?.pLimSet ?? '--'} %`"></button></div><div class="plimit-row"><span class="plimit-label">Power limit (now)</span><span class="plimit-val"
+x-text="`${$store.app.data.inverter?.pLim ?? '--'} %`"></span></div></div><button class="events-link" @click="$store.app.showEvents=true">
+DTU events
+<span class="events-count"
+x-text="$store.app.events.statistics?.eventCount ?? 0"></span></button></section><footer class="card footer-card"><div class="footer-card__left"><span class="footer-item"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7z"/></svg><span x-text="$store.app.formatTs($store.app.data.lastResponse, 'time')"></span></span><span class="footer-item"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M1 9l2 2c4.97-4.97 13.03-4.97 18 0l2-2C16.93 2.93 7.08 2.93 1 9zm8 8 3 3 3-3c-1.65-1.66-4.34-1.66-6 0zm-4-4 2 2c2.76-2.76 7.24-2.76 10 0l2-2C15.14 9.14 8.87 9.14 5 13z"/></svg><span x-text="(($store.app.info.dtuConnection?.dtuRssi) ?? '--') + '%'"></span></span><span class="footer-item"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M1 9l2 2c4.97-4.97 13.03-4.97 18 0l2-2C16.93 2.93 7.08 2.93 1 9zm8 8 3 3 3-3c-1.65-1.66-4.34-1.66-6 0zm-4-4 2 2c2.76-2.76 7.24-2.76 10 0l2-2C15.14 9.14 8.87 9.14 5 13z"/></svg><span x-text="(($store.app.info.wifiConnection?.rssiGW) ?? '--') + '%'"></span></span></div><div class="footer-card__center"><span x-text="'fw ' + ($store.app.info.firmware?.version ?? '…')"></span><span class="fw-sub"
+x-text="'DTU: ' + ($store.app.info.dtuConnection?.deviceData?.dtu_version_string ?? '…') + ' | MI: ' + ($store.app.info.dtuConnection?.deviceData?.inverter_version_string ?? '…')"></span></div><div class="footer-card__right"><button class="icon-btn footer-settings-btn"
+:class="{'has-badge': $store.app.info.firmware?.updateAvailable}"
+@click="$store.app.openDrawer('wifi')" title="Settings"><svg viewBox="0 0 24 24" width="30" height="30" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg></button></div></footer></main><div class="update-modal" :class="{ 'is-active': $store.app.updateProgress >= 0 }"><div class="update-modal__box"><h2 class="update-modal__title">Firmware Update</h2><p class="update-modal__message"><span x-show="$store.app.fwFile">Updating with <span x-text="$store.app.fwFile?.name"></span>…</span><span x-show="!$store.app.fwFile">Updating firmware…</span><br><span style="font-size: 0.85rem; opacity: 0.8;">Do not disconnect power or network.</span></p><div class="update-modal__status" x-show="$store.app._updateStatus !== 'done'"><p x-text="'Status: ' + ($store.app._updateStatus || 'preparing…')"></p></div><div class="update-modal__progress-track"><div class="update-modal__progress-fill"
+:style="`width:${$store.app.updateProgress}%`"
+x-show="$store.app.updateProgress > 0"><span x-text="`${$store.app.updateProgress}%`"></span></div></div><div x-show="$store.app._updateStatus !== 'done'"><p class="update-modal__timeout" x-text="$store.app._updateTimeout ? `Timeout in: ${$store.app._updateTimeout}s` : ''"></p></div></div></div><div class="update-in-progress" x-show="$store.app.updateProgress >= 0"
+style="position: fixed; inset: 0; z-index: 9400; pointer-events: auto;"></div><script src="app.js"></script><script src="vendor.js"></script></body></html>
+)DTUGW";

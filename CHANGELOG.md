@@ -4,6 +4,12 @@ All notable changes to dtuGateway are documented here. This changelog focuses on
 
 ## [Unreleased] - Current Development
 
+### Changed (2026-05-16)
+- **Dashboard migration** — Alpine.js dashboard now primary UI at `/index.html`
+  - Legacy jQuery dashboard removed — codebase now single-dashboard focused
+  - Cleaner header includes and webserver routes (removed `/index2.html`, `/style2.css`, old jQuery files)
+  - Web development: `web_dev/src/index.html` now generates `index_html.h` instead of `index2_html.h`
+
 ### Added (2026-05-15)
 - **Firmware update progress UI** — real-time visual feedback with modal overlay, animated progress bar, and status badges
   - 60-second timeout protection for hung updates with countdown display

@@ -4,8 +4,8 @@ build_headers.py — Converts web_dev/src/ files to ESP32 PROGMEM C headers.
 Reads:
   ../src/index.html   → ../../include/web/index_html.h
   ../src/style.css    → ../../include/web/style_css.h
-  ../src/app.js       → ../../include/web/index_js.h
-  ../src/vendor.js    → ../../include/web/jquery_min_js.h  (Alpine.js)
+  ../src/app.js       → ../../include/web/app_js.h
+  ../src/vendor.js    → ../../include/web/vendor_js.h  (Alpine.js v3)
 
 Each source file is:
   1. Minified (CSS / JS: strip comments + collapse whitespace;
@@ -30,9 +30,9 @@ HEADER_DIR = REPO_ROOT / "include" / "web"  # …/include/web
 
 JOBS = [
     # (source_file, header_file, c_var_name, minify_mode)
-    # New Alpine.js dashboard — served at /index2.html alongside the original
-    ("index.html", "index2_html.h", "index2_html", "html"),
-    ("style.css", "style2_css.h", "style2_css", "css"),
+    # Alpine.js v3 dashboard — primary UI
+    ("index.html", "index_html.h", "index_html", "html"),
+    ("style.css", "style_css.h", "style_css", "css"),
     ("app.js", "app_js.h", "app_js", "js"),
     ("vendor.js", "vendor_js.h", "vendor_js", "raw"),  # already minified
 ]

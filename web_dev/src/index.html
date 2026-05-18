@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title id="page-title">dtuGateway</title>
-  <link rel="stylesheet" href="style2.css">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body x-data x-init="$store.app.init()">
 
@@ -430,9 +430,96 @@
   </div>
 
   <!-- ================================================================
+       SETUP SCREEN (first-launch WiFi configuration)
+  ================================================================ -->
+  <template x-if="$store.app.setupMode">
+    <div class="setup-screen" role="main">
+      <div class="setup-screen__container">
+        <div class="setup-screen__header">
+          <h1 class="setup-screen__title">Welcome! Let's get you online</h1>
+          <p class="setup-screen__subtitle">Select your WiFi network and enter the password</p>
+        </div>
+
+        <!-- WiFi Network Selection -->
+        <div class="setup-screen__section">
+          <label class="setup-screen__label">Available Networks</label>
+          <div class="setup-screen__networks">
+            <template x-if="$store.app.setupLoading">
+              <div class="setup-screen__loading">
+                <div class="spinner"></div>
+                <p>Scanning for networks...</p>
+              </div>
+            </template>
+            <template x-if="!$store.app.setupLoading && $store.app.info.wifiConnection?.foundNetworks?.length">
+              <template x-for="net in $store.app.info.wifiConnection.foundNetworks" :key="net.name">
+                <button class="setup-screen__network-btn"
+                        :class="{ 'is-selected': $store.app.setupSelectedSSID === net.name }"
+                        @click="$store.app.setupSelectedSSID = net.name"
+                        type="button">
+                  <div class="setup-screen__network-info">
+                    <span class="setup-screen__network-name" x-text="net.name"></span>
+                    <span class="setup-screen__network-signal" 
+                          x-text="`Signal: ${net.wifi}%`"
+                          :title="`Signal strength: ${net.wifi}% · Ch${net.chan}`"></span>
+                  </div>
+                  <svg class="setup-screen__network-check" viewBox="0 0 24 24" width="24" height="24">
+                    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" fill="currentColor"/>
+                  </svg>
+                </button>
+              </template>
+            </template>
+            <template x-if="!$store.app.setupLoading && !$store.app.info.wifiConnection?.foundNetworks?.length">
+              <div class="setup-screen__empty">
+                <p>No networks found</p>
+                <button class="setup-screen__retry-btn" 
+                        @click="$store.app._scanWifiNetworks()"
+                        :disabled="$store.app.setupLoading"
+                        type="button">
+                  Try again
+                </button>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- Password Entry -->
+        <div class="setup-screen__section" x-show="$store.app.setupSelectedSSID">
+          <label class="setup-screen__label" for="setup-password">WiFi Password</label>
+          <div class="setup-screen__password-group">
+            <input class="setup-screen__input"
+                   id="setup-password"
+                   type="password"
+                   placeholder="Enter password"
+                   x-model="$store.app.setupPassword"
+                   :disabled="$store.app.setupLoading"
+                   @keyup.enter="$store.app.setupConnectWifi()">
+          </div>
+        </div>
+
+        <!-- Connect Button -->
+        <div class="setup-screen__actions">
+          <button class="setup-screen__connect-btn"
+                  @click="$store.app.setupConnectWifi()"
+                  :disabled="!$store.app.setupSelectedSSID || !$store.app.setupPassword || $store.app.setupLoading"
+                  type="button">
+            <template x-if="!$store.app.setupLoading">
+              <span>Connect to WiFi</span>
+            </template>
+            <template x-if="$store.app.setupLoading">
+              <span>Connecting...</span>
+            </template>
+          </button>
+        </div>
+
+        <p class="setup-screen__hint">💡 The device will restart after connecting. This page will refresh automatically.</p>
+      </div>
+    </div>
+  </template>
+
+  <!-- ================================================================
        MAIN DASHBOARD
   ================================================================ -->
-  <main class="dashboard">
+  <main class="dashboard" x-show="!$store.app.setupMode">
 
     <!-- ── Header ──────────────────────────────────────────────── -->
     <header class="card header-card">
@@ -459,6 +546,19 @@
         </button>
       </div>
     </header>
+
+    <!-- ── WiFi Setup Required Banner ──────────────────────────── -->
+    <template x-if="!$store.app.info.wifiConnection?.wifiSsid && $store.app.info.wifiConnection !== undefined">
+      <div class="alert-banner alert-banner--warning" role="alert">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+          <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+        </svg>
+        <div class="alert-banner__content">
+          <strong>Setup required:</strong> Please configure WiFi to enable network features.
+          <button class="alert-banner__link" @click="$store.app.openDrawer('wifi')">Configure now →</button>
+        </div>
+      </div>
+    </template>
 
     <!-- ── Solar / Battery Monitor — HUD overlay ──────────────── -->
     <template x-if="$store.app.isMonitorMode()">

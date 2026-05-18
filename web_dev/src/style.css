@@ -115,6 +115,57 @@ hr.divider {
   to   { opacity: 1; transform: translateX(0); }
 }
 
+/* ── Alert banner ──────────────────────────────────────────────── */
+.alert-banner {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  margin: 0.5rem 0 1rem 0;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-sm);
+  border-left: 3px solid;
+  background: rgba(255, 255, 255, 0.03);
+  animation: slideDown 0.3s ease forwards;
+}
+
+.alert-banner--warning {
+  border-left-color: var(--warn);
+  color: var(--warn);
+}
+
+.alert-banner--warning svg {
+  flex-shrink: 0;
+  color: var(--warn);
+}
+
+.alert-banner__content {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+  font-size: 0.9rem;
+}
+
+.alert-banner__link {
+  background: none;
+  border: none;
+  color: inherit;
+  text-decoration: underline;
+  padding: 0;
+  cursor: pointer;
+  opacity: 0.8;
+  transition: opacity 0.2s;
+}
+
+.alert-banner__link:hover {
+  opacity: 1;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
 /* ── Shared card ───────────────────────────────────────────────── */
 .card {
   background: var(--surface);
@@ -123,6 +174,255 @@ hr.divider {
   box-shadow: var(--glow);
   padding: 0.85rem 1rem;
   overflow: hidden;
+}
+
+/* ── Setup Screen (first-launch WiFi config) ───────────────────── */
+.setup-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 1rem;
+  background: linear-gradient(135deg, var(--bg) 0%, var(--bg-2) 100%);
+}
+
+.setup-screen__container {
+  width: 100%;
+  max-width: 400px;
+  background: var(--surface);
+  border: var(--border);
+  border-radius: var(--radius);
+  padding: 2rem 1.5rem;
+  box-shadow: var(--glow-strong);
+}
+
+.setup-screen__header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.setup-screen__title {
+  font-size: clamp(20px, 5vw, 28px);
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+  color: var(--accent);
+}
+
+.setup-screen__subtitle {
+  font-size: 0.9rem;
+  color: var(--text-dim);
+  line-height: 1.4;
+}
+
+.setup-screen__section {
+  margin-bottom: 1.5rem;
+}
+
+.setup-screen__label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--accent);
+  margin-bottom: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.setup-screen__networks {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.setup-screen__networks::-webkit-scrollbar {
+  width: 6px;
+}
+
+.setup-screen__networks::-webkit-scrollbar-track {
+  background: rgba(33, 150, 243, 0.1);
+  border-radius: 10px;
+}
+
+.setup-screen__networks::-webkit-scrollbar-thumb {
+  background: var(--accent-dim);
+  border-radius: 10px;
+}
+
+.setup-screen__network-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  background: var(--surface-2);
+  border: 1px solid rgba(33, 150, 243, 0.3);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  cursor: pointer;
+  transition: all var(--transition);
+  font-size: 0.9rem;
+}
+
+.setup-screen__network-btn:hover {
+  border-color: var(--accent);
+  background: rgba(33, 150, 243, 0.1);
+}
+
+.setup-screen__network-btn.is-selected {
+  background: rgba(33, 150, 243, 0.2);
+  border-color: var(--accent);
+  box-shadow: 0 0 12px rgba(33, 150, 243, 0.3);
+}
+
+.setup-screen__network-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+}
+
+.setup-screen__network-name {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.setup-screen__network-signal {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.setup-screen__network-check {
+  opacity: 0;
+  transition: opacity var(--transition);
+  color: var(--ok);
+}
+
+.setup-screen__network-btn.is-selected .setup-screen__network-check {
+  opacity: 1;
+}
+
+.setup-screen__loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1rem;
+  gap: 1rem;
+  color: var(--text-dim);
+}
+
+.setup-screen__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1rem;
+  gap: 1rem;
+  color: var(--text-muted);
+}
+
+.setup-screen__retry-btn {
+  padding: 0.5rem 1rem;
+  background: rgba(33, 150, 243, 0.15);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: all var(--transition);
+}
+
+.setup-screen__retry-btn:hover:not(:disabled) {
+  background: rgba(33, 150, 243, 0.3);
+  box-shadow: 0 0 8px rgba(33, 150, 243, 0.3);
+}
+
+.setup-screen__retry-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.setup-screen__password-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.setup-screen__input {
+  padding: 0.75rem 1rem;
+  background: var(--surface-2);
+  border: 1px solid rgba(33, 150, 243, 0.3);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 1rem;
+  transition: border-color var(--transition);
+}
+
+.setup-screen__input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 8px rgba(33, 150, 243, 0.2);
+}
+
+.setup-screen__input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.setup-screen__actions {
+  margin-top: 2rem;
+}
+
+.setup-screen__connect-btn {
+  width: 100%;
+  padding: 1rem;
+  background: linear-gradient(135deg, var(--accent) 0%, #1976d2 100%);
+  border: none;
+  border-radius: var(--radius-sm);
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition);
+  box-shadow: 0 4px 12px rgba(33, 150, 243, 0.3);
+}
+
+.setup-screen__connect-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(33, 150, 243, 0.4);
+}
+
+.setup-screen__connect-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.setup-screen__connect-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.setup-screen__hint {
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 1rem;
+  line-height: 1.4;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(33, 150, 243, 0.2);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
 }
 
 /* ── Main dashboard grid ───────────────────────────────────────── */

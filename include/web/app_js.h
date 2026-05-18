@@ -8,6 +8,11 @@ static const char *app_js PROGMEM = R"DTUGW(document.addEventListener('alpine:in
  dtuData:{warningCount:0,warningsActive:0,warningsLastUpdate:0,warnings:[]},
  events:{events:[],statistics:{eventCount:0}},
  
+ setupMode:false,
+ wifiNetworks:[],
+ setupSelectedSSID:'',
+ setupPassword:'',
+ setupLoading:false,
  drawerOpen:false,
  drawerTab:'wifi',
  showWarnings:false,
@@ -21,6 +26,7 @@ static const char *app_js PROGMEM = R"DTUGW(document.addEventListener('alpine:in
  _updateStatus:'',
  toasts:[],
  _toastSeq:0,
+ _firstSetupDone:false,
  passVis:{wifiPass:false,mqttPass:false},
  
  reloadBarPct:100,
@@ -99,6 +105,14 @@ static const char *app_js PROGMEM = R"DTUGW(document.addEventListener('alpine:in
  try{
  this.info=await this._get('/api/info.json');
  this._waitMs=(this.info.dtuConnection?.dtuDataCycle??31)*1000;
+ 
+ 
+ 
+ if(!this._firstSetupDone&&(this.info.initMode===1||this.info.wifiConnection?.wifiSsid==='')){
+ this._firstSetupDone=true;
+ this.setupMode=true;
+ this._scanWifiNetworks();
+}
 }catch(_){}
 },
  async _fetchDtuData(){
@@ -532,6 +546,37 @@ static const char *app_js PROGMEM = R"DTUGW(document.addEventListener('alpine:in
 }
 },250);
 }catch(_){}
+},
+ 
+ _scanWifiNetworks(){
+ 
+ this.setupLoading=true;
+ this.requestWifiScan().then(()=>{
+ this.setupLoading=false;
+});
+},
+ async setupConnectWifi(){
+ if(!this.setupSelectedSSID||!this.setupPassword){
+ this._toast('Please select a network and enter password','error');
+ return;
+}
+ this.setupLoading=true;
+ try{
+ await this._post('/updateWifiSettings',{
+ wifiSSIDsend:this.setupSelectedSSID,
+ wifiPASSsend:this.setupPassword,
+});
+ this._toast('WiFi settings saved. Reconnecting...','success');
+ 
+ setTimeout(()=>{
+ this.setupMode=false;
+ this.setupSelectedSSID='';
+ this.setupPassword='';
+},3000);
+}catch(e){
+ this._toast('Failed to save WiFi:'+e.message,'error');
+ this.setupLoading=false;
+}
 },
  
  async clearEvents(){

@@ -25,7 +25,7 @@ import mock_data
 # Proxy mode — set to the real device base URL to forward all API calls,
 # or None to use mock data.
 # ---------------------------------------------------------------------------
-PROXY_TARGET = "http://192.168.1.8"  # ← set None to go back to mock data
+PROXY_TARGET = None  # Set to device URL like "http://192.168.1.8" to proxy real device
 
 # ---------------------------------------------------------------------------
 # App setup
@@ -45,12 +45,6 @@ SRC_DIR = Path(__file__).parent.parent / "src"
 def index():
     """Redirect root to index.html."""
     return redirect("/index.html")
-
-
-@app.route("/style2.css")
-def serve_style2():
-    """Serve style.css as style2.css for dev server."""
-    return send_from_directory(SRC_DIR, "style.css")
 
 
 @app.route("/<path:filename>")

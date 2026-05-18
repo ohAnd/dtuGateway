@@ -23,6 +23,11 @@ document.addEventListener('alpine:init', () => {
     events:   { events: [], statistics: { eventCount: 0 } },  // /api/dtuEvents.json
 
     // UI state
+    setupMode:      false,  // true when no WiFi configured (factory reset)
+    wifiNetworks:   [],     // Available WiFi networks for setup screen
+    setupSelectedSSID: '',  // Currently selected SSID in setup screen
+    setupPassword:  '',     // Password entered in setup screen
+    setupLoading:   false,  // true while connecting WiFi
     drawerOpen:     false,
     drawerTab:      'wifi',
     showWarnings:   false,
@@ -36,6 +41,7 @@ document.addEventListener('alpine:init', () => {
     _updateStatus:  '',     // human-readable status message
     toasts:         [],
     _toastSeq:      0,
+    _firstSetupDone: false, // Track if we've checked for first-setup condition
 
     passVis: { wifiPass: false, mqttPass: false },
 
@@ -129,6 +135,14 @@ document.addEventListener('alpine:init', () => {
       try {
         this.info = await this._get('/api/info.json');
         this._waitMs = (this.info.dtuConnection?.dtuDataCycle ?? 31) * 1000;
+        
+        // First-setup detection: if initMode === 1 (AP mode active = factory reset)
+        // or wifiSsid is empty, enter setup mode
+        if (!this._firstSetupDone && (this.info.initMode === 1 || this.info.wifiConnection?.wifiSsid === '')) {
+          this._firstSetupDone = true;
+          this.setupMode = true;
+          this._scanWifiNetworks();
+        }
       } catch (_) { /* silent */ }
     },
 
@@ -614,6 +628,41 @@ document.addEventListener('alpine:init', () => {
           }
         }, 250);
       } catch (_) { /* silent */ }
+    },
+
+    // ── Setup mode (first-launch WiFi configuration) ─────────────────
+    _scanWifiNetworks() {
+      // Called when entering setup mode to scan available networks
+      this.setupLoading = true;
+      this.requestWifiScan().then(() => {
+        this.setupLoading = false;
+      });
+    },
+
+    async setupConnectWifi() {
+      if (!this.setupSelectedSSID || !this.setupPassword) {
+        this._toast('Please select a network and enter password', 'error');
+        return;
+      }
+
+      this.setupLoading = true;
+      try {
+        await this._post('/updateWifiSettings', {
+          wifiSSIDsend: this.setupSelectedSSID,
+          wifiPASSsend: this.setupPassword,
+        });
+        this._toast('WiFi settings saved. Reconnecting...', 'success');
+
+        // Wait for device to reconnect, then exit setup mode
+        setTimeout(() => {
+          this.setupMode = false;
+          this.setupSelectedSSID = '';
+          this.setupPassword = '';
+        }, 3000);
+      } catch (e) {
+        this._toast('Failed to save WiFi: ' + e.message, 'error');
+        this.setupLoading = false;
+      }
     },
 
     // ── DTU events clear ────────────────────────────────────────────

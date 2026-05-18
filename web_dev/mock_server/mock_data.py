@@ -14,11 +14,19 @@ import time
 # ---------------------------------------------------------------------------
 
 settings = {
+    "system": {
+        "chipType": "ESP32",
+        "initMode": 0,  # 0 = normal operation, 1 = factory reset / AP mode (change to test setup screen)
+        "protectSettings": False,
+        "updateChannel": 0,
+        "starttime": int(time.time()) - 7200,  # started 2 hours ago
+        "rssiGW": 78,
+    },
     "wifi": {
-        "wifiSsid": "HomeNetwork",
+        "wifiSsid": "HomeNetwork",  # Normal operation (setup complete)
         "wifiPassword": "secret",
         "networkCount": 3,
-        "foundNetworks": [
+        "foundNetworks": [  # Keep original name; setup screen will use same
             {"name": "HomeNetwork", "wifi": 85, "chan": 6},
             {"name": "Neighbor_5G", "wifi": 62, "chan": 36},
             {"name": "IoT-Net", "wifi": 44, "chan": 11},
@@ -64,14 +72,6 @@ settings = {
         "versionServer": "1.5.3",
         "updateAvailable": False,
         "selectedUpdateChannel": 0,
-    },
-    "system": {
-        "chipType": "ESP32",
-        "initMode": 0,
-        "protectSettings": False,
-        "updateChannel": 0,
-        "starttime": int(time.time()) - 7200,  # started 2 hours ago
-        "rssiGW": 78,
     },
 }
 
