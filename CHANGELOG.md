@@ -4,6 +4,17 @@ All notable changes to dtuGateway are documented here. This changelog focuses on
 
 ## [Unreleased] - Current Development
 
+### Fixed (2026-05-18)
+- **Dashboard password fields** — Fixed critical bug where new MQTT/WiFi password entries were overwritten by backend value on save
+  - Changed password save logic to detect user-typed values vs masked dots
+  - If form field doesn't contain dots (user typed new password), send user input instead of stored password
+  - Prevents accidental password resets when changing credentials
+  - Applied to both WiFi and MQTT password fields
+- **Reboot buttons now functional** — Fixed dtuGateway, DTU, and Inverter restart commands
+  - Dashboard was not sending required POST parameters to backend handlers
+  - Now correctly sends `rebootDtuGw`, `rebootDtu`, and `rebootMi` parameters
+  - Improved error feedback: users now see specific device name in error message ("DTU reboot failed: ..." vs generic error)
+
 ### Added (2026-05-18)
 - **Connection Loss Detection** — Backend unreachability monitoring with visual feedback
   - Monitors `/api/data.json` requests with 10-second timeout detection
@@ -36,12 +47,6 @@ All notable changes to dtuGateway are documented here. This changelog focuses on
   - Networks cached from previous scans display immediately without interruption
   - Backend dummy network initialization removed — clean empty state on first boot
   - Dual-scan strategy: silent refresh vs user-triggered visible scan
-
-### Fixed (2026-05-18)
-- **Reboot buttons now functional** — Fixed dtuGateway, DTU, and Inverter restart commands
-  - Dashboard was not sending required POST parameters to backend handlers
-  - Now correctly sends `rebootDtuGw`, `rebootDtu`, and `rebootMi` parameters
-  - Improved error feedback: users now see specific device name in error message ("DTU reboot failed: ..." vs generic error)
 
 ### Changed (2026-05-16)
 - **Dashboard migration** — Alpine.js dashboard now primary UI at `/index.html`

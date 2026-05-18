@@ -501,7 +501,7 @@ document.addEventListener('alpine:init', () => {
       try {
         await this._post('/updateWifiSettings', {
           wifiSSIDsend: this.form.wifiSSID,
-          wifiPASSsend: this.passActual.wifiPass || this.form.wifiPass, // Use actual password, fallback to form value if new
+          wifiPASSsend: this.form.wifiPass !== '••••••••' ? this.form.wifiPass : this.passActual.wifiPass, // If user typed new value, use it; otherwise use saved password
         });
         
         // Backend reboots if in setup mode (WiFi AP active)
@@ -576,7 +576,7 @@ document.addEventListener('alpine:init', () => {
           mqttUseTLSSend:             this.form.mqttTLS ? '1' : '0',
           mqttIPSend:                 this.form.mqttIpPort,
           mqttUserSend:               this.form.mqttUser,
-          mqttPasswordSend:           this.passActual.mqttPass || this.form.mqttPass, // Use actual password, fallback if new
+          mqttPasswordSend:           this.form.mqttPass !== '••••••••' ? this.form.mqttPass : this.passActual.mqttPass, // If user typed new value, use it; otherwise use saved password
           mqttMainTopicSend:          this.form.mqttTopic,
           mqttHAautoDiscoveryONSend:  this.form.mqttHA ? '1' : '0',
         });
@@ -929,10 +929,13 @@ document.addEventListener('alpine:init', () => {
       this.passVis[field] = !this.passVis[field];
       // Swap between actual password and dots
       if (this.passVis[field]) {
-        // Showing password - swap dots for actual
-        this.form[field] = this.passActual[field];
+        // Showing password - only swap if currently showing dots
+        // This preserves user-typed changes and doesn't overwrite unsaved input
+        if (this.form[field] === '••••••••') {
+          this.form[field] = this.passActual[field];
+        }
       } else {
-        // Hiding password - swap actual for dots
+        // Hiding password - swap actual for dots (only if we have a stored password)
         if (this.passActual[field]) {
           this.form[field] = '••••••••';
         }

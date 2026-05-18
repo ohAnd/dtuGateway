@@ -418,7 +418,7 @@ static const char *app_js PROGMEM = R"DTUGW(document.addEventListener('alpine:in
  try{
  await this._post('/updateWifiSettings',{
  wifiSSIDsend:this.form.wifiSSID,
- wifiPASSsend:this.passActual.wifiPass||this.form.wifiPass,
+ wifiPASSsend:this.form.wifiPass!=='••••••••'?this.form.wifiPass:this.passActual.wifiPass,
 });
  
  
@@ -490,7 +490,7 @@ static const char *app_js PROGMEM = R"DTUGW(document.addEventListener('alpine:in
  mqttUseTLSSend:this.form.mqttTLS?'1':'0',
  mqttIPSend:this.form.mqttIpPort,
  mqttUserSend:this.form.mqttUser,
- mqttPasswordSend:this.passActual.mqttPass||this.form.mqttPass,
+ mqttPasswordSend:this.form.mqttPass!=='••••••••'?this.form.mqttPass:this.passActual.mqttPass,
  mqttMainTopicSend:this.form.mqttTopic,
  mqttHAautoDiscoveryONSend:this.form.mqttHA?'1':'0',
 });
@@ -825,7 +825,10 @@ static const char *app_js PROGMEM = R"DTUGW(document.addEventListener('alpine:in
  
  if(this.passVis[field]){
  
+ 
+ if(this.form[field]==='••••••••'){
  this.form[field]=this.passActual[field];
+}
 }else{
  
  if(this.passActual[field]){
