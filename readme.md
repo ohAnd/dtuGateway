@@ -18,6 +18,16 @@
 
 ---
 
+## ❤️ Support This Project
+
+**Love dtuGateway?** Consider supporting its development:
+
+🎉 **[→ Become a Sponsor](https://github.com/sponsors/ohAnd)** — Help keep this project active, maintained, and continuously improved!
+
+Or [contribute code](CONTRIBUTING.md) — We welcome PRs and community feedback!
+
+---
+
 ## 📋 Table of Contents
 
 ### Getting Started
