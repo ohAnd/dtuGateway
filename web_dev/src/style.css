@@ -425,6 +425,65 @@ hr.divider {
   animation: spin 1s linear infinite;
 }
 
+/* ── Reboot/Reconnect Overlay ──────────────────────────────────── */
+.reboot-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  backdrop-filter: blur(2px);
+}
+
+.reboot-overlay__container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 1.5rem;
+  width: 90%;
+  max-width: 320px;
+}
+
+.reboot-overlay__spinner {
+  width: 48px;
+  height: 48px;
+  border: 3px solid rgba(33, 150, 243, 0.2);
+  border-top-color: var(--accent);
+  border-right-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 1.2s linear infinite;
+}
+
+.reboot-overlay__title {
+  font-size: 24px;
+  font-weight: 700;
+  color: #fff;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.reboot-overlay__message {
+  font-size: 14px;
+  color: var(--accent);
+  margin: 0;
+  font-weight: 600;
+  min-height: 20px;
+}
+
+.reboot-overlay__hint {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
+  margin: 0;
+  line-height: 1.4;
+}
+
 /* ── Main dashboard grid ───────────────────────────────────────── */
 .dashboard {
   display: grid;

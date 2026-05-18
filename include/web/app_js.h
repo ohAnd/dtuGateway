@@ -18,6 +18,9 @@ static const char *app_js PROGMEM = R"DTUGW(document.addEventListener('alpine:in
  showWarnings:false,
  showPowerLimit:false,
  showEvents:false,
+ showRebootOverlay:false,
+ rebootStatus:'Applying settings...',
+ willReboot:false,
  rebootTarget:null,
  fwFile:null,
  updateProgress:-1,
@@ -28,6 +31,7 @@ static const char *app_js PROGMEM = R"DTUGW(document.addEventListener('alpine:in
  _toastSeq:0,
  _firstSetupDone:false,
  passVis:{wifiPass:false,mqttPass:false},
+ passActual:{wifiPass:'',mqttPass:''},
  
  reloadBarPct:100,
  _waitMs:31000,
@@ -291,7 +295,14 @@ static const char *app_js PROGMEM = R"DTUGW(document.addEventListener('alpine:in
  const oh=i.openHabConnection??{};
  const mqtt=i.mqttConnection??{};
  this.form.wifiSSID=wc.wifiSsid??'';
- this.form.wifiPass=wc.wifiPassword??'';
+ 
+ if(wc.wifiPassword){
+ this.passActual.wifiPass=wc.wifiPassword;
+ this.form.wifiPass='••••••••';
+}else{
+ this.passActual.wifiPass='';
+ this.form.wifiPass='';
+}
  this.form.dtuIp=dtu.dtuHostIpDomain??'';
  this.form.dtuCycle=dtu.dtuDataCycle??31;
  this.form.dtuCloudPause=!!dtu.dtuCloudPause;
@@ -306,7 +317,14 @@ static const char *app_js PROGMEM = R"DTUGW(document.addEventListener('alpine:in
  this.form.mqttTLS=!!mqtt.mqttUseTLS;
  this.form.mqttIpPort=mqtt.mqttIp?`${mqtt.mqttIp}:${mqtt.mqttPort}`:'';
  this.form.mqttUser=mqtt.mqttUser??'';
- this.form.mqttPass=mqtt.mqttPassword??'';
+ 
+ if(mqtt.mqttPass){
+ this.passActual.mqttPass=mqtt.mqttPass;
+ this.form.mqttPass='••••••••';
+}else{
+ this.passActual.mqttPass='';
+ this.form.mqttPass='';
+}
  this.form.mqttTopic=mqtt.mqttMainTopic??'';
  this.form.mqttHA=!!mqtt.mqttHAautoDiscoveryON;
  this.form.powerLimit=this.data.inverter?.pLimSet??100;
@@ -317,9 +335,20 @@ static const char *app_js PROGMEM = R"DTUGW(document.addEventListener('alpine:in
  try{
  await this._post('/updateWifiSettings',{
  wifiSSIDsend:this.form.wifiSSID,
- wifiPASSsend:this.form.wifiPass,
+ wifiPASSsend:this.passActual.wifiPass||this.form.wifiPass,
 });
+ 
+ 
+ this.willReboot=this.info.initMode===1;
+ this.drawerOpen=false;
+ 
+ if(this.willReboot){
+ this.showRebootOverlay=true;
+ this.rebootStatus='Device is rebooting...';
+ this._waitForDeviceReconnect();
+}else{
  this._toast('WiFi settings saved','success');
+}
 }catch(e){
  this._toast('Save failed:'+e.message,'error');
 }
@@ -327,22 +356,45 @@ static const char *app_js PROGMEM = R"DTUGW(document.addEventListener('alpine:in
  async saveDtu(){
  if(this.info.protectSettings)return;
  try{
+ 
+ const currentRemoteDisplay=!!this.info.dtuConnection?.dtuRemoteDisplay;
+ const currentSolarMonitor=!!this.info.dtuConnection?.dtuRemoteDisplay_SolarMonitor;
+ const currentBatteryMonitor=!!this.info.dtuConnection?.dtuRemoteDisplay_BatteryMonitor;
+ 
+ const newRemoteDisplay=(this.form.remoteDisplay&&!this.form.remoteSummary&&!this.form.batteryMonitor);
+ const newSolarMonitor=(!this.form.remoteDisplay&&this.form.remoteSummary);
+ const newBatteryMonitor=(!this.form.remoteDisplay&&this.form.batteryMonitor);
+ 
+ 
+ this.willReboot=(currentRemoteDisplay!==newRemoteDisplay)||
+(currentSolarMonitor!==newSolarMonitor)||
+(currentBatteryMonitor!==newBatteryMonitor);
+ 
  await this._post('/updateDtuSettings',{
  dtuHostIpDomainSend:this.form.dtuIp,
  dtuDataCycleSend:this.form.dtuCycle,
  dtuCloudPauseSend:this.form.dtuCloudPause?'1':'0',
- 
- remoteDisplayActiveSend:(this.form.remoteDisplay&&!this.form.remoteSummary&&!this.form.batteryMonitor)?'1':'0',
- remoteSummaryDisplayActiveSend:(!this.form.remoteDisplay&&this.form.remoteSummary)?'1':'0',
- ...('dtuRemoteDisplay_SolarMonitor' in(this.info.dtuConnection??{})?{
- remoteBatteryDisplayActiveSend:(!this.form.remoteDisplay&&this.form.batteryMonitor)?'1':'0',
-}:{}),
+ remoteDisplayActiveSend:newRemoteDisplay?'1':'0',
+ remoteSummaryDisplayActiveSend:newSolarMonitor?'1':'0',
+ remoteBatteryDisplayActiveSend:newBatteryMonitor?'1':'0',
 });
+ 
+ this.drawerOpen=false;
+ 
+ if(this.willReboot){
+ this.showRebootOverlay=true;
+ this.rebootStatus='Device is rebooting...';
+ this._waitForDeviceReconnect();
+}else{
  this._toast('DTU settings saved','success');
  this._fetchInfo();
+}
 }catch(e){
  this._toast('Save failed:'+e.message,'error');
 }
+},
+ isSettingsProtected(){
+ return!!this.info.protectSettings;
 },
  async saveBindings(){
  if(this.info.protectSettings)return;
@@ -355,14 +407,78 @@ static const char *app_js PROGMEM = R"DTUGW(document.addEventListener('alpine:in
  mqttUseTLSSend:this.form.mqttTLS?'1':'0',
  mqttIPSend:this.form.mqttIpPort,
  mqttUserSend:this.form.mqttUser,
- mqttPasswordSend:this.form.mqttPass,
+ mqttPasswordSend:this.passActual.mqttPass||this.form.mqttPass,
  mqttMainTopicSend:this.form.mqttTopic,
  mqttHAautoDiscoveryONSend:this.form.mqttHA?'1':'0',
 });
- this._toast('Bindings saved','success');
+ 
+ 
+ this.willReboot=this.form.mqttActive;
+ 
+ 
+ this.drawerOpen=false;
+ this.showRebootOverlay=true;
+ if(this.willReboot){
+ this.rebootStatus='Device is rebooting...';
+}else{
+ this.rebootStatus='Applying settings...';
+}
+ 
+ this._waitForDeviceReconnect();
+ 
 }catch(e){
  this._toast('Save failed:'+e.message,'error');
 }
+},
+ async _waitForDeviceReconnect(){
+ let attempts=0;
+ const maxAttempts=150;
+ const minDisplayTime=2000;
+ const initialDelayTime=4000;
+ const startTime=Date.now();
+ 
+ const checkDevice=async()=>{
+ attempts++;
+ const elapsed=Math.ceil((Date.now()-startTime)/1000);
+ this.rebootStatus=`${this.willReboot?'Rebooting':'Applying'}...(${elapsed}s)`;
+ 
+ try{
+ 
+ const res=await fetch('/api/info.json',{cache:'no-store'});
+ if(res.ok){
+ 
+ 
+ const displayedFor=Date.now()-startTime;
+ if(displayedFor<minDisplayTime){
+ setTimeout(()=>{
+ this.showRebootOverlay=false;
+ this._toast('Settings applied successfully!','success');
+ this._fetchInfo();
+},minDisplayTime-displayedFor);
+ return;
+}
+ 
+ this.showRebootOverlay=false;
+ this._toast('Settings applied successfully!','success');
+ 
+ this._fetchInfo();
+ return;
+}
+}catch(e){
+ 
+}
+ 
+ if(attempts<maxAttempts){
+ setTimeout(checkDevice,500);
+}else{
+ 
+ this.showRebootOverlay=false;
+ this._toast('Device offline for too long. Please check WiFi connection and refresh manually.','error');
+}
+};
+ 
+ 
+ setTimeout(checkDevice,initialDelayTime);
 },
  async savePowerLimit(){
  try{
@@ -591,6 +707,16 @@ static const char *app_js PROGMEM = R"DTUGW(document.addEventListener('alpine:in
  
  togglePassVis(field){
  this.passVis[field]=!this.passVis[field];
+ 
+ if(this.passVis[field]){
+ 
+ this.form[field]=this.passActual[field];
+}else{
+ 
+ if(this.passActual[field]){
+ this.form[field]='••••••••';
+}
+}
 },
  mqttSectionHint(){
  if(this.form.remoteDisplay){

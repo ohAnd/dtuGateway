@@ -750,30 +750,33 @@ void DTUwebserver::handleUpdateBindingsSettings(AsyncWebServerRequest *request)
         request->send(403, "text/plain", "Settings are protected. Please disable protection per serial console command 'protectSettings 0' to change settings.");
         return;
     }
-    if (request->hasParam("openhabHostIpDomainSend", true) &&
-        request->hasParam("openhabPrefixSend", true) &&
-        request->hasParam("openhabActiveSend", true) &&
-        request->hasParam("mqttIpSend", true) &&
-        request->hasParam("mqttPortSend", true) &&
-        request->hasParam("mqttUserSend", true) &&
-        request->hasParam("mqttPassSend", true) &&
-        request->hasParam("mqttMainTopicSend", true) &&
+    if (request->hasParam("openhabActiveSend", true) &&
+        request->hasParam("openhabIPSend", true) &&
+        request->hasParam("ohItemPrefixSend", true) &&
         request->hasParam("mqttActiveSend", true) &&
         request->hasParam("mqttUseTLSSend", true) &&
+        request->hasParam("mqttIPSend", true) &&
+        request->hasParam("mqttUserSend", true) &&
+        request->hasParam("mqttPasswordSend", true) &&
+        request->hasParam("mqttMainTopicSend", true) &&
         request->hasParam("mqttHAautoDiscoveryONSend", true))
     {
-        String openhabHostIpDomainUser = request->getParam("openhabHostIpDomainSend", true)->value(); // retrieve message from webserver
-        String openhabPrefix = request->getParam("openhabPrefixSend", true)->value();
         String openhabActive = request->getParam("openhabActiveSend", true)->value();
+        String openhabHostIpDomainUser = request->getParam("openhabIPSend", true)->value();
+        String openhabPrefix = request->getParam("ohItemPrefixSend", true)->value();
 
-        String mqttIP = request->getParam("mqttIpSend", true)->value();
-        String mqttPort = request->getParam("mqttPortSend", true)->value();
-        String mqttUser = request->getParam("mqttUserSend", true)->value();
-        String mqttPass = request->getParam("mqttPassSend", true)->value();
-        String mqttMainTopic = request->getParam("mqttMainTopicSend", true)->value();
         String mqttActive = request->getParam("mqttActiveSend", true)->value();
         String mqttUseTLS = request->getParam("mqttUseTLSSend", true)->value();
+        String mqttIpPort = request->getParam("mqttIPSend", true)->value(); // format: "192.168.1.1:1883"
+        String mqttUser = request->getParam("mqttUserSend", true)->value();
+        String mqttPass = request->getParam("mqttPasswordSend", true)->value();
+        String mqttMainTopic = request->getParam("mqttMainTopicSend", true)->value();
         String mqttHAautoDiscoveryON = request->getParam("mqttHAautoDiscoveryONSend", true)->value();
+
+        // Parse IP:Port format (e.g. "192.168.1.1:1883")
+        int colonIndex = mqttIpPort.indexOf(':');
+        String mqttIP = (colonIndex > 0) ? mqttIpPort.substring(0, colonIndex) : mqttIpPort;
+        String mqttPort = (colonIndex > 0) ? mqttIpPort.substring(colonIndex + 1) : "1883";
 
         bool mqttHAautoDiscoveryONlastState = userConfig.mqttHAautoDiscoveryON;
         Serial.println("WEB:\t\t handleUpdateBindingsSettings - HAautoDiscovery current state: " + String(mqttHAautoDiscoveryONlastState));
@@ -786,8 +789,11 @@ void DTUwebserver::handleUpdateBindingsSettings(AsyncWebServerRequest *request)
         else
             userConfig.openhabActive = false;
 
+        // Store parsed IP and Port
+        mqttIP.trim();
+        mqttPort.trim();
         mqttIP.toCharArray(userConfig.mqttBrokerIpDomain, sizeof(userConfig.mqttBrokerIpDomain));
-        userConfig.mqttBrokerPort = mqttPort.toInt();
+        userConfig.mqttBrokerPort = (mqttPort.length() > 0) ? mqttPort.toInt() : 1883;
         mqttUser.toCharArray(userConfig.mqttBrokerUser, sizeof(userConfig.mqttBrokerUser));
         mqttPass.toCharArray(userConfig.mqttBrokerPassword, sizeof(userConfig.mqttBrokerPassword));
         mqttMainTopic.toCharArray(userConfig.mqttBrokerMainTopic, sizeof(userConfig.mqttBrokerMainTopic));

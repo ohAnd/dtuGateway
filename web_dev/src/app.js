@@ -33,6 +33,9 @@ document.addEventListener('alpine:init', () => {
     showWarnings:   false,
     showPowerLimit: false,
     showEvents:     false,
+    showRebootOverlay: false,  // Show overlay while device reboots/reconnects
+    rebootStatus:   'Applying settings...',
+    willReboot:     false,     // Track if backend will actually reboot
     rebootTarget:   null,
     fwFile:         null,
     updateProgress: -1,
@@ -44,6 +47,7 @@ document.addEventListener('alpine:init', () => {
     _firstSetupDone: false, // Track if we've checked for first-setup condition
 
     passVis: { wifiPass: false, mqttPass: false },
+    passActual: { wifiPass: '', mqttPass: '' }, // Store actual passwords (shown as dots in form)
 
     // Reload progress bar (counts down between last DTU response updates)
     reloadBarPct:  100,
@@ -355,7 +359,14 @@ document.addEventListener('alpine:init', () => {
       const mqtt = i.mqttConnection ?? {};
 
       this.form.wifiSSID       = wc.wifiSsid ?? '';
-      this.form.wifiPass       = wc.wifiPassword ?? '';
+      // Show dots if password is set, store actual password separately
+      if (wc.wifiPassword) {
+        this.passActual.wifiPass = wc.wifiPassword;
+        this.form.wifiPass = '••••••••';
+      } else {
+        this.passActual.wifiPass = '';
+        this.form.wifiPass = '';
+      }
 
       this.form.dtuIp          = dtu.dtuHostIpDomain ?? '';
       this.form.dtuCycle       = dtu.dtuDataCycle ?? 31;
@@ -373,7 +384,14 @@ document.addEventListener('alpine:init', () => {
       this.form.mqttTLS        = !!mqtt.mqttUseTLS;
       this.form.mqttIpPort     = mqtt.mqttIp ? `${mqtt.mqttIp}:${mqtt.mqttPort}` : '';
       this.form.mqttUser       = mqtt.mqttUser ?? '';
-      this.form.mqttPass       = mqtt.mqttPassword ?? '';
+      // Show dots if password is set, store actual password separately (note: backend returns 'mqttPass' not 'mqttPassword')
+      if (mqtt.mqttPass) {
+        this.passActual.mqttPass = mqtt.mqttPass;
+        this.form.mqttPass = '••••••••';
+      } else {
+        this.passActual.mqttPass = '';
+        this.form.mqttPass = '';
+      }
       this.form.mqttTopic      = mqtt.mqttMainTopic ?? '';
       this.form.mqttHA         = !!mqtt.mqttHAautoDiscoveryON;
 
@@ -386,9 +404,20 @@ document.addEventListener('alpine:init', () => {
       try {
         await this._post('/updateWifiSettings', {
           wifiSSIDsend: this.form.wifiSSID,
-          wifiPASSsend: this.form.wifiPass,
+          wifiPASSsend: this.passActual.wifiPass || this.form.wifiPass, // Use actual password, fallback to form value if new
         });
-        this._toast('WiFi settings saved', 'success');
+        
+        // Backend reboots if in setup mode (WiFi AP active)
+        this.willReboot = this.info.initMode === 1;
+        this.drawerOpen = false;
+        
+        if (this.willReboot) {
+          this.showRebootOverlay = true;
+          this.rebootStatus = 'Device is rebooting...';
+          this._waitForDeviceReconnect();
+        } else {
+          this._toast('WiFi settings saved', 'success');
+        }
       } catch (e) {
         this._toast('Save failed: ' + e.message, 'error');
       }
@@ -397,22 +426,46 @@ document.addEventListener('alpine:init', () => {
     async saveDtu() {
       if (this.info.protectSettings) return;
       try {
+        // Store current display settings to detect changes
+        const currentRemoteDisplay = !!this.info.dtuConnection?.dtuRemoteDisplay;
+        const currentSolarMonitor = !!this.info.dtuConnection?.dtuRemoteDisplay_SolarMonitor;
+        const currentBatteryMonitor = !!this.info.dtuConnection?.dtuRemoteDisplay_BatteryMonitor;
+        
+        const newRemoteDisplay = (this.form.remoteDisplay && !this.form.remoteSummary && !this.form.batteryMonitor);
+        const newSolarMonitor = (!this.form.remoteDisplay && this.form.remoteSummary);
+        const newBatteryMonitor = (!this.form.remoteDisplay && this.form.batteryMonitor);
+        
+        // Backend reboots if any display setting changed
+        this.willReboot = (currentRemoteDisplay !== newRemoteDisplay) || 
+                         (currentSolarMonitor !== newSolarMonitor) || 
+                         (currentBatteryMonitor !== newBatteryMonitor);
+        
         await this._post('/updateDtuSettings', {
           dtuHostIpDomainSend:         this.form.dtuIp,
           dtuDataCycleSend:            this.form.dtuCycle,
           dtuCloudPauseSend:           this.form.dtuCloudPause ? '1' : '0',
-          // mutually exclusive: remoteDisplay disables summary/monitor flags and vice versa
-          remoteDisplayActiveSend:            (this.form.remoteDisplay && !this.form.remoteSummary && !this.form.batteryMonitor) ? '1' : '0',
-          remoteSummaryDisplayActiveSend:     (!this.form.remoteDisplay && this.form.remoteSummary)  ? '1' : '0',
-          ...('dtuRemoteDisplay_SolarMonitor' in (this.info.dtuConnection ?? {}) ? {
-            remoteBatteryDisplayActiveSend: (!this.form.remoteDisplay && this.form.batteryMonitor) ? '1' : '0',
-          } : {}),
+          remoteDisplayActiveSend:            newRemoteDisplay ? '1' : '0',
+          remoteSummaryDisplayActiveSend:     newSolarMonitor ? '1' : '0',
+          remoteBatteryDisplayActiveSend:     newBatteryMonitor ? '1' : '0',
         });
-        this._toast('DTU settings saved', 'success');
-        this._fetchInfo();
+        
+        this.drawerOpen = false;
+        
+        if (this.willReboot) {
+          this.showRebootOverlay = true;
+          this.rebootStatus = 'Device is rebooting...';
+          this._waitForDeviceReconnect();
+        } else {
+          this._toast('DTU settings saved', 'success');
+          this._fetchInfo();
+        }
       } catch (e) {
         this._toast('Save failed: ' + e.message, 'error');
       }
+    },
+
+    isSettingsProtected() {
+      return !!this.info.protectSettings;
     },
 
     async saveBindings() {
@@ -426,14 +479,79 @@ document.addEventListener('alpine:init', () => {
           mqttUseTLSSend:             this.form.mqttTLS ? '1' : '0',
           mqttIPSend:                 this.form.mqttIpPort,
           mqttUserSend:               this.form.mqttUser,
-          mqttPasswordSend:           this.form.mqttPass,
+          mqttPasswordSend:           this.passActual.mqttPass || this.form.mqttPass, // Use actual password, fallback if new
           mqttMainTopicSend:          this.form.mqttTopic,
           mqttHAautoDiscoveryONSend:  this.form.mqttHA ? '1' : '0',
         });
-        this._toast('Bindings saved', 'success');
+        
+        // Backend will reboot if MQTT is being enabled
+        this.willReboot = this.form.mqttActive;
+        
+        // Show reboot/apply overlay
+        this.drawerOpen = false;
+        this.showRebootOverlay = true;
+        if (this.willReboot) {
+          this.rebootStatus = 'Device is rebooting...';
+        } else {
+          this.rebootStatus = 'Applying settings...';
+        }
+        
+        this._waitForDeviceReconnect();
+        
       } catch (e) {
         this._toast('Save failed: ' + e.message, 'error');
       }
+    },
+
+    async _waitForDeviceReconnect() {
+      let attempts = 0;
+      const maxAttempts = 150; // 150 attempts × 500ms = 75 seconds max (accounts for WiFi reconnection delays)
+      const minDisplayTime = 2000; // Show overlay for at least 2 seconds after device comes back
+      const initialDelayTime = 4000; // Backend reboot timer is 2-3s, device needs ~1-2s to fully restart, so 4s minimum
+      const startTime = Date.now();
+      
+      const checkDevice = async () => {
+        attempts++;
+        const elapsed = Math.ceil((Date.now() - startTime) / 1000);
+        this.rebootStatus = `${this.willReboot ? 'Rebooting' : 'Applying'}... (${elapsed}s)`;
+        
+        try {
+          // Try to fetch info.json - if successful, device is back
+          const res = await fetch('/api/info.json', { cache: 'no-store' });
+          if (res.ok) {
+            // Device is back online!
+            // But respect minimum display time
+            const displayedFor = Date.now() - startTime;
+            if (displayedFor < minDisplayTime) {
+              setTimeout(() => {
+                this.showRebootOverlay = false;
+                this._toast('Settings applied successfully!', 'success');
+                this._fetchInfo();
+              }, minDisplayTime - displayedFor);
+              return;
+            }
+            
+            this.showRebootOverlay = false;
+            this._toast('Settings applied successfully!', 'success');
+            // Trigger fresh data fetch
+            this._fetchInfo();
+            return;
+          }
+        } catch (e) {
+          // Expected while device reboots or WiFi reconnects
+        }
+        
+        if (attempts < maxAttempts) {
+          setTimeout(checkDevice, 500);
+        } else {
+          // Timeout - device didn't come back within 75 seconds
+          this.showRebootOverlay = false;
+          this._toast('Device offline for too long. Please check WiFi connection and refresh manually.', 'error');
+        }
+      };
+      
+      // Wait longer before first check to account for backend reboot delay + device restart
+      setTimeout(checkDevice, initialDelayTime);
     },
 
     async savePowerLimit() {
@@ -679,6 +797,16 @@ document.addEventListener('alpine:init', () => {
     // ── Misc helpers ────────────────────────────────────────────────
     togglePassVis(field) {
       this.passVis[field] = !this.passVis[field];
+      // Swap between actual password and dots
+      if (this.passVis[field]) {
+        // Showing password - swap dots for actual
+        this.form[field] = this.passActual[field];
+      } else {
+        // Hiding password - swap actual for dots
+        if (this.passActual[field]) {
+          this.form[field] = '••••••••';
+        }
+      }
     },
 
     mqttSectionHint() {

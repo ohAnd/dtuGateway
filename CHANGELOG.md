@@ -4,6 +4,19 @@ All notable changes to dtuGateway are documented here. This changelog focuses on
 
 ## [Unreleased] - Current Development
 
+### Added (2026-05-18)
+- **Smart settings application overlay** — Context-aware visual feedback when saving settings
+  - Different messages for rebooting (WiFi, MQTT, DTU display changes) vs immediate apply (MQTT config, power limit)
+  - Auto-detects which settings require device restart based on backend behavior
+  - Extended 75-second polling timeout to account for slow WiFi reconnection after reboot
+  - Minimum 2-second display time ensures users see confirmation
+  - Real-time elapsed time counter showing device restart progress
+- **Password field security** — Masked password display with toggle
+  - Passwords shown as dots (••••••••) after page reload if already configured
+  - "Show" toggle reveals actual password, click again to re-mask
+  - Works for both WiFi and MQTT authentication fields
+  - Secure submission — actual passwords sent to backend on save
+
 ### Changed (2026-05-16)
 - **Dashboard migration** — Alpine.js dashboard now primary UI at `/index.html`
   - Legacy jQuery dashboard removed — codebase now single-dashboard focused
