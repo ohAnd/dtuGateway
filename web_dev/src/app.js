@@ -656,7 +656,7 @@ document.addEventListener('alpine:init', () => {
     async savePowerLimit() {
       try {
         await this._post('/updatePowerLimit', {
-          powerLimitSet: this.form.powerLimit,
+          powerLimitSend: this.form.powerLimit,
         });
         this._toast(`Power limit set to ${this.form.powerLimit} %`, 'success');
         this.showPowerLimit = false;

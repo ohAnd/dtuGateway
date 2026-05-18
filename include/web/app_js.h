@@ -568,7 +568,7 @@ static const char *app_js PROGMEM = R"DTUGW(document.addEventListener('alpine:in
  async savePowerLimit(){
  try{
  await this._post('/updatePowerLimit',{
- powerLimitSet:this.form.powerLimit,
+ powerLimitSend:this.form.powerLimit,
 });
  this._toast(`Power limit set to ${this.form.powerLimit}%`,'success');
  this.showPowerLimit=false;

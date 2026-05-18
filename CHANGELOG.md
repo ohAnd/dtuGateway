@@ -5,6 +5,9 @@ All notable changes to dtuGateway are documented here. This changelog focuses on
 ## [Unreleased] - Current Development
 
 ### Fixed (2026-05-18)
+- **Power limit setting in new dashboard** — Fixed parameter name mismatch (`powerLimitSet` → `powerLimitSend`) that prevented power limit from being applied
+  - Dashboard now correctly sends the expected parameter name to the backend handler
+  - Setting power limit in the power limit overlay now works as intended
 - **DTU warnings badge styling** — Restored triangle button with border frame and fixed warning count calculation
   - Added circular badge in top-right corner (similar to DTU events badge) showing warning count
   - Badge color matches warning state: orange for active, blue for resolved, hidden when none
