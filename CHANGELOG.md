@@ -5,6 +5,11 @@ All notable changes to dtuGateway are documented here. This changelog focuses on
 ## [Unreleased] - Current Development
 
 ### Fixed (2026-05-18)
+- **DTU warnings badge styling** — Restored triangle button with border frame and fixed warning count calculation
+  - Added circular badge in top-right corner (similar to DTU events badge) showing warning count
+  - Badge color matches warning state: orange for active, blue for resolved, hidden when none
+  - Fixed missing `warningCount` calculation in Alpine store that was preventing badge display
+  - Warning button now clearly distinguishes between active (orange) and resolved (blue) warning states
 - **Remote display crash on boot** — Fixed Guru Meditation Error (LoadProhibited) when device boots in MQTT-only remote display mode
   - Device was attempting to request DTU device info even without a DTU connection established
   - Added remote display mode check to prevent DTU connection logic from executing when in MQTT-only mode
@@ -20,6 +25,22 @@ All notable changes to dtuGateway are documented here. This changelog focuses on
   - Improved error feedback: users now see specific device name in error message ("DTU reboot failed: ..." vs generic error)
 
 ### Added (2026-05-18)
+- **API Proxy to Real Device** — Mock server now proxies all API requests to real gateway device at 192.168.1.200
+  - Development dashboard receives live device data instead of mock data
+  - Enables testing with real inverter and DTU behavior
+  - Falls back to mock data when proxy target is disabled
+- **Warning Badge Cycling Test Mode** — Mock data cycles through all warning states every 10 seconds for comprehensive badge testing
+  - Cycle 0 (0-10s): No warnings → badge hidden
+  - Cycle 1 (10-20s): 5 stale/resolved warnings → blue badge with count
+  - Cycle 2 (20-30s): 3 active warnings → orange badge with count
+  - Cycle 3 (30-40s): Mixed 4 active + 3 stale → orange badge (active takes priority)
+  - Automatic state cycling allows rapid UI validation without waiting for real device warnings
+  - Configurable in `web_dev/mock_server/mock_data.py` for different test scenarios
+- **Automatic Port Conflict Resolution** — Mock development server auto-clears stale processes
+  - Detects when port 5000 is already in use by Flask or other process
+  - Automatically kills stale Python processes (Windows: taskkill; Unix: lsof+kill)
+  - Displays status messages for successful cleanup
+  - Prevents "Address already in use" errors during development
 - **Connection Loss Detection** — Backend unreachability monitoring with visual feedback
   - Monitors `/api/data.json` requests with 10-second timeout detection
   - Displays warning overlay when gateway becomes unreachable

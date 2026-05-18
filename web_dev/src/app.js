@@ -209,8 +209,10 @@ document.addEventListener('alpine:init', () => {
         if (d.warnings?.length) {
           d.warnings.sort((a, b) => b.timestampStart - a.timestampStart);
           d.warningsActive = d.warnings.filter(w => w.timestampStop === 0).length;
+          d.warningCount = d.warnings.length;  // total warning count (active + resolved)
         } else {
           d.warningsActive = 0;
+          d.warningCount = 0;
         }
         this.dtuData = d;
       } catch (_) { /* silent */ }

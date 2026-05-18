@@ -41,8 +41,8 @@ settings = {
         "dtuRemoteSummaryDisplay": False,
         # Feature-branch flags (both False = normal gateway mode)
         # Set SolarMonitor=True and/or BatteryMonitor=True to test monitor modes
-        "dtuRemoteDisplay_SolarMonitor": True,
-        "dtuRemoteDisplay_BatteryMonitor": True,
+        "dtuRemoteDisplay_SolarMonitor": False,
+        "dtuRemoteDisplay_BatteryMonitor": False,
         "dtuRssi": 72,
         "dtuResetRequested": 2,
         "deviceData": {
@@ -291,40 +291,91 @@ def get_info_data() -> dict:
 
 
 def get_dtu_data() -> dict:
-    """Return a /api/dtuData.json-shaped dict."""
+    """Return a /api/dtuData.json-shaped dict with cycling warning states for testing.
+
+    Cycles every 10 seconds through:
+      0-10s:   Empty (no warnings)
+      10-20s:  5 stale warnings (resolved)
+      20-30s:  3 active warnings (no stale)
+      30-40s:  4 active + 3 stale warnings
+    """
+    now = time.time()
+    cycle = int(now / 10) % 4  # Cycle through 0-3 every 10 seconds
+    base_time = int(now)
+
+    warnings = []
+
+    if cycle == 0:
+        # Empty: no warnings
+        warnings = []
+
+    elif cycle == 1:
+        # 5 stale warnings (resolved)
+        for i in range(5):
+            warnings.append(
+                {
+                    "code": 16607 + i,
+                    "message": f"[Test] Stale warning {i+1} (resolved)",
+                    "num": i + 1,
+                    "timestampStart": base_time - 3600 - (i * 100),
+                    "timestampStop": base_time
+                    - 1800
+                    - (i * 100),  # Resolved (timestampStop != 0)
+                    "data0": 2,
+                    "data1": 2,
+                }
+            )
+
+    elif cycle == 2:
+        # 3 active warnings (no stale)
+        for i in range(3):
+            warnings.append(
+                {
+                    "code": 16620 + i,
+                    "message": f"[Test] Active warning {i+1}",
+                    "num": i + 10,
+                    "timestampStart": base_time - 600 - (i * 50),
+                    "timestampStop": 0,  # Active (timestampStop === 0)
+                    "data0": 1,
+                    "data1": 1,
+                }
+            )
+
+    else:  # cycle == 3
+        # 4 active + 3 stale warnings
+        # Active warnings
+        for i in range(4):
+            warnings.append(
+                {
+                    "code": 16630 + i,
+                    "message": f"[Test] Active warning {i+1}",
+                    "num": i + 20,
+                    "timestampStart": base_time - 300 - (i * 30),
+                    "timestampStop": 0,  # Active
+                    "data0": 1,
+                    "data1": 0,
+                }
+            )
+        # Stale warnings
+        for i in range(3):
+            warnings.append(
+                {
+                    "code": 16640 + i,
+                    "message": f"[Test] Stale warning {i+1}",
+                    "num": i + 30,
+                    "timestampStart": base_time - 5400 - (i * 200),
+                    "timestampStop": base_time - 2700 - (i * 200),  # Resolved
+                    "data0": 2,
+                    "data1": 1,
+                }
+            )
+
     return {
         "apiVersion": "1.0.0",
-        "warningCount": 3,
-        "warningsLastUpdate": int(time.time()) - 30,
-        "warnings": [
-            {
-                "code": 8193,
-                "message": "Grid lost",
-                "num": 1,
-                "timestampStart": int(time.time()) - 120,
-                "timestampStop": 0,
-                "data0": 0,
-                "data1": 0,
-            },
-            {
-                "code": 8196,
-                "message": "Inverter output over-voltage protection",
-                "num": 2,
-                "timestampStart": int(time.time()) - 7200,
-                "timestampStop": int(time.time()) - 7100,
-                "data0": 2430,  # 243.0 V measured
-                "data1": 2530,  # 253.0 V maximum
-            },
-            {
-                "code": 8200,
-                "message": "Grid underfrequency protection",
-                "num": 3,
-                "timestampStart": int(time.time()) - 86400,
-                "timestampStop": int(time.time()) - 86200,
-                "data0": 4912,  # 49.12 Hz measured
-                "data1": 4900,  # 49.00 Hz minimum
-            },
-        ],
+        "localtime": base_time,
+        "ntpStamp": base_time,
+        "warningsLastUpdate": base_time,
+        "warnings": warnings,
     }
 
 

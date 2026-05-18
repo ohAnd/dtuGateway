@@ -586,12 +586,14 @@
         <span class="conn-badge" :class="`conn-badge--${$store.app.connBadgeClass()}`"
               x-text="$store.app.connStateLabel()"></span>
 
-        <!-- warning badge -->
+        <!-- warning button with badge -->
         <button class="warn-btn"
                 :class="$store.app.dtuData.warningsActive > 0 ? 'warn-btn--active' : ($store.app.dtuData.warningCount > 0 ? 'warn-btn--resolved' : 'warn-btn--none')"
                 @click="$store.app.showWarnings=true">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
-          <span x-text="$store.app.dtuData.warningsActive > 0 ? $store.app.dtuData.warningsActive : $store.app.dtuData.warningCount"></span>
+          <span class="warn-badge"
+                :class="$store.app.dtuData.warningsActive > 0 || $store.app.dtuData.warningCount > 0 ? 'warn-badge--show' : ''"
+                x-text="($store.app.dtuData.warningsActive > 0 ? $store.app.dtuData.warningsActive : $store.app.dtuData.warningCount) || ''"></span>
         </button>
       </div>
     </header>

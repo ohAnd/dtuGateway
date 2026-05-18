@@ -13,6 +13,9 @@ Then open http://localhost:5000
 """
 
 import json
+import socket
+import subprocess
+import sys
 import time
 from pathlib import Path
 
@@ -22,10 +25,64 @@ from flask import Flask, Response, jsonify, redirect, request, send_from_directo
 import mock_data
 
 # ---------------------------------------------------------------------------
+# Port availability checker — ensure no leftover Flask instances
+# ---------------------------------------------------------------------------
+
+
+def _check_and_clear_port(port: int = 5000) -> None:
+    """
+    Check if port is in use. If so, attempt to kill the process.
+
+    This prevents "Address already in use" errors from stale Flask instances.
+    """
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(1)
+        result = sock.connect_ex(("127.0.0.1", port))
+        sock.close()
+
+        if result == 0:
+            # Port is in use
+            print(f"\n⚠️  Port {port} is already in use. Attempting to free it...\n")
+            try:
+                # Windows: taskkill
+                if sys.platform == "win32":
+                    subprocess.run(
+                        ["taskkill", "/F", "/IM", "python.exe"],
+                        capture_output=True,
+                        timeout=3,
+                    )
+                else:
+                    # Linux/macOS: lsof + kill
+                    result = subprocess.run(
+                        ["lsof", "-ti", f":{port}"],
+                        capture_output=True,
+                        text=True,
+                        timeout=3,
+                    )
+                    if result.stdout.strip():
+                        for pid in result.stdout.strip().split("\n"):
+                            subprocess.run(["kill", "-9", pid], timeout=1)
+
+                print(f"✅ Cleared port {port}. Server ready to start.\n")
+                time.sleep(1)  # Brief pause to ensure port is released
+            except Exception as e:
+                print(f"❌ Could not clear port {port}: {e}")
+                print(f"   Please manually close any Flask instances and restart.\n")
+                sys.exit(1)
+    except Exception as e:
+        # Socket check failed (likely port is free)
+        pass
+
+
+# Run port check at startup
+_check_and_clear_port(5000)
+
+# ---------------------------------------------------------------------------
 # Proxy mode — set to the real device base URL to forward all API calls,
 # or None to use mock data.
 # ---------------------------------------------------------------------------
-PROXY_TARGET = None  # Set to device URL like "http://192.168.1.8" to proxy real device
+PROXY_TARGET = None  # Disabled for testing - using mock data with cycling warnings
 
 # ---------------------------------------------------------------------------
 # App setup

@@ -167,8 +167,10 @@ static const char *app_js PROGMEM = R"DTUGW(document.addEventListener('alpine:in
  if(d.warnings?.length){
  d.warnings.sort((a,b)=>b.timestampStart-a.timestampStart);
  d.warningsActive=d.warnings.filter(w=>w.timestampStop===0).length;
+ d.warningCount=d.warnings.length;
 }else{
  d.warningsActive=0;
+ d.warningCount=0;
 }
  this.dtuData=d;
 }catch(_){}

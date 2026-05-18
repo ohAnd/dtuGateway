@@ -716,27 +716,85 @@ hr.divider {
 
 /* warning button */
 .warn-btn {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
-  color: var(--warn);
+  justify-content: center;
+  width: 28px;
+  height: 28px;
   background: transparent;
-  border: 1px solid var(--warn);
   border-radius: var(--radius-sm);
-  padding: 0.2em 0.5em;
   font-size: 0.75rem;
   cursor: pointer;
-  transition: background var(--transition);
+  transition: all var(--transition);
 }
 
-.warn-btn:hover { background: rgba(255, 167, 38, 0.15); }
+/* active warnings: orange border frame */
+.warn-btn--active {
+  border: 1.5px solid var(--warn);
+  color: var(--warn);
+}
+.warn-btn--active:hover {
+  box-shadow: 0 0 8px rgba(255, 167, 38, 0.3);
+}
 
-/* active warnings: orange; resolved-only: cyan; none: gray */
-.warn-btn--active   { color: var(--warn);   border-color: var(--warn); }
-.warn-btn--resolved { color: var(--accent); border-color: var(--accent); }
-.warn-btn--resolved:hover { background: rgba(33,150,243,0.1); }
-.warn-btn--none     { color: rgba(150,150,160,0.6); border-color: rgba(150,150,160,0.3); cursor: default; }
-.warn-btn--none:hover { background: transparent; }
+/* resolved/inactive warnings: light blue border frame */
+.warn-btn--resolved {
+  border: 1.5px solid var(--accent);
+  color: var(--accent);
+}
+.warn-btn--resolved:hover {
+  box-shadow: 0 0 6px rgba(33, 150, 243, 0.3);
+}
+
+/* no warnings: grey border frame */
+.warn-btn--none {
+  border: 1.5px solid rgba(150, 150, 160, 0.4);
+  color: rgba(150, 150, 160, 0.6);
+  cursor: default;
+}
+.warn-btn--none:hover {
+  box-shadow: none;
+}
+
+/* Warning badge styling (top-right corner) */
+.warn-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.2rem;
+  height: 1.2rem;
+  padding: 0 0.3em;
+  border-radius: 100px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  white-space: nowrap;
+  line-height: 1;
+}
+
+.warn-badge--show {
+  display: flex;
+}
+
+/* active warnings: orange badge */
+.warn-btn--active .warn-badge {
+  background: var(--warn);
+  color: #000;
+}
+
+/* resolved/inactive warnings: light blue badge */
+.warn-btn--resolved .warn-badge {
+  background: var(--accent);
+  color: #000;
+}
+
+/* no warnings: grey badge (hidden) */
+.warn-btn--none .warn-badge {
+  display: none;
+}
 
 /* ── Hero card ─────────────────────────────────────────────────── */
 .hero-card {
