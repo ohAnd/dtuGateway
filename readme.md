@@ -3,6 +3,7 @@
 > 🔌 A reliable ESP32-based gateway that bridges your Hoymiles solar inverter to smart home systems like Home Assistant, openHAB, and MQTT.
 
 [![GitHub Downloads](https://img.shields.io/github/downloads/ohAnd/dtuGateway/latest/total)](https://github.com/ohAnd/dtuGateway/releases/latest)
+[![Total Downloads](https://img.shields.io/github/downloads/ohAnd/dtuGateway/total?label=Total%20Downloads)](https://github.com/ohAnd/dtuGateway/releases)
 [![GitHub Release Date](https://img.shields.io/github/release-date/ohAnd/dtuGateway)](https://github.com/ohAnd/dtuGateway/releases/latest)
 [![Build Status](https://img.shields.io/github/actions/workflow/status/ohAnd/dtuGateway/main_build.yml)](https://github.com/ohAnd/dtuGateway/actions)
 
