@@ -5,6 +5,10 @@ All notable changes to dtuGateway are documented here. This changelog focuses on
 ## [Unreleased] - Current Development
 
 ### Fixed (2026-05-18)
+- **Remote display crash on boot** — Fixed Guru Meditation Error (LoadProhibited) when device boots in MQTT-only remote display mode
+  - Device was attempting to request DTU device info even without a DTU connection established
+  - Added remote display mode check to prevent DTU connection logic from executing when in MQTT-only mode
+  - Eliminates repeated reboot loop in remote display configurations
 - **Dashboard password fields** — Fixed critical bug where new MQTT/WiFi password entries were overwritten by backend value on save
   - Changed password save logic to detect user-typed values vs masked dots
   - If form field doesn't contain dots (user typed new password), send user input instead of stored password

@@ -1718,8 +1718,9 @@ void loop()
     // dtuConnection.dtuConnectState = DTU_STATE_CONNECTED;
     // dtuGlobalData.inverterControl.stateOn = false;
 
-    // Request device info periodically
-    dtuInterface.requestDeviceInfoPeriodically();
+    // Request device info periodically (only when NOT in remote display mode)
+    if (!userConfig.remoteDisplayActive && !userConfig.remoteDisplay_SolarMonitor && !userConfig.remoteDisplay_BatteryMonitor)
+      dtuInterface.requestDeviceInfoPeriodically();
   }
 
   // mid task
