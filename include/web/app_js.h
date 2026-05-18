@@ -720,14 +720,18 @@ static const char *app_js PROGMEM = R"DTUGW(document.addEventListener('alpine:in
 },
  async executeReboot(){
  const endpoints={dtuGw:'/rebootDtuGw',dtu:'/rebootDtu',mi:'/rebootMi'};
+ const paramNames={dtuGw:'rebootDtuGw',dtu:'rebootDtu',mi:'rebootMi'};
  const url=endpoints[this.rebootTarget];
  if(!url)return;
  try{
- await this._post(url,{});
+ 
+ const params={};
+ params[paramNames[this.rebootTarget]]='1';
+ await this._post(url,params);
  this._toast(`${this.rebootLabel()}reboot initiated`,'warn');
  this.rebootTarget=null;
 }catch(e){
- this._toast('Reboot request failed','error');
+ this._toast(`${this.rebootLabel()}reboot failed:${e.message}`,'error');
 }
 },
  

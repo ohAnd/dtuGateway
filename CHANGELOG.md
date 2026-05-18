@@ -37,6 +37,12 @@ All notable changes to dtuGateway are documented here. This changelog focuses on
   - Backend dummy network initialization removed — clean empty state on first boot
   - Dual-scan strategy: silent refresh vs user-triggered visible scan
 
+### Fixed (2026-05-18)
+- **Reboot buttons now functional** — Fixed dtuGateway, DTU, and Inverter restart commands
+  - Dashboard was not sending required POST parameters to backend handlers
+  - Now correctly sends `rebootDtuGw`, `rebootDtu`, and `rebootMi` parameters
+  - Improved error feedback: users now see specific device name in error message ("DTU reboot failed: ..." vs generic error)
+
 ### Changed (2026-05-16)
 - **Dashboard migration** — Alpine.js dashboard now primary UI at `/index.html`
   - Legacy jQuery dashboard removed — codebase now single-dashboard focused
