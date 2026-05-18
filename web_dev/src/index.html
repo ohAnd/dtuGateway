@@ -448,8 +448,26 @@
     </div>
   </div>
 
-  <!-- ================================================================
-       SETUP SCREEN (first-launch WiFi configuration)
+  <!-- ================================================================       CONNECTION LOST OVERLAY (weak network / backend unreachable)
+  ================================================================ -->
+  <div class="connection-lost" x-show="!$store.app.isLoading && !$store.app.setupMode && !$store.app.backendReachable" role="alert" aria-label="Connection lost">
+    <div class="connection-lost__backdrop"></div>
+    <div class="connection-lost__container">
+      <div class="connection-lost__icon">
+        <svg viewBox="0 0 24 24">
+          <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+        </svg>
+      </div>
+      <h1 class="connection-lost__title">Connection Lost</h1>
+      <p class="connection-lost__message">Cannot reach gateway</p>
+      <p class="connection-lost__hint">
+        Check your network connection. The dashboard will automatically reconnect when available.
+      </p>
+      <div class="connection-lost__spinner"></div>
+    </div>
+  </div>
+
+  <!-- ================================================================       SETUP SCREEN (first-launch WiFi configuration)
   ================================================================ -->
   <template x-if="$store.app.setupMode">
     <div class="setup-screen" role="main">

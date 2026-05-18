@@ -4,14 +4,14 @@ All notable changes to dtuGateway are documented here. This changelog focuses on
 
 ## [Unreleased] - Current Development
 
-### Changed (2026-05-18)
-- **WiFi Tab Smart Scanning** — Background refresh silently updates cached network list when drawer opens; explicit "Scanning..." feedback appears only when user clicks manual Scan button
-  - Eliminates repeated "Scanning..." message on every Settings drawer open
-  - Networks cached from previous scans display immediately without interruption
-  - Backend dummy network initialization removed — clean empty state on first boot
-  - Dual-scan strategy: silent refresh vs user-triggered visible scan
-
 ### Added (2026-05-18)
+- **Connection Loss Detection** — Backend unreachability monitoring with visual feedback
+  - Monitors `/api/data.json` requests with 10-second timeout detection
+  - Displays warning overlay when gateway becomes unreachable
+  - Orange warning icon with "Connection Lost" title and helpful guidance
+  - Toast notifications on connection loss and recovery
+  - Auto-reconnects when backend becomes available again
+  - Prevents stale data display during weak network conditions
 - **Dashboard startup loading screen** — Smooth initialization experience with proper data loading feedback
   - Full-screen loading indicator shown until first data received from gateway
   - Animated spinner with pulsing "Connecting to gateway..." message
@@ -29,6 +29,13 @@ All notable changes to dtuGateway are documented here. This changelog focuses on
   - "Show" toggle reveals actual password, click again to re-mask
   - Works for both WiFi and MQTT authentication fields
   - Secure submission — actual passwords sent to backend on save
+
+### Changed (2026-05-18)
+- **WiFi Tab Smart Scanning** — Background refresh silently updates cached network list when drawer opens; explicit "Scanning..." feedback appears only when user clicks manual Scan button
+  - Eliminates repeated "Scanning..." message on every Settings drawer open
+  - Networks cached from previous scans display immediately without interruption
+  - Backend dummy network initialization removed — clean empty state on first boot
+  - Dual-scan strategy: silent refresh vs user-triggered visible scan
 
 ### Changed (2026-05-16)
 - **Dashboard migration** — Alpine.js dashboard now primary UI at `/index.html`

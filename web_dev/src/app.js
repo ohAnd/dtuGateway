@@ -54,6 +54,12 @@ document.addEventListener('alpine:init', () => {
     _dataReceived:  false,  // Track if we've successfully fetched initial data
     _infoReceived:  false,  // Track if we've successfully fetched initial info
 
+    // Connection status (weak network/unreachable detection)
+    backendReachable:       true,   // false if backend unreachable for >10 sec
+    _lastSuccessfulFetch:   null,   // timestamp of last successful data.json fetch
+    _connectionLossTimeout: null,   // timer handle for connection loss detection
+    _connectionCheckInterval: null, // timer handle for periodic connection checks
+
     // WiFi scan state
     _wifiScanInitiated: false, // Track if scan was explicitly requested (for UI feedback)
 
@@ -100,10 +106,24 @@ document.addEventListener('alpine:init', () => {
     },
 
     // ── Fetch helpers ───────────────────────────────────────────────
-    async _get(url) {
-      const res = await fetch(url, { cache: 'no-store' });
-      if (!res.ok) throw new Error(`${url} → ${res.status}`);
-      return res.json();
+    /**
+     * Fetch with timeout (10 seconds for data endpoints, 5 for others)
+     * @param {string} url
+     * @param {number} timeout - timeout in ms (default 10000)
+     * @returns {Promise}
+     */
+    async _get(url, timeout = 10000) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeout);
+      try {
+        const res = await fetch(url, { cache: 'no-store', signal: controller.signal });
+        clearTimeout(timeoutId);
+        if (!res.ok) throw new Error(`${url} → ${res.status}`);
+        return res.json();
+      } catch (err) {
+        clearTimeout(timeoutId);
+        throw err;
+      }
     },
 
     async _post(url, params) {
@@ -144,14 +164,26 @@ document.addEventListener('alpine:init', () => {
         // Update page title with current grid power
         const gridP = isNaN(d.grid?.p) ? '--' : d.grid.p.toFixed(0);
         document.title = `${gridP} W — dtuGateway`;
-      } catch (_) {
-        // Silent fail; stale data shown until next poll
+
+        // Connection recovery: clear loss state on successful fetch
+        if (!this.backendReachable) {
+          this.backendReachable = true;
+          this._resetConnectionLossTimer();
+          this.addToast('success', 'Connection restored');
+        }
+
+        // Reset connection loss timer
+        this._lastSuccessfulFetch = Date.now();
+        this._resetConnectionLossTimer();
+      } catch (err) {
+        // Mark connection as lost if fetch failed
+        this._handleFetchError(err);
       }
     },
 
     async _fetchInfo() {
       try {
-        this.info = await this._get('/api/info.json');
+        this.info = await this._get('/api/info.json', 5000);
         this._waitMs = (this.info.dtuConnection?.dtuDataCycle ?? 31) * 1000;
         
         // Mark first successful info fetch & hide loading screen
@@ -217,6 +249,36 @@ document.addEventListener('alpine:init', () => {
       // Hide loading screen once both data and info have been fetched
       if (this._dataReceived && this._infoReceived) {
         this.isLoading = false;
+      }
+    },
+
+    // ── Connection loss detection helper ────────────────────────────
+    _resetConnectionLossTimer() {
+      // Clear any pending connection loss timeout
+      if (this._connectionLossTimeout) {
+        clearTimeout(this._connectionLossTimeout);
+        this._connectionLossTimeout = null;
+      }
+      // Set a new timer: if no successful fetch in 10s, mark as lost
+      this._connectionLossTimeout = setTimeout(() => {
+        if (!this.backendReachable) return; // already marked as lost
+        if (this._lastSuccessfulFetch && Date.now() - this._lastSuccessfulFetch > 10000) {
+          this.backendReachable = false;
+          this.addToast('error', 'Connection to gateway lost');
+        }
+      }, 10000);
+    },
+
+    _handleFetchError(err) {
+      // Called when any fetch fails (timeout, network error, etc.)
+      // If this is the first error, mark connection as lost after 10s
+      if (this.backendReachable && !this._connectionLossTimeout) {
+        this._connectionLossTimeout = setTimeout(() => {
+          if (this.backendReachable) {
+            this.backendReachable = false;
+            this.addToast('error', 'Connection to gateway lost');
+          }
+        }, 10000);
       }
     },
 

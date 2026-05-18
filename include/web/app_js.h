@@ -37,6 +37,11 @@ static const char *app_js PROGMEM = R"DTUGW(document.addEventListener('alpine:in
  _dataReceived:false,
  _infoReceived:false,
  
+ backendReachable:true,
+ _lastSuccessfulFetch:null,
+ _connectionLossTimeout:null,
+ _connectionCheckInterval:null,
+ 
  _wifiScanInitiated:false,
  
  reloadBarPct:100,
@@ -75,10 +80,19 @@ static const char *app_js PROGMEM = R"DTUGW(document.addEventListener('alpine:in
 },100);
 },
  
- async _get(url){
- const res=await fetch(url,{cache:'no-store'});
+ 
+ async _get(url,timeout=10000){
+ const controller=new AbortController();
+ const timeoutId=setTimeout(()=>controller.abort(),timeout);
+ try{
+ const res=await fetch(url,{cache:'no-store',signal:controller.signal});
+ clearTimeout(timeoutId);
  if(!res.ok)throw new Error(`${url}→ ${res.status}`);
  return res.json();
+}catch(err){
+ clearTimeout(timeoutId);
+ throw err;
+}
 },
  async _post(url,params){
  const body=new URLSearchParams(params);
@@ -112,13 +126,23 @@ static const char *app_js PROGMEM = R"DTUGW(document.addEventListener('alpine:in
  
  const gridP=isNaN(d.grid?.p)?'--':d.grid.p.toFixed(0);
  document.title=`${gridP}W — dtuGateway`;
-}catch(_){
  
+ if(!this.backendReachable){
+ this.backendReachable=true;
+ this._resetConnectionLossTimer();
+ this.addToast('success','Connection restored');
+}
+ 
+ this._lastSuccessfulFetch=Date.now();
+ this._resetConnectionLossTimer();
+}catch(err){
+ 
+ this._handleFetchError(err);
 }
 },
  async _fetchInfo(){
  try{
- this.info=await this._get('/api/info.json');
+ this.info=await this._get('/api/info.json',5000);
  this._waitMs=(this.info.dtuConnection?.dtuDataCycle??31)*1000;
  
  
@@ -179,6 +203,34 @@ static const char *app_js PROGMEM = R"DTUGW(document.addEventListener('alpine:in
  
  if(this._dataReceived&&this._infoReceived){
  this.isLoading=false;
+}
+},
+ 
+ _resetConnectionLossTimer(){
+ 
+ if(this._connectionLossTimeout){
+ clearTimeout(this._connectionLossTimeout);
+ this._connectionLossTimeout=null;
+}
+ 
+ this._connectionLossTimeout=setTimeout(()=>{
+ if(!this.backendReachable)return;
+ if(this._lastSuccessfulFetch&&Date.now()-this._lastSuccessfulFetch>10000){
+ this.backendReachable=false;
+ this.addToast('error','Connection to gateway lost');
+}
+},10000);
+},
+ _handleFetchError(err){
+ 
+ 
+ if(this.backendReachable&&!this._connectionLossTimeout){
+ this._connectionLossTimeout=setTimeout(()=>{
+ if(this.backendReachable){
+ this.backendReachable=false;
+ this.addToast('error','Connection to gateway lost');
+}
+},10000);
 }
 },
  
