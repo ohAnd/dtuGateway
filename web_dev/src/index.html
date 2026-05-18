@@ -430,6 +430,18 @@
   </div>
 
   <!-- ================================================================
+       LOADING SCREEN (startup until first data is received)
+  ================================================================ -->
+  <div class="loading-screen" x-show="$store.app.isLoading && !$store.app.setupMode" role="main" aria-label="Loading dashboard">
+    <div class="loading-screen__container">
+      <div class="loading-screen__spinner"></div>
+      <h1 class="loading-screen__title">Initializing Dashboard</h1>
+      <p class="loading-screen__message">Connecting to gateway...</p>
+      <p class="loading-screen__hint">This may take a few moments on first load</p>
+    </div>
+  </div>
+
+  <!-- ================================================================
        SETUP SCREEN (first-launch WiFi configuration)
   ================================================================ -->
   <template x-if="$store.app.setupMode">

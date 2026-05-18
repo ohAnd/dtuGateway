@@ -176,6 +176,66 @@ hr.divider {
   overflow: hidden;
 }
 
+/* ── Loading Screen (startup until data is received) ────────────── */
+@keyframes loadingSpinnerRotate {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+@keyframes loadingPulse {
+  0%, 100% { opacity: 0.5; }
+  50%      { opacity: 1; }
+}
+
+.loading-screen {
+  position: fixed;
+  inset: 0;
+  background: linear-gradient(135deg, var(--bg) 0%, var(--bg-2) 100%);
+  z-index: 9998;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.loading-screen__container {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.loading-screen__spinner {
+  width: 48px;
+  height: 48px;
+  border: 3px solid rgba(33, 150, 243, 0.2);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: loadingSpinnerRotate 1s linear infinite;
+  box-shadow: 0 0 16px var(--accent-glow);
+}
+
+.loading-screen__title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: 0.05em;
+  text-shadow: 0 0 20px var(--accent-glow);
+}
+
+.loading-screen__message {
+  font-size: 1rem;
+  color: var(--text);
+  opacity: 0.9;
+  animation: loadingPulse 2s ease-in-out infinite;
+}
+
+.loading-screen__hint {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-top: 0.5rem;
+}
+
 /* ── Setup Screen (first-launch WiFi config) ───────────────────── */
 .setup-screen {
   display: flex;

@@ -49,6 +49,11 @@ document.addEventListener('alpine:init', () => {
     passVis: { wifiPass: false, mqttPass: false },
     passActual: { wifiPass: '', mqttPass: '' }, // Store actual passwords (shown as dots in form)
 
+    // Startup loading state
+    isLoading:      true,   // true until first data is received
+    _dataReceived:  false,  // Track if we've successfully fetched initial data
+    _infoReceived:  false,  // Track if we've successfully fetched initial info
+
     // Reload progress bar (counts down between last DTU response updates)
     reloadBarPct:  100,
     _waitMs:       31000,
@@ -127,6 +132,12 @@ document.addEventListener('alpine:init', () => {
 
         this.data = d;
 
+        // Mark first successful data fetch & hide loading screen
+        if (!this._dataReceived) {
+          this._dataReceived = true;
+          this._updateLoadingState();
+        }
+
         // Update page title with current grid power
         const gridP = isNaN(d.grid?.p) ? '--' : d.grid.p.toFixed(0);
         document.title = `${gridP} W — dtuGateway`;
@@ -139,6 +150,12 @@ document.addEventListener('alpine:init', () => {
       try {
         this.info = await this._get('/api/info.json');
         this._waitMs = (this.info.dtuConnection?.dtuDataCycle ?? 31) * 1000;
+        
+        // Mark first successful info fetch & hide loading screen
+        if (!this._infoReceived) {
+          this._infoReceived = true;
+          this._updateLoadingState();
+        }
         
         // First-setup detection: if initMode === 1 (AP mode active = factory reset)
         // or wifiSsid is empty, enter setup mode
@@ -190,6 +207,14 @@ document.addEventListener('alpine:init', () => {
         this.ui[key] = true;
         setTimeout(() => { this.ui[key] = false; }, 700);
       });
+    },
+
+    // ── Loading state helper ─────────────────────────────────────────
+    _updateLoadingState() {
+      // Hide loading screen once both data and info have been fetched
+      if (this._dataReceived && this._infoReceived) {
+        this.isLoading = false;
+      }
     },
 
     // ── Formatters ──────────────────────────────────────────────────

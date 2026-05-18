@@ -5,6 +5,12 @@ All notable changes to dtuGateway are documented here. This changelog focuses on
 ## [Unreleased] - Current Development
 
 ### Added (2026-05-18)
+- **Dashboard startup loading screen** — Smooth initialization experience with proper data loading feedback
+  - Full-screen loading indicator shown until first data received from gateway
+  - Animated spinner with pulsing "Connecting to gateway..." message
+  - Eliminates blank/flashing UI during page load delay
+  - Automatically hides when both `/api/data.json` and `/api/info.json` fetch successfully
+  - Prevents overlays (warnings, power limit) from auto-showing during startup
 - **Smart settings application overlay** — Context-aware visual feedback when saving settings
   - Different messages for rebooting (WiFi, MQTT, DTU display changes) vs immediate apply (MQTT config, power limit)
   - Auto-detects which settings require device restart based on backend behavior

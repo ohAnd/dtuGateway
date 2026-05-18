@@ -33,6 +33,10 @@ static const char *app_js PROGMEM = R"DTUGW(document.addEventListener('alpine:in
  passVis:{wifiPass:false,mqttPass:false},
  passActual:{wifiPass:'',mqttPass:''},
  
+ isLoading:true,
+ _dataReceived:false,
+ _infoReceived:false,
+ 
  reloadBarPct:100,
  _waitMs:31000,
  _barMs:31000,
@@ -99,6 +103,11 @@ static const char *app_js PROGMEM = R"DTUGW(document.addEventListener('alpine:in
 }
  this.data=d;
  
+ if(!this._dataReceived){
+ this._dataReceived=true;
+ this._updateLoadingState();
+}
+ 
  const gridP=isNaN(d.grid?.p)?'--':d.grid.p.toFixed(0);
  document.title=`${gridP}W — dtuGateway`;
 }catch(_){
@@ -109,6 +118,12 @@ static const char *app_js PROGMEM = R"DTUGW(document.addEventListener('alpine:in
  try{
  this.info=await this._get('/api/info.json');
  this._waitMs=(this.info.dtuConnection?.dtuDataCycle??31)*1000;
+ 
+ 
+ if(!this._infoReceived){
+ this._infoReceived=true;
+ this._updateLoadingState();
+}
  
  
  
@@ -156,6 +171,13 @@ static const char *app_js PROGMEM = R"DTUGW(document.addEventListener('alpine:in
  this.ui[key]=true;
  setTimeout(()=>{this.ui[key]=false;},700);
 });
+},
+ 
+ _updateLoadingState(){
+ 
+ if(this._dataReceived&&this._infoReceived){
+ this.isLoading=false;
+}
 },
  
  
