@@ -5,6 +5,11 @@ All notable changes to dtuGateway are documented here. This changelog focuses on
 ## [Unreleased] - Current Development
 
 ### Fixed (2026-05-18)
+- **Countdown progress bar synchronization** — Fixed progress bar to track actual DTU response time instead of fixed timer
+  - Bar now directly synchronized to `dtuDataCycle` from device configuration
+  - Elapsed time calculated from last response timestamp, eliminating timer drift
+  - Automatically handles delayed responses and settings changes without manual reset
+  - Accurate visual feedback for when next data update is expected
 - **Power limit setting in new dashboard** — Fixed parameter name mismatch (`powerLimitSet` → `powerLimitSend`) that prevented power limit from being applied
   - Dashboard now correctly sends the expected parameter name to the backend handler
   - Setting power limit in the power limit overlay now works as intended

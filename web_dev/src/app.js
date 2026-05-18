@@ -63,10 +63,10 @@ document.addEventListener('alpine:init', () => {
     // WiFi scan state
     _wifiScanInitiated: false, // Track if scan was explicitly requested (for UI feedback)
 
-    // Reload progress bar (counts down between last DTU response updates)
+    // Reload progress bar (synced to actual DTU response time, not fixed countdown)
     reloadBarPct:  100,
-    _waitMs:       31000,
-    _barMs:        31000,
+    _lastResponseTime: 0,        // timestamp when last DTU response arrived
+    _dtuDataCycleMs: 31000,      // dtuDataCycle converted to milliseconds
 
     // Value-change flash
     ui: { gridFlash: false, pv0Flash: false, pv1Flash: false },
@@ -96,11 +96,15 @@ document.addEventListener('alpine:init', () => {
       setInterval(() => this._fetchEvents(),  15000);
       setInterval(() => this._checkVersion(), 300000);
 
-      // Reload bar ticker (100 ms)
+      // Reload bar ticker (100 ms) — calculates remaining time from last response
       setInterval(() => {
-        if (this._barMs > 0) {
-          this._barMs -= 100;
-          this.reloadBarPct = Math.max(0, (this._barMs / this._waitMs) * 100);
+        if (this._lastResponseTime === 0) {
+          // No response yet, show 100%
+          this.reloadBarPct = 100;
+        } else {
+          const elapsed = Date.now() - this._lastResponseTime;
+          const remaining = Math.max(0, this._dtuDataCycleMs - elapsed);
+          this.reloadBarPct = (remaining / this._dtuDataCycleMs) * 100;
         }
       }, 100);
     },
@@ -147,10 +151,11 @@ document.addEventListener('alpine:init', () => {
         if (this.data.pv0  && d.pv0.p  !== this.data.pv0.p)  this._flash('pv0');
         if (this.data.pv1  && d.pv1.p  !== this.data.pv1.p)  this._flash('pv1');
 
-        // Reset reload bar when we get a fresh lastResponse
+        // Record response time when DTU sends new data
         if (this.data.lastResponse !== d.lastResponse) {
-          this._waitMs = (this.info.dtuConnection?.dtuDataCycle ?? 31) * 1000;
-          this._barMs  = this._waitMs;
+          this._lastResponseTime = Date.now();
+          // Update cycle duration (may change if user edits settings)
+          this._dtuDataCycleMs = (this.info.dtuConnection?.dtuDataCycle ?? 31) * 1000;
         }
 
         this.data = d;
@@ -184,7 +189,8 @@ document.addEventListener('alpine:init', () => {
     async _fetchInfo() {
       try {
         this.info = await this._get('/api/info.json', 5000);
-        this._waitMs = (this.info.dtuConnection?.dtuDataCycle ?? 31) * 1000;
+        // Update cycle duration (may change if user edits settings)
+        this._dtuDataCycleMs = (this.info.dtuConnection?.dtuDataCycle ?? 31) * 1000;
         
         // Mark first successful info fetch & hide loading screen
         if (!this._infoReceived) {

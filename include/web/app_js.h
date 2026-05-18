@@ -45,8 +45,8 @@ static const char *app_js PROGMEM = R"DTUGW(document.addEventListener('alpine:in
  _wifiScanInitiated:false,
  
  reloadBarPct:100,
- _waitMs:31000,
- _barMs:31000,
+ _lastResponseTime:0,
+ _dtuDataCycleMs:31000,
  
  ui:{gridFlash:false,pv0Flash:false,pv1Flash:false},
  
@@ -73,9 +73,13 @@ static const char *app_js PROGMEM = R"DTUGW(document.addEventListener('alpine:in
  setInterval(()=>this._checkVersion(),300000);
  
  setInterval(()=>{
- if(this._barMs>0){
- this._barMs-=100;
- this.reloadBarPct=Math.max(0,(this._barMs/this._waitMs)*100);
+ if(this._lastResponseTime===0){
+ 
+ this.reloadBarPct=100;
+}else{
+ const elapsed=Date.now()-this._lastResponseTime;
+ const remaining=Math.max(0,this._dtuDataCycleMs-elapsed);
+ this.reloadBarPct=(remaining/this._dtuDataCycleMs)*100;
 }
 },100);
 },
@@ -114,8 +118,9 @@ static const char *app_js PROGMEM = R"DTUGW(document.addEventListener('alpine:in
  if(this.data.pv1&&d.pv1.p!==this.data.pv1.p)this._flash('pv1');
  
  if(this.data.lastResponse!==d.lastResponse){
- this._waitMs=(this.info.dtuConnection?.dtuDataCycle??31)*1000;
- this._barMs=this._waitMs;
+ this._lastResponseTime=Date.now();
+ 
+ this._dtuDataCycleMs=(this.info.dtuConnection?.dtuDataCycle??31)*1000;
 }
  this.data=d;
  
@@ -143,7 +148,8 @@ static const char *app_js PROGMEM = R"DTUGW(document.addEventListener('alpine:in
  async _fetchInfo(){
  try{
  this.info=await this._get('/api/info.json',5000);
- this._waitMs=(this.info.dtuConnection?.dtuDataCycle??31)*1000;
+ 
+ this._dtuDataCycleMs=(this.info.dtuConnection?.dtuDataCycle??31)*1000;
  
  
  if(!this._infoReceived){
