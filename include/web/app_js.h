@@ -37,6 +37,8 @@ static const char *app_js PROGMEM = R"DTUGW(document.addEventListener('alpine:in
  _dataReceived:false,
  _infoReceived:false,
  
+ _wifiScanInitiated:false,
+ 
  reloadBarPct:100,
  _waitMs:31000,
  _barMs:31000,
@@ -303,7 +305,14 @@ static const char *app_js PROGMEM = R"DTUGW(document.addEventListener('alpine:in
  this.drawerTab=tab;
  this.drawerOpen=true;
  this._populateForm();
- if(tab==='wifi')this.requestWifiScan();
+ 
+ if(tab==='wifi'){
+ if(this.info.wifiConnection?.foundNetworks?.length){
+ this._silentWifiScan();
+}else{
+ this.requestWifiScan();
+}
+}
 },
  closeDrawer(){
  this.drawerOpen=false;
@@ -670,10 +679,11 @@ static const char *app_js PROGMEM = R"DTUGW(document.addEventListener('alpine:in
 }
 },
  
- async requestWifiScan(){
+ 
+ async _silentWifiScan(){
  try{
  await this._get('/getWifiNetworks');
- if(this.info.wifiConnection)this.info.wifiConnection.wifiScanIsRunning=1;
+ 
  
  let elapsed=0;
  const poller=setInterval(async()=>{
@@ -683,7 +693,34 @@ static const char *app_js PROGMEM = R"DTUGW(document.addEventListener('alpine:in
  clearInterval(poller);
 }
 },250);
-}catch(_){}
+}catch(_){
+ 
+}
+},
+ 
+ async requestWifiScan(){
+ try{
+ 
+ if(!this.info.wifiConnection){
+ this.info.wifiConnection={foundNetworks:[],wifiScanIsRunning:0};
+}
+ this.info.wifiConnection.foundNetworks=[];
+ this.info.wifiConnection.wifiScanIsRunning=1;
+ this._wifiScanInitiated=true;
+ await this._get('/getWifiNetworks');
+ 
+ let elapsed=0;
+ const poller=setInterval(async()=>{
+ elapsed+=250;
+ await this._fetchInfo();
+ if(!this.info.wifiConnection?.wifiScanIsRunning||elapsed>=15000){
+ clearInterval(poller);
+ this._wifiScanInitiated=false;
+}
+},250);
+}catch(_){
+ this._wifiScanInitiated=false;
+}
 },
  
  _scanWifiNetworks(){

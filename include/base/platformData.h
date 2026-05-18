@@ -8,34 +8,34 @@
 #ifndef baseDataStruct
 struct baseDataStruct
 {
-  #if defined(ESP8266)
+#if defined(ESP8266)
   uint64_t chipID = ESP.getChipId();
-  #elif defined(ESP32)
+#elif defined(ESP32)
   uint64_t chipID = ESP.getEfuseMac();
-  #endif
+#endif
   boolean esp32 = false;
   String espUniqueName = String(AP_NAME_START) + "_" + chipID;
 
-  #if defined(ESP8266)
+#if defined(ESP8266)
   String chipType = "ESP8266";
-  // #warning "setting chipType for ESP8266"
-  #elif CONFIG_IDF_TARGET_ESP32
+// #warning "setting chipType for ESP8266"
+#elif CONFIG_IDF_TARGET_ESP32
   String chipType = "ESP32";
-  // #warning "setting chipType for ESP32"
-  #elif CONFIG_IDF_TARGET_ESP32S2
+// #warning "setting chipType for ESP32"
+#elif CONFIG_IDF_TARGET_ESP32S2
   String chipType = "ESP32 S2 (LOLIN S2 Mini)";
-  // #warning "setting chipType for ESP32S2"
-  #elif CONFIG_IDF_TARGET_ESP32S3
+// #warning "setting chipType for ESP32S2"
+#elif CONFIG_IDF_TARGET_ESP32S3
   String chipType = "ESP32 S3";
-  // #warning "setting chipType for ESP32S3"
-  #endif
+// #warning "setting chipType for ESP32S3"
+#endif
 
   const char *fwVersion = VERSION;
   const char *fwBuildDate = BUILDTIME;
-  
+
   int wifiNetworkCount = 0;
-  String wifiFoundNetworks = "[{\"name\":\"empty\",\"wifi\":0,\"chan\":0}]";
-  IPAddress dtuGatewayIP  = IPAddress(192, 168, 0, 1);
+  String wifiFoundNetworks = "[]"; // Empty on boot; populate after first scan
+  IPAddress dtuGatewayIP = IPAddress(192, 168, 0, 1);
 
   unsigned long dtuGWstarttime = 0;
   unsigned long currentNTPtime = 0;
@@ -60,26 +60,25 @@ extern baseDataStruct platformData;
 #define UPDATE_STATE_RESTART 5
 #define UPDATE_STATE_FAILED 6
 
-
 #ifndef baseUpdateInfoStruct
 struct baseUpdateInfoStruct
 {
-    char updateInfoWebPath[128] = "https://github.com/ohAnd/dtuGateway/releases/download/snapshot/version.json";
-    char updateInfoWebPathRelease[128] = "https://github.com/ohAnd/dtuGateway/releases/latest/download/version.json";
+  char updateInfoWebPath[128] = "https://github.com/ohAnd/dtuGateway/releases/download/snapshot/version.json";
+  char updateInfoWebPathRelease[128] = "https://github.com/ohAnd/dtuGateway/releases/latest/download/version.json";
 
-    char versionServer[32] = "checking";
-    char versiondateServer[32] = "...";
-    char updateURL[196] = ""; // will be read by getting -> updateInfoWebPath
-    char versionServerRelease[32] = "checking";
-    char versiondateServerRelease[32] = "...";
-    char updateURLRelease[196] = ""; // will be read by getting -> updateInfoWebPath
-    boolean updateAvailable = false;
-    boolean updateInfoRequested = false;
-    char updateStateText[16] = "waiting";
+  char versionServer[32] = "checking";
+  char versiondateServer[32] = "...";
+  char updateURL[196] = ""; // will be read by getting -> updateInfoWebPath
+  char versionServerRelease[32] = "checking";
+  char versiondateServerRelease[32] = "...";
+  char updateURLRelease[196] = ""; // will be read by getting -> updateInfoWebPath
+  boolean updateAvailable = false;
+  boolean updateInfoRequested = false;
+  char updateStateText[16] = "waiting";
 
-    boolean updateRunning = false;
-    float updateProgress = 0;
-    uint8_t updateState = UPDATE_STATE_IDLE;
+  boolean updateRunning = false;
+  float updateProgress = 0;
+  uint8_t updateState = UPDATE_STATE_IDLE;
 };
 #endif
 

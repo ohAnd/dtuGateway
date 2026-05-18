@@ -92,22 +92,29 @@
         — connected: <b x-text="$store.app.info.wifiConnection?.wifiSsid ?? '…'"></b>
       </p>
 
+      <!-- Scanning state: show while scan is actively running -->
       <div class="wifi-scan-status"
-           x-show="$store.app.info.wifiConnection?.wifiScanIsRunning">
+           x-show="$store.app._wifiScanInitiated && $store.app.info.wifiConnection?.wifiScanIsRunning">
         Scanning for networks…
       </div>
 
-      <div class="wifi-network-list" x-show="!$store.app.info.wifiConnection?.wifiScanIsRunning">
-        <template x-for="(nw, idx) in ($store.app.info.wifiConnection?.foundNetworks ?? [])"
-                  :key="idx">
-          <label class="wifi-item">
-            <input type="radio" name="wifi-select"
-                   :value="nw.name"
-                   x-model="$store.app.form.wifiSSID">
-            <span x-text="`${nw.wifi}% · ch${nw.chan} · ${nw.name}`"></span>
-          </label>
-        </template>
-      </div>
+      <!-- Network list: show if networks exist OR if scan was initiated (templates render conditionally) -->
+      <template x-if="$store.app.info.wifiConnection?.foundNetworks?.length || $store.app._wifiScanInitiated">
+        <div class="wifi-network-list" x-show="!$store.app.info.wifiConnection?.wifiScanIsRunning && $store.app.info.wifiConnection?.foundNetworks?.length">
+          <template x-for="(nw, idx) in ($store.app.info.wifiConnection?.foundNetworks ?? [])"
+                    :key="idx">
+            <label class="wifi-item">
+              <input type="radio" name="wifi-select"
+                     :value="nw.name"
+                     x-model="$store.app.form.wifiSSID">
+              <span x-text="`${nw.wifi}% · ch${nw.chan} · ${nw.name}`"></span>
+            </label>
+          </template>
+          <!-- Show "No networks found" only when scan completed with no results -->
+          <p x-show="!$store.app.info.wifiConnection?.wifiScanIsRunning && !$store.app.info.wifiConnection?.foundNetworks?.length" 
+             style="opacity:0.6;padding:0.5rem">No networks found</p>
+        </div>
+      </template>
 
       <div class="form-field">
         <label>SSID</label>

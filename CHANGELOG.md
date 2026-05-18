@@ -4,6 +4,13 @@ All notable changes to dtuGateway are documented here. This changelog focuses on
 
 ## [Unreleased] - Current Development
 
+### Changed (2026-05-18)
+- **WiFi Tab Smart Scanning** — Background refresh silently updates cached network list when drawer opens; explicit "Scanning..." feedback appears only when user clicks manual Scan button
+  - Eliminates repeated "Scanning..." message on every Settings drawer open
+  - Networks cached from previous scans display immediately without interruption
+  - Backend dummy network initialization removed — clean empty state on first boot
+  - Dual-scan strategy: silent refresh vs user-triggered visible scan
+
 ### Added (2026-05-18)
 - **Dashboard startup loading screen** — Smooth initialization experience with proper data loading feedback
   - Full-screen loading indicator shown until first data received from gateway

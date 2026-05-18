@@ -54,6 +54,9 @@ document.addEventListener('alpine:init', () => {
     _dataReceived:  false,  // Track if we've successfully fetched initial data
     _infoReceived:  false,  // Track if we've successfully fetched initial info
 
+    // WiFi scan state
+    _wifiScanInitiated: false, // Track if scan was explicitly requested (for UI feedback)
+
     // Reload progress bar (counts down between last DTU response updates)
     reloadBarPct:  100,
     _waitMs:       31000,
@@ -366,7 +369,14 @@ document.addEventListener('alpine:init', () => {
       this.drawerTab = tab;
       this.drawerOpen = true;
       this._populateForm();
-      if (tab === 'wifi') this.requestWifiScan();
+      // If WiFi tab and networks exist, do silent poll; if empty, show scanning UI
+      if (tab === 'wifi') {
+        if (this.info.wifiConnection?.foundNetworks?.length) {
+          this._silentWifiScan();  // Background poll only
+        } else {
+          this.requestWifiScan();  // Show "Scanning..." UI
+        }
+      }
     },
 
     closeDrawer() {
@@ -756,12 +766,12 @@ document.addEventListener('alpine:init', () => {
     },
 
     // ── WiFi scan ───────────────────────────────────────────────────
-    async requestWifiScan() {
+    // Silent scan: background poll when networks already exist (no UI changes)
+    async _silentWifiScan() {
       try {
         await this._get('/getWifiNetworks');
-        if (this.info.wifiConnection) this.info.wifiConnection.wifiScanIsRunning = 1;
-
-        // Poll info until scan complete (max 15 s)
+        
+        // Poll info until scan complete (max 15 s) - no UI flag set, runs silently
         let elapsed = 0;
         const poller = setInterval(async () => {
           elapsed += 250;
@@ -770,7 +780,36 @@ document.addEventListener('alpine:init', () => {
             clearInterval(poller);
           }
         }, 250);
-      } catch (_) { /* silent */ }
+      } catch (_) {
+        // Fail silently
+      }
+    },
+
+    // User-initiated scan: clears networks and shows "Scanning..." UI
+    async requestWifiScan() {
+      try {
+        // Ensure wifiConnection object exists, then clear networks and set scanning flag
+        if (!this.info.wifiConnection) {
+          this.info.wifiConnection = { foundNetworks: [], wifiScanIsRunning: 0 };
+        }
+        this.info.wifiConnection.foundNetworks = [];
+        this.info.wifiConnection.wifiScanIsRunning = 1;
+        this._wifiScanInitiated = true; // Mark that EXPLICIT scan was requested
+        await this._get('/getWifiNetworks');
+
+        // Poll info until scan complete (max 15 s)
+        let elapsed = 0;
+        const poller = setInterval(async () => {
+          elapsed += 250;
+          await this._fetchInfo();
+          if (!this.info.wifiConnection?.wifiScanIsRunning || elapsed >= 15000) {
+            clearInterval(poller);
+            this._wifiScanInitiated = false; // Scan complete
+          }
+        }, 250);
+      } catch (_) { 
+        this._wifiScanInitiated = false; // Clear flag on error
+      }
     },
 
     // ── Setup mode (first-launch WiFi configuration) ─────────────────
