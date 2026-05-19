@@ -23,6 +23,30 @@ All notable changes to dtuGateway are documented here. This changelog focuses on
   - Manual Home Assistant configuration examples for OpenDTU mode
   - Mode selection summary table explaining when to use each mode
   - Migration guide from existing OpenDTU setups
+- **Remote Display Setup Guides** — Complete step-by-step documentation for all display scenarios
+  - Scenario 1: Full Dashboard Mirror (complete guide with architecture diagram)
+  - Scenario 2: Solar Monitor (aggregated solar display with MQTT topic list)
+  - Scenario 3: Battery Monitor (battery-only display with data requirements)
+  - Scenario 4: Combined Solar + Battery (dual aggregation monitoring)
+  - Verification checklists and troubleshooting for each scenario
+- **Silent Background Gateway Documentation** — Comprehensive guide for MQTT-only deployments
+  - Minimal setup instructions for operation without displays
+  - Automatic recovery mechanisms explained (DTU loss, WiFi, power failure)
+  - Reliability characteristics table with recovery times
+  - Configuration recommendations for reliability vs power consumption
+  - Data flow diagrams and monitoring without web interface
+  - Recommended deployment patterns from minimal to robust setups
+- **Monitor Mode Troubleshooting Section** — Complete problem/solution guide
+  - 15+ common issues with specific diagnostic steps
+  - Monitor display blank or not updating (multiple causes and fixes)
+  - Remote display synchronization issues
+  - Device reboot explanations
+  - MQTT connection verification procedures
+- **MQTT Topic Reference: Publish vs Subscribe** — Clear documentation of data flow
+  - Distinguished published topics (normal gateway mode) vs subscribed topics (monitor modes)
+  - Data flow diagrams showing 3 deployment scenarios
+  - Common mistake examples with explanations
+  - Topic verification procedures for troubleshooting
 
 ### Fixed (2026-05-19)
 - **TFT display not updating after external inverter control** — Fixed issue where display remained stuck showing "inverter switched off" when inverter state changed via Hoymile app (issue #76)
