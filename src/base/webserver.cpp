@@ -15,6 +15,54 @@ DTUwebserver::~DTUwebserver()
     webServerTimer.detach(); // Stop the timer
 }
 
+String DTUwebserver::escapeJsonString(const String &input)
+{
+    String output;
+    output.reserve(input.length() + 16); // Reserve extra space for escape characters
+
+    for (unsigned int i = 0; i < input.length(); i++)
+    {
+        char c = input[i];
+        switch (c)
+        {
+        case '"':
+            output += "\\\"";
+            break; // Escape double quotes
+        case '\\':
+            output += "\\\\";
+            break; // Escape backslashes
+        case '\b':
+            output += "\\b";
+            break; // Escape backspace
+        case '\f':
+            output += "\\f";
+            break; // Escape form feed
+        case '\n':
+            output += "\\n";
+            break; // Escape newline
+        case '\r':
+            output += "\\r";
+            break; // Escape carriage return
+        case '\t':
+            output += "\\t";
+            break; // Escape tab
+        default:
+            if (c < 32)
+            {
+                // Control characters: escape as \uXXXX
+                char buf[7];
+                snprintf(buf, sizeof(buf), "\\u%04x", c);
+                output += buf;
+            }
+            else
+            {
+                output += c;
+            }
+        }
+    }
+    return output;
+}
+
 void DTUwebserver::backgroundTask(DTUwebserver *instance)
 {
     if (platformData.rebootRequested)
@@ -544,8 +592,8 @@ void DTUwebserver::handleInfojson(AsyncWebServerRequest *request)
     JSON = JSON + "},";
 
     JSON = JSON + "\"wifiConnection\": {";
-    JSON = JSON + "\"wifiSsid\": \"" + String(userConfig.wifiSsid) + "\",";
-    JSON = JSON + "\"wifiPassword\": \"" + String(userConfig.wifiPassword) + "\",";
+    JSON = JSON + "\"wifiSsid\": \"" + escapeJsonString(String(userConfig.wifiSsid)) + "\",";
+    JSON = JSON + "\"wifiPassword\": \"" + escapeJsonString(String(userConfig.wifiPassword)) + "\",";
     JSON = JSON + "\"rssiGW\": " + dtuGlobalData.wifi_rssi_gateway + ",";
     JSON = JSON + "\"wifiScanIsRunning\": " + wifiScanIsRunning + ",";
     JSON = JSON + "\"networkCount\": " + platformData.wifiNetworkCount + ",";
@@ -635,8 +683,8 @@ void DTUwebserver::handleUpdateWifiSettings(AsyncWebServerRequest *request)
         configManager.saveConfig(userConfig);
 
         String JSON = "{";
-        JSON = JSON + "\"wifiSSIDUser\": \"" + userConfig.wifiSsid + "\",";
-        JSON = JSON + "\"wifiPassUser\": \"" + userConfig.wifiPassword + "\"";
+        JSON = JSON + "\"wifiSSIDUser\": \"" + escapeJsonString(String(userConfig.wifiSsid)) + "\",";
+        JSON = JSON + "\"wifiPassUser\": \"" + escapeJsonString(String(userConfig.wifiPassword)) + "\"";
         JSON = JSON + "}";
 
         request->send(200, "application/json", JSON);
@@ -846,15 +894,15 @@ void DTUwebserver::handleUpdateBindingsSettings(AsyncWebServerRequest *request)
 
         String JSON = "{";
         JSON = JSON + "\"openhabActive\": " + userConfig.openhabActive + ",";
-        JSON = JSON + "\"openhabHostIpDomain\": \"" + userConfig.openhabHostIpDomain + "\",";
-        JSON = JSON + "\"openItemPrefix\": \"" + userConfig.openItemPrefix + "\",";
+        JSON = JSON + "\"openhabHostIpDomain\": \"" + escapeJsonString(String(userConfig.openhabHostIpDomain)) + "\",";
+        JSON = JSON + "\"openItemPrefix\": \"" + escapeJsonString(String(userConfig.openItemPrefix)) + "\",";
         JSON = JSON + "\"mqttActive\": " + userConfig.mqttActive + ",";
-        JSON = JSON + "\"mqttBrokerIpDomain\": \"" + userConfig.mqttBrokerIpDomain + "\",";
+        JSON = JSON + "\"mqttBrokerIpDomain\": \"" + escapeJsonString(String(userConfig.mqttBrokerIpDomain)) + "\",";
         JSON = JSON + "\"mqttBrokerPort\": " + String(userConfig.mqttBrokerPort) + ",";
         JSON = JSON + "\"mqttUseTLS\": " + userConfig.mqttUseTLS + ",";
-        JSON = JSON + "\"mqttBrokerUser\": \"" + userConfig.mqttBrokerUser + "\",";
-        JSON = JSON + "\"mqttBrokerPassword\": \"" + userConfig.mqttBrokerPassword + "\",";
-        JSON = JSON + "\"mqttBrokerMainTopic\": \"" + userConfig.mqttBrokerMainTopic + "\",";
+        JSON = JSON + "\"mqttBrokerUser\": \"" + escapeJsonString(String(userConfig.mqttBrokerUser)) + "\",";
+        JSON = JSON + "\"mqttBrokerPassword\": \"" + escapeJsonString(String(userConfig.mqttBrokerPassword)) + "\",";
+        JSON = JSON + "\"mqttBrokerMainTopic\": \"" + escapeJsonString(String(userConfig.mqttBrokerMainTopic)) + "\",";
         JSON = JSON + "\"mqttHAautoDiscoveryON\": " + userConfig.mqttHAautoDiscoveryON + ",";
         JSON = JSON + "\"mqttOpenDTUtopics\": " + userConfig.mqttOpenDTUtopics;
         JSON = JSON + "}";

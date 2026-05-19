@@ -25,6 +25,10 @@ All notable changes to dtuGateway are documented here. This changelog focuses on
   - Migration guide from existing OpenDTU setups
 
 ### Fixed (2026-05-19)
+- **Special characters in WiFi and MQTT passwords** — Fixed issue where passwords containing @, *, ", \, etc. would break JSON parsing
+  - Implemented proper JSON escaping for all password fields in API responses
+  - Passwords are now correctly handled without losing device connectivity
+  - Resolves issue #124 where special characters caused device to become unreachable
 - **MQTT real-time update publishing** — Fixed MQTT messages only appearing every 15 minutes when power limit not configured
   - Power limit initialization was incorrectly gating MQTT publication updates
   - MQTT now publishes on every successful DTU response, regardless of power limit state

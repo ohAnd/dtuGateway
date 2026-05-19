@@ -78,6 +78,9 @@ private:
     static void handleConfigPage(AsyncWebServerRequest *request);
 
     static void notFound(AsyncWebServerRequest *request);
+
+    // Helper function to escape JSON special characters in strings
+    static String escapeJsonString(const String &input);
 };
 
 #endif // DTU_WEBSERVER_H
