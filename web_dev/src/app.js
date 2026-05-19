@@ -42,6 +42,7 @@ document.addEventListener('alpine:init', () => {
     _updateTimeout: 0,      // countdown timer during update (60 sec max)
     _updateInterval: null,  // interval handle for progress polling
     _updateStatus:  '',     // human-readable status message
+    _pollingPaused: false,  // true during firmware update to reduce ESP32 load
     toasts:         [],
     _toastSeq:      0,
     _firstSetupDone: false, // Track if we've checked for first-setup condition
@@ -143,6 +144,7 @@ document.addEventListener('alpine:init', () => {
 
     // ── Polling fetchers ────────────────────────────────────────────
     async _fetchData() {
+      if (this._pollingPaused) return;
       try {
         const d = await this._get('/api/data.json');
 
@@ -187,6 +189,7 @@ document.addEventListener('alpine:init', () => {
     },
 
     async _fetchInfo() {
+      if (this._pollingPaused) return;
       try {
         this.info = await this._get('/api/info.json', 5000);
         // Update cycle duration (may change if user edits settings)
@@ -209,6 +212,7 @@ document.addEventListener('alpine:init', () => {
     },
 
     async _fetchDtuData() {
+      if (this._pollingPaused) return;
       try {
         const d = await this._get('/api/dtuData.json');
         // sort warnings newest first (timestampStart descending)
@@ -225,6 +229,7 @@ document.addEventListener('alpine:init', () => {
     },
 
     async _fetchEvents() {
+      if (this._pollingPaused) return;
       try {
         this.events = await this._get('/api/dtuEvents.json');
       } catch (_) { /* silent */ }
@@ -272,7 +277,7 @@ document.addEventListener('alpine:init', () => {
         if (!this.backendReachable) return; // already marked as lost
         if (this._lastSuccessfulFetch && Date.now() - this._lastSuccessfulFetch > 10000) {
           this.backendReachable = false;
-          this.addToast('error', 'Connection to gateway lost');
+          this._toast('Connection to gateway lost', 'error');
         }
       }, 10000);
     },
@@ -284,7 +289,7 @@ document.addEventListener('alpine:init', () => {
         this._connectionLossTimeout = setTimeout(() => {
           if (this.backendReachable) {
             this.backendReachable = false;
-            this.addToast('error', 'Connection to gateway lost');
+            this._toast('Connection to gateway lost', 'error');
           }
         }, 10000);
       }
@@ -688,6 +693,7 @@ document.addEventListener('alpine:init', () => {
       this.updateProgress = 0;
       this._updateTimeout = 60;
       this._updateStatus = 'preparing';
+      this._pauseDataPolling();
       try {
         console.log('[UPDATE] Posting to /doupdate');
         await this._post('/doupdate', {});
@@ -699,12 +705,23 @@ document.addEventListener('alpine:init', () => {
         this.updateProgress = -1;
         this._updateTimeout = 0;
         this._updateStatus = '';
+        this._resumeDataPolling();
       }
     },
 
     manualFwSelected(event) {
       this.fwFile = event.target.files[0] ?? null;
       console.log('[UPDATE] File selected:', this.fwFile?.name);
+    },
+
+    _pauseDataPolling() {
+      console.log('[UPDATE] Pausing dashboard polling to reduce ESP32 load');
+      this._pollingPaused = true;
+    },
+
+    _resumeDataPolling() {
+      console.log('[UPDATE] Resuming dashboard polling after update');
+      this._pollingPaused = false;
     },
 
     async uploadManualFirmware() {
@@ -715,6 +732,7 @@ document.addEventListener('alpine:init', () => {
       this.updateProgress = 0;
       this._updateTimeout = 60;
       this._updateStatus = 'preparing';
+      this._pauseDataPolling();
       
       // Start polling immediately - don't wait for upload to complete
       console.log('[UPDATE] Starting progress poll immediately');
@@ -740,6 +758,7 @@ document.addEventListener('alpine:init', () => {
         this._updateTimeout = 0;
         this._updateStatus = '';
         this.fwFile = null;
+        this._resumeDataPolling();
       }
     },
 
@@ -764,6 +783,7 @@ document.addEventListener('alpine:init', () => {
           this._updateTimeout = 0;
           this._updateStatus = '';
           this.fwFile = null;
+          this._resumeDataPolling();
         }
       }, 1000);
       
@@ -788,6 +808,7 @@ document.addEventListener('alpine:init', () => {
             this._updateTimeout = 0;
             this._updateStatus = '';
             this.fwFile = null;
+            this._resumeDataPolling();
             return;
           }
           
@@ -796,16 +817,23 @@ document.addEventListener('alpine:init', () => {
             console.log('[UPDATE] Update complete!');
             clearInterval(timeoutInterval);
             clearInterval(this._updateInterval);
-            this._toast('✓ Update complete — reloading in 3 seconds…', 'success');
+            this._toast('✓ Update complete — device rebooting…', 'success');
             
-            // Reload after brief delay to let user see completion message
+            // Close update modal and show reboot overlay
             setTimeout(() => {
               this.updateProgress = -1;
               this._updateTimeout = 0;
               this._updateStatus = '';
               this.fwFile = null;  // Clear filename after update
-              location.reload();
-            }, 3000);
+              
+              // Show reboot overlay while device restarts
+              this.showRebootOverlay = true;
+              this.willReboot = true;
+              this.rebootStatus = 'Device is rebooting...';
+              console.log('[UPDATE] Showing reboot overlay, waiting for device to reconnect');
+              this._resumeDataPolling();
+              this._waitForDeviceReconnect();
+            }, 1000);  // Brief pause to show success toast
           }
         } catch (e) {
           // Network errors during poll don't immediately fail - timeout handles recovery

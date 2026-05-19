@@ -27,6 +27,7 @@ static const char *app_js PROGMEM = R"DTUGW(document.addEventListener('alpine:in
  _updateTimeout:0,
  _updateInterval:null,
  _updateStatus:'',
+ _pollingPaused:false,
  toasts:[],
  _toastSeq:0,
  _firstSetupDone:false,
@@ -110,6 +111,7 @@ static const char *app_js PROGMEM = R"DTUGW(document.addEventListener('alpine:in
 },
  
  async _fetchData(){
+ if(this._pollingPaused)return;
  try{
  const d=await this._get('/api/data.json');
  
@@ -146,6 +148,7 @@ static const char *app_js PROGMEM = R"DTUGW(document.addEventListener('alpine:in
 }
 },
  async _fetchInfo(){
+ if(this._pollingPaused)return;
  try{
  this.info=await this._get('/api/info.json',5000);
  
@@ -167,6 +170,7 @@ static const char *app_js PROGMEM = R"DTUGW(document.addEventListener('alpine:in
 }catch(_){}
 },
  async _fetchDtuData(){
+ if(this._pollingPaused)return;
  try{
  const d=await this._get('/api/dtuData.json');
  
@@ -182,6 +186,7 @@ static const char *app_js PROGMEM = R"DTUGW(document.addEventListener('alpine:in
 }catch(_){}
 },
  async _fetchEvents(){
+ if(this._pollingPaused)return;
  try{
  this.events=await this._get('/api/dtuEvents.json');
 }catch(_){}
@@ -225,7 +230,7 @@ static const char *app_js PROGMEM = R"DTUGW(document.addEventListener('alpine:in
  if(!this.backendReachable)return;
  if(this._lastSuccessfulFetch&&Date.now()-this._lastSuccessfulFetch>10000){
  this.backendReachable=false;
- this.addToast('error','Connection to gateway lost');
+ this._toast('Connection to gateway lost','error');
 }
 },10000);
 },
@@ -236,7 +241,7 @@ static const char *app_js PROGMEM = R"DTUGW(document.addEventListener('alpine:in
  this._connectionLossTimeout=setTimeout(()=>{
  if(this.backendReachable){
  this.backendReachable=false;
- this.addToast('error','Connection to gateway lost');
+ this._toast('Connection to gateway lost','error');
 }
 },10000);
 }
@@ -598,6 +603,7 @@ static const char *app_js PROGMEM = R"DTUGW(document.addEventListener('alpine:in
  this.updateProgress=0;
  this._updateTimeout=60;
  this._updateStatus='preparing';
+ this._pauseDataPolling();
  try{
  console.log('[UPDATE]Posting to/doupdate');
  await this._post('/doupdate',{});
@@ -609,11 +615,20 @@ static const char *app_js PROGMEM = R"DTUGW(document.addEventListener('alpine:in
  this.updateProgress=-1;
  this._updateTimeout=0;
  this._updateStatus='';
+ this._resumeDataPolling();
 }
 },
  manualFwSelected(event){
  this.fwFile=event.target.files[0]??null;
  console.log('[UPDATE]File selected:',this.fwFile?.name);
+},
+ _pauseDataPolling(){
+ console.log('[UPDATE]Pausing dashboard polling to reduce ESP32 load');
+ this._pollingPaused=true;
+},
+ _resumeDataPolling(){
+ console.log('[UPDATE]Resuming dashboard polling after update');
+ this._pollingPaused=false;
 },
  async uploadManualFirmware(){
  console.log('[UPDATE]Starting manual firmware upload...');
@@ -623,6 +638,7 @@ static const char *app_js PROGMEM = R"DTUGW(document.addEventListener('alpine:in
  this.updateProgress=0;
  this._updateTimeout=60;
  this._updateStatus='preparing';
+ this._pauseDataPolling();
  
  
  console.log('[UPDATE]Starting progress poll immediately');
@@ -648,6 +664,7 @@ static const char *app_js PROGMEM = R"DTUGW(document.addEventListener('alpine:in
  this._updateTimeout=0;
  this._updateStatus='';
  this.fwFile=null;
+ this._resumeDataPolling();
 }
 },
  _pollUpdateProgress(){
@@ -671,6 +688,7 @@ static const char *app_js PROGMEM = R"DTUGW(document.addEventListener('alpine:in
  this._updateTimeout=0;
  this._updateStatus='';
  this.fwFile=null;
+ this._resumeDataPolling();
 }
 },1000);
  
@@ -695,6 +713,7 @@ static const char *app_js PROGMEM = R"DTUGW(document.addEventListener('alpine:in
  this._updateTimeout=0;
  this._updateStatus='';
  this.fwFile=null;
+ this._resumeDataPolling();
  return;
 }
  
@@ -703,7 +722,7 @@ static const char *app_js PROGMEM = R"DTUGW(document.addEventListener('alpine:in
  console.log('[UPDATE]Update complete!');
  clearInterval(timeoutInterval);
  clearInterval(this._updateInterval);
- this._toast('✓ Update complete — reloading in 3 seconds…','success');
+ this._toast('✓ Update complete — device rebooting…','success');
  
  
  setTimeout(()=>{
@@ -711,8 +730,15 @@ static const char *app_js PROGMEM = R"DTUGW(document.addEventListener('alpine:in
  this._updateTimeout=0;
  this._updateStatus='';
  this.fwFile=null;
- location.reload();
-},3000);
+ 
+ 
+ this.showRebootOverlay=true;
+ this.willReboot=true;
+ this.rebootStatus='Device is rebooting...';
+ console.log('[UPDATE]Showing reboot overlay,waiting for device to reconnect');
+ this._resumeDataPolling();
+ this._waitForDeviceReconnect();
+},1000);
 }
 }catch(e){
  

@@ -4,6 +4,19 @@ All notable changes to dtuGateway are documented here. This changelog focuses on
 
 ## [Unreleased] - Current Development
 
+### Fixed (2026-05-19)
+- Firmware update completion now shows reboot overlay instead of forcing immediate reload — prevents missing device reconnection
+  - Shows "Device is rebooting..." with spinner and elapsed time counter
+  - Waits up to 75 seconds for device to come back online with polling (every 500ms)
+  - Gracefully handles WiFi reconnection delays
+  - Prevents race condition where reload request arrives during ESP32 restart
+  - User gets clear visual feedback instead of seeing errors or frozen screen
+- Dashboard polling (info.json, data.json) now pauses during firmware update to reduce ESP32 load
+  - Stops all dashboard data polling when update starts (manual or online)
+  - Resumes polling automatically after update completes, fails, or times out
+  - Reduces CPU/memory contention on device during intensive flash writing operations
+  - Update progress polling (every 500ms) continues unaffected
+
 ### Added (2026-05-19)
 - **OpenDTU Topic Structure UI Control** — Users can now switch between MQTT topic modes from web interface
   - New "OpenDTU topic structure" checkbox in MQTT settings (Settings → Bindings → MQTT)
