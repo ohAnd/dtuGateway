@@ -4,6 +4,26 @@ All notable changes to dtuGateway are documented here. This changelog focuses on
 
 ## [Unreleased] - Current Development
 
+### Added (2026-05-19)
+- **OpenDTU Topic Structure UI Control** — Users can now switch between MQTT topic modes from web interface
+  - New "OpenDTU topic structure" checkbox in MQTT settings (Settings → Bindings → MQTT)
+  - Three distinct MQTT modes now documented with comparison table in README
+  - Mode 1: Standard dtuGateway topics with HA auto-discovery enabled
+  - Mode 2: OpenDTU-compatible topics (auto-discovery forced OFF for compatibility)
+  - Mode 3: Standard topics with auto-discovery disabled
+  - Auto-disable logic prevents incompatible mode combinations
+  - Device restarts automatically after applying new topic structure
+- **Improved MQTT Settings Form Layout** — Better visual spacing and organization
+  - Added bottom margin to form fields for consistent spacing
+  - Improved vertical spacing between inline checkboxes
+  - Cleaner, more readable MQTT settings interface
+- **Comprehensive OpenDTU Documentation** — Complete README guide for OpenDTU migration
+  - OpenDTU topic mapping reference with all available topics
+  - Extended topics documentation (dtuGW_special, status updates) for both modes
+  - Manual Home Assistant configuration examples for OpenDTU mode
+  - Mode selection summary table explaining when to use each mode
+  - Migration guide from existing OpenDTU setups
+
 ### Fixed (2026-05-18)
 - **Countdown progress bar synchronization** — Fixed progress bar to track actual DTU response time instead of fixed timer
   - Bar now directly synchronized to `dtuDataCycle` from device configuration

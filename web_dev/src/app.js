@@ -79,7 +79,7 @@ document.addEventListener('alpine:init', () => {
       batteryMonitor: false,
       ohActive: false, ohIp: '', ohPrefix: '',
       mqttActive: false, mqttTLS: false,
-      mqttIpPort: '', mqttUser: '', mqttPass: '', mqttTopic: '', mqttHA: false,
+      mqttIpPort: '', mqttUser: '', mqttPass: '', mqttTopic: '', mqttHA: false, mqttOpenDTU: false,
       powerLimit: 100,
     },
 
@@ -499,6 +499,7 @@ document.addEventListener('alpine:init', () => {
       }
       this.form.mqttTopic      = mqtt.mqttMainTopic ?? '';
       this.form.mqttHA         = !!mqtt.mqttHAautoDiscoveryON;
+      this.form.mqttOpenDTU    = !!mqtt.mqttOpenDTUtopics;
 
       this.form.powerLimit     = this.data.inverter?.pLimSet ?? 100;
     },
@@ -587,6 +588,7 @@ document.addEventListener('alpine:init', () => {
           mqttPasswordSend:           this.form.mqttPass !== '••••••••' ? this.form.mqttPass : this.passActual.mqttPass, // If user typed new value, use it; otherwise use saved password
           mqttMainTopicSend:          this.form.mqttTopic,
           mqttHAautoDiscoveryONSend:  this.form.mqttHA ? '1' : '0',
+          mqttOpenDTUtopicsSend:      this.form.mqttOpenDTU ? '1' : '0',
         });
         
         // Backend will reboot if MQTT is being enabled

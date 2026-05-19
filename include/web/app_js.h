@@ -57,7 +57,7 @@ static const char *app_js PROGMEM = R"DTUGW(document.addEventListener('alpine:in
  batteryMonitor:false,
  ohActive:false,ohIp:'',ohPrefix:'',
  mqttActive:false,mqttTLS:false,
- mqttIpPort:'',mqttUser:'',mqttPass:'',mqttTopic:'',mqttHA:false,
+ mqttIpPort:'',mqttUser:'',mqttPass:'',mqttTopic:'',mqttHA:false,mqttOpenDTU:false,
  powerLimit:100,
 },
  
@@ -418,6 +418,7 @@ static const char *app_js PROGMEM = R"DTUGW(document.addEventListener('alpine:in
 }
  this.form.mqttTopic=mqtt.mqttMainTopic??'';
  this.form.mqttHA=!!mqtt.mqttHAautoDiscoveryON;
+ this.form.mqttOpenDTU=!!mqtt.mqttOpenDTUtopics;
  this.form.powerLimit=this.data.inverter?.pLimSet??100;
 },
  
@@ -501,6 +502,7 @@ static const char *app_js PROGMEM = R"DTUGW(document.addEventListener('alpine:in
  mqttPasswordSend:this.form.mqttPass!=='••••••••'?this.form.mqttPass:this.passActual.mqttPass,
  mqttMainTopicSend:this.form.mqttTopic,
  mqttHAautoDiscoveryONSend:this.form.mqttHA?'1':'0',
+ mqttOpenDTUtopicsSend:this.form.mqttOpenDTU?'1':'0',
 });
  
  

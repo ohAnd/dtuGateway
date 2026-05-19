@@ -230,7 +230,7 @@
         </div>
         <div class="form-field form-field--inline">
           <input type="checkbox" id="mqttTLS" x-model="$store.app.form.mqttTLS">
-          <label for="mqttTLS">TLS (ESP32 only, e.g. broker.cloud:8883)</label>
+          <label for="mqttTLS">TLS (e.g. broker.cloud:8883)</label>
         </div>
         <div class="form-field">
           <label>MQTT user</label>
@@ -248,6 +248,10 @@
         <div class="form-field form-field--inline">
           <input type="checkbox" id="mqttHA" x-model="$store.app.form.mqttHA">
           <label for="mqttHA">HomeAssistant auto-discovery</label>
+        </div>
+        <div class="form-field form-field--inline">
+          <input type="checkbox" id="mqttOpenDTU" x-model="$store.app.form.mqttOpenDTU">
+          <label for="mqttOpenDTU">OpenDTU topic structure</label>
         </div>
       </div>
 

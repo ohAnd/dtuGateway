@@ -483,7 +483,8 @@ void DTUwebserver::handleInfojson(AsyncWebServerRequest *request)
     JSON = JSON + "\"mqttUser\": \"" + String(userConfig.mqttBrokerUser) + "\",";
     JSON = JSON + "\"mqttPass\": \"" + String(userConfig.mqttBrokerPassword) + "\",";
     JSON = JSON + "\"mqttMainTopic\": \"" + String(userConfig.mqttBrokerMainTopic) + "\",";
-    JSON = JSON + "\"mqttHAautoDiscoveryON\": " + userConfig.mqttHAautoDiscoveryON;
+    JSON = JSON + "\"mqttHAautoDiscoveryON\": " + userConfig.mqttHAautoDiscoveryON + ",";
+    JSON = JSON + "\"mqttOpenDTUtopics\": " + userConfig.mqttOpenDTUtopics;
     JSON = JSON + "},";
 
     JSON = JSON + "\"dtuConnection\": {";
@@ -759,7 +760,8 @@ void DTUwebserver::handleUpdateBindingsSettings(AsyncWebServerRequest *request)
         request->hasParam("mqttUserSend", true) &&
         request->hasParam("mqttPasswordSend", true) &&
         request->hasParam("mqttMainTopicSend", true) &&
-        request->hasParam("mqttHAautoDiscoveryONSend", true))
+        request->hasParam("mqttHAautoDiscoveryONSend", true) &&
+        request->hasParam("mqttOpenDTUtopicsSend", true))
     {
         String openhabActive = request->getParam("openhabActiveSend", true)->value();
         String openhabHostIpDomainUser = request->getParam("openhabIPSend", true)->value();
@@ -772,6 +774,7 @@ void DTUwebserver::handleUpdateBindingsSettings(AsyncWebServerRequest *request)
         String mqttPass = request->getParam("mqttPasswordSend", true)->value();
         String mqttMainTopic = request->getParam("mqttMainTopicSend", true)->value();
         String mqttHAautoDiscoveryON = request->getParam("mqttHAautoDiscoveryONSend", true)->value();
+        String mqttOpenDTUtopics = request->getParam("mqttOpenDTUtopicsSend", true)->value();
 
         // Parse IP:Port format (e.g. "192.168.1.1:1883")
         int colonIndex = mqttIpPort.indexOf(':');
@@ -813,6 +816,11 @@ void DTUwebserver::handleUpdateBindingsSettings(AsyncWebServerRequest *request)
         else
             userConfig.mqttHAautoDiscoveryON = false;
 
+        if (mqttOpenDTUtopics == "1")
+            userConfig.mqttOpenDTUtopics = true;
+        else
+            userConfig.mqttOpenDTUtopics = false;
+
         configManager.saveConfig(userConfig);
 
         if (userConfig.mqttActive)
@@ -822,6 +830,10 @@ void DTUwebserver::handleUpdateBindingsSettings(AsyncWebServerRequest *request)
 
             mqttHandler.setAutoDiscovery(userConfig.mqttHAautoDiscoveryON);
             Serial.println("WEB:\t\t handleUpdateBindingsSettings - HAautoDiscovery new state: " + String(userConfig.mqttHAautoDiscoveryON));
+
+            mqttHandler.setTopicStructure(userConfig.mqttOpenDTUtopics);
+            Serial.println("WEB:\t\t handleUpdateBindingsSettings - OpenDTU topics new state: " + String(userConfig.mqttOpenDTUtopics));
+
             // mqttHAautoDiscoveryON going from on to off - send one time the delete messages
             if (!userConfig.mqttHAautoDiscoveryON && mqttHAautoDiscoveryONlastState)
                 mqttHandler.requestMQTTconnectionReset(true);
@@ -843,7 +855,8 @@ void DTUwebserver::handleUpdateBindingsSettings(AsyncWebServerRequest *request)
         JSON = JSON + "\"mqttBrokerUser\": \"" + userConfig.mqttBrokerUser + "\",";
         JSON = JSON + "\"mqttBrokerPassword\": \"" + userConfig.mqttBrokerPassword + "\",";
         JSON = JSON + "\"mqttBrokerMainTopic\": \"" + userConfig.mqttBrokerMainTopic + "\",";
-        JSON = JSON + "\"mqttHAautoDiscoveryON\": " + userConfig.mqttHAautoDiscoveryON;
+        JSON = JSON + "\"mqttHAautoDiscoveryON\": " + userConfig.mqttHAautoDiscoveryON + ",";
+        JSON = JSON + "\"mqttOpenDTUtopics\": " + userConfig.mqttOpenDTUtopics;
         JSON = JSON + "}";
 
         request->send(200, "application/json", JSON);

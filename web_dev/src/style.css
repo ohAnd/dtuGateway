@@ -1702,6 +1702,7 @@ hr.divider {
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
+  margin-bottom: 1rem;
 }
 
 .form-field label {
@@ -1733,6 +1734,7 @@ hr.divider {
   flex-direction: row;
   align-items: center;
   gap: 0.5rem;
+  margin-bottom: 0.75rem;
 }
 
 .form-field--inline label { font-size: 0.82rem; color: var(--text-dim); }

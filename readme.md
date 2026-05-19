@@ -705,8 +705,8 @@ your-topic-prefix/
 │   └── yieldtotal              # Panel 2 total energy (kWh)
 ├── status/
 │   └── limit_relative          # Current power limit (%)
-└── dtu/
-    └── rssi                    # DTU Wi-Fi signal strength
+└── radio/
+    └── rssi                    # DTU Wi-Fi signal strength (dBm)
 ```
 
 #### Compatibility Benefits
@@ -728,7 +728,26 @@ your-topic-prefix/
 - **No discovery conflicts**: Prevents topic structure conflicts between modes
 - **Standard vs OpenDTU**: Choose one topic structure, not both simultaneously
 
-### Standard dtuGateway Topics (Default Mode)
+### MQTT Mode Selection Summary
+
+dtuGateway supports three distinct MQTT modes. Choose the one that matches your setup:
+
+| Feature | Mode 1: Standard + HA | Mode 2: OpenDTU | Mode 3: Standard Only |
+|---------|----------------------|-----------------|----------------------|
+| **Web UI Setting** | HA Auto-discovery: ✓, OpenDTU: ✗ | HA Auto-discovery: ✗, OpenDTU: ✓ | HA Auto-discovery: ✗, OpenDTU: ✗ |
+| **Topic Structure** | `dtuGateway_XXXXX/grid/power` | `prefix/0/power` | `dtuGateway_XXXXX/grid/power` |
+| **Home Assistant** | Auto-discovery enabled | Manual setup required | Manual setup required |
+| **Use Case** | Standard HA setups | OpenDTU migrations | Custom integrations |
+| **Best For** | Home Assistant users | Replacing OpenDTU | Existing custom config |
+
+**How to Switch Modes**:
+1. Go to **Web Interface** → **Settings** → **MQTT**
+2. Adjust these checkboxes:
+   - ✓ "HomeAssistant auto-discovery" = Enable HA discovery
+   - ✓ "OpenDTU topic structure" = Use OpenDTU topic format
+3. **Note**: Enabling both checkboxes automatically selects Mode 1 (HA discovery takes priority)
+4. Click **Save** - device will restart to apply new topic structure
+
 ### Standard dtuGateway Topics (Default Mode)
 
 When using the standard topic structure (default), dtuGateway publishes to:
@@ -763,6 +782,46 @@ dtuGateway_12345678/inverter/RebootMi/set       # Reboot inverter (send 1)
 dtuGateway_12345678/inverter/RebootDtu/set      # Reboot DTU (send 1)  
 dtuGateway_12345678/inverter/RebootDtuGw/set    # Reboot gateway (send 1)
 ```
+
+### Extended Topics (Available in All Modes)
+
+These additional topics are available in both Standard and OpenDTU modes for advanced monitoring and control:
+
+**Standard Mode Extended Topics**:
+```
+dtuGateway_12345678/
+├── dtuGW_special/
+│   ├── limit_relative_set      # Current power limit setting (%)
+│   ├── cloud_pause             # Cloud update pause status (0/1)
+│   ├── dtu_connect_state       # DTU connection state code
+│   ├── dtu_connection_online   # DTU online status (0/1)
+│   ├── inverter_control_state_on # Inverter control enabled (0/1)
+│   └── warnings_active         # Active warning count
+└── timestamp                    # Last data update (Unix timestamp)
+```
+
+**OpenDTU Mode Extended Topics**:
+```
+your-topic-prefix/
+├── dtuGW_special/
+│   ├── limit_relative_set      # Current power limit setting (%)
+│   ├── cloud_pause             # Cloud update pause status (0/1)
+│   ├── dtu_connect_state       # DTU connection state code
+│   ├── dtu_connection_online   # DTU online status (0/1)
+│   ├── inverter_control_state_on # Inverter control enabled (0/1)
+│   └── warnings_active         # Active warning count
+└── status/
+    └── last_update             # Last data update (Unix timestamp)
+```
+
+**Extended Topic Details**:
+- `limit_relative_set`: The configured power limit percentage (2-100, 101 = no limit)
+- `cloud_pause`: Whether Hoymiles cloud updates are paused (0 = active, 1 = paused)
+- `dtu_connect_state`: Internal DTU connection state (0 = searching, 1 = connected)
+- `dtu_connection_online`: Whether DTU is actively online (0 = offline, 1 = online)
+- `inverter_control_state_on`: Whether inverter control is enabled (0 = disabled, 1 = enabled)
+- `warnings_active`: Number of active warnings/faults from the inverter
+- `timestamp` / `last_update`: Unix timestamp of last successful data publication
 
 ### TLS Configuration
 For secure connections (e.g., HiveMQ Cloud):
