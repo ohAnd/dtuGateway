@@ -127,6 +127,13 @@ void DisplayTFT::drawScreen(String version, String time)
     // main screen
     if (!isNight)
     {
+        // EXTERNAL CONTROL FIX: Detect inverter state changes (rare: Hoymile app control)
+        // Force display refresh even if DTU is temporarily offline
+        static bool lastInverterState = dtuGlobalData.inverterControl.stateOn;
+        bool inverterStateChanged = (lastInverterState != dtuGlobalData.inverterControl.stateOn);
+        if (inverterStateChanged)
+            lastInverterState = dtuGlobalData.inverterControl.stateOn;
+
         if (dtuConnection.dtuConnectState == DTU_STATE_CONNECTED)
         {
             drawMainDTUOnline();
@@ -136,6 +143,13 @@ void DisplayTFT::drawScreen(String version, String time)
         {
             drawMainDTUOnline(true);
             displayState = 0;
+        }
+        else if (inverterStateChanged)
+        {
+            // Rare case: Inverter controlled externally, show state even if DTU offline
+            drawMainDTUOnline(false);
+            displayState = 0;
+            Serial.println("DisplayTFT:\t >> external inverter state change detected");
         }
         else if (dtuConnection.dtuConnectionOnline == false)
         {
@@ -569,8 +583,8 @@ void DisplayTFT::drawHeaderSummary(String version)
 }
 
 uint8_t last_timeSS = 0;
-int lastValueWidth_Small_y42 = 0;   // Track max width for position y=42 (top)
-int lastValueWidth_Small_y180 = 0;  // Track max width for position y=180 (bottom)
+int lastValueWidth_Small_y42 = 0;  // Track max width for position y=42 (top)
+int lastValueWidth_Small_y180 = 0; // Track max width for position y=180 (bottom)
 
 void DisplayTFT::drawText_Value_Small(uint8_t x, uint8_t y, float value, uint8_t decimals, String unit, uint8_t colorRed, uint8_t colorGreen, uint8_t colorBlue)
 {
@@ -585,20 +599,20 @@ void DisplayTFT::drawText_Value_Small(uint8_t x, uint8_t y, float value, uint8_t
 
     String shownValue = String(value, (uint)decimals);
     int currentWidth = tft.textWidth(shownValue, 4);
-    
+
     // Select tracker based on y position
-    int& maxWidthRef = (y == 42) ? lastValueWidth_Small_y42 : lastValueWidth_Small_y180;
-    
+    int &maxWidthRef = (y == 42) ? lastValueWidth_Small_y42 : lastValueWidth_Small_y180;
+
     // Track maximum width for this position to ensure full clearing
     if (currentWidth > maxWidthRef)
         maxWidthRef = currentWidth;
-    
+
     tft.setTextColor(textColor, TFT_BLACK);
     tft.setTextDatum(TC_DATUM);
     // Use textPadding to clear the full area based on max width seen at this position
-    tft.setTextPadding(maxWidthRef + 10);  // Add extra padding for safety
+    tft.setTextPadding(maxWidthRef + 10); // Add extra padding for safety
     tft.drawCentreString(shownValue, x, y, 4);
-    tft.setTextPadding(0);  // Reset padding
+    tft.setTextPadding(0); // Reset padding
 
     // Position unit based on current value width, with fixed gap
     int unit_x_pos = x + (currentWidth / 2) + 6;

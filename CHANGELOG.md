@@ -25,6 +25,10 @@ All notable changes to dtuGateway are documented here. This changelog focuses on
   - Migration guide from existing OpenDTU setups
 
 ### Fixed (2026-05-19)
+- **TFT display not updating after external inverter control** — Fixed issue where display remained stuck showing "inverter switched off" when inverter state changed via Hoymile app (issue #76)
+  - Added inverter state change detection independent of DTU connection status
+  - Display now updates to reflect external on/off commands even during temporary DTU connection issues
+  - Normal behavior unchanged; rare external control scenario now properly handled
 - **Special characters in WiFi and MQTT passwords** — Fixed issue where passwords containing @, *, ", \, etc. would break JSON parsing
   - Implemented proper JSON escaping for all password fields in API responses
   - Passwords are now correctly handled without losing device connectivity
