@@ -1352,9 +1352,9 @@ void DTUInterface::readRespGetConfig(pb_istream_t istream)
     if (!dtuGlobalData.inverterControl.stateOn)
         dtuGlobalData.powerLimit = 0;
     dtuGlobalData.dtuRssi = getconfigreqdto.wifi_rssi;
-    // no update if still init value
-    if (dtuGlobalData.powerLimit != 254)
-        dtuGlobalData.updateReceived = true;
+    // Mark update received on any successful DTU response, regardless of power limit state
+    // This ensures MQTT updates are published on every data cycle, not just when power limit is configured
+    dtuGlobalData.updateReceived = true;
 }
 
 boolean DTUInterface::writeReqCommandSetPowerlimit(uint8_t setPercent)

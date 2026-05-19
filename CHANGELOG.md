@@ -24,6 +24,13 @@ All notable changes to dtuGateway are documented here. This changelog focuses on
   - Mode selection summary table explaining when to use each mode
   - Migration guide from existing OpenDTU setups
 
+### Fixed (2026-05-19)
+- **MQTT real-time update publishing** — Fixed MQTT messages only appearing every 15 minutes when power limit not configured
+  - Power limit initialization was incorrectly gating MQTT publication updates
+  - MQTT now publishes on every successful DTU response, regardless of power limit state
+  - Users receive real-time data updates every ~30 seconds instead of waiting 15 minutes
+  - Added troubleshooting guide in README for users still on older firmware versions
+
 ### Fixed (2026-05-18)
 - **Countdown progress bar synchronization** — Fixed progress bar to track actual DTU response time instead of fixed timer
   - Bar now directly synchronized to `dtuDataCycle` from device configuration

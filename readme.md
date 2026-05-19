@@ -1066,6 +1066,12 @@ Post your inverter model and setup photos in [GitHub Discussions](https://github
 - **Automatic**: Gateway detects weak WiFi signals (< -75 dBm) and attempts reconnection
 - **Fix**: Improve DTU Wi-Fi signal or move gateway closer
 
+**Problem**: MQTT updates only appear every 15 minutes (just before cloudPause)
+- **Cause**: Power limit was not set in the Hoymiles mobile app
+- **Solution**: Open Hoymiles app → Device settings → Set power limit to any value (e.g., 100%)
+- **Result**: After setting power limit, MQTT updates should appear every ~30 seconds with real-time data
+- **Technical Note**: Power limit initialization is used as a synchronization point for data updates
+
 **Problem**: Wrong timezone/time
 - **Fix**: Set timezone offset in advanced config
 - **Note**: DST adjusts automatically based on configured timezone
