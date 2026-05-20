@@ -213,14 +213,14 @@ jobs:
       - name: Extract and transform release notes from snapshot summary
         id: release_notes
         run: |
-          {
-            echo 'release_body<<EOF'
-            cat .snapshot-summary.md | \
-              sed 's/# Snapshot Release Summary/# Release Summary/' | \
-              sed 's/Status: Pre-release \/ Development Build/Status: Release/' | \
-              sed 's/snapshot build/release/'
-            echo 'EOF'
-          } >> $GITHUB_OUTPUT
+          cat .snapshot-summary.md | \
+            sed 's/# Snapshot Release Summary/# Release Summary/' | \
+            sed 's/Status: Pre-release \/ Development Build/Status: Release/' | \
+            sed 's/snapshot build/release/' > /tmp/release_notes.txt
+
+          echo "release_body<<EOF" >> $GITHUB_OUTPUT
+          cat /tmp/release_notes.txt >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       - uses: "marvinpinto/action-automatic-releases@latest"
         with:
