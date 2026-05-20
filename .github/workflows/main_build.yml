@@ -225,13 +225,13 @@ jobs:
             .pio/build/factory_flash_esp32_S3_16MB/
             .pio/build/factory_flash_esp32_S3_LCD128/
 
-      - uses: "marvinpinto/action-automatic-releases@latest"
+      - uses: softprops/action-gh-release@v2
         with:
-          repo_token: "${{ secrets.GITHUB_TOKEN }}"
-          automatic_release_tag: "v${{ env.CURRENT_VERSIONNUMBER }}"
+          token: "${{ secrets.GITHUB_TOKEN }}"
+          tag_name: "v${{ env.CURRENT_VERSIONNUMBER }}"
           draft: true
           prerelease: false
-          title: "dtuGateway v${{ env.CURRENT_VERSIONNUMBER }}"
+          name: "dtuGateway v${{ env.CURRENT_VERSIONNUMBER }}"
           body: "${{ steps.release_notes.outputs.release_body }}"
           files: |
             .pio/build/esp32/dtuGateway_ESP32_release_${{ env.CURRENT_VERSIONNUMBER }}.bin
