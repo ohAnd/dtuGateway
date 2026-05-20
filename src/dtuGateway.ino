@@ -21,7 +21,10 @@
 #include <DNSServer.h>
 #include <base/platformData.h>
 
+#ifndef DGC9A01_MOUNTED
 #include <display.h>
+#endif
+
 #include <displayTFT.h>
 
 #include <dtuInterface.h>
@@ -117,7 +120,10 @@ DNSServer dnsServer;
 // HTTPUpdateServer httpUpdater;
 // #endif
 
+#ifndef DGC9A01_MOUNTED
 Display displayOLED;
+#endif
+
 DisplayTFT displayTFT;
 
 DTUInterface dtuInterface("192.168.0.254"); // initialize with default IP
@@ -779,36 +785,36 @@ boolean getPowerSetDataFromOpenHab()
 // update all values to openhab
 boolean updateValueToOpenhab()
 {
-  boolean sendOk = postMessageToOpenhab(String(userConfig.openItemPrefix) + "Grid_U", (String)dtuGlobalData.grid.voltage);
+  boolean sendOk = postMessageToOpenhab(String(userConfig.openItemPrefix) + "Grid_U", (String)dtuGlobalData.grid.voltage.getValue());
   if (sendOk)
   {
-    postMessageToOpenhab(String(userConfig.openItemPrefix) + "Grid_I", (String)dtuGlobalData.grid.current);
-    postMessageToOpenhab(String(userConfig.openItemPrefix) + "Grid_P", (String)dtuGlobalData.grid.power);
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "Grid_I", (String)dtuGlobalData.grid.current.getValue());
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "Grid_P", (String)dtuGlobalData.grid.power.getValue());
     postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV_E_day", String(dtuGlobalData.grid.dailyEnergy, 3));
     if (dtuGlobalData.grid.totalEnergy != 0)
     {
       postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV_E_total", String(dtuGlobalData.grid.totalEnergy, 3));
     }
 
-    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV1_U", (String)dtuGlobalData.pv0.voltage);
-    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV1_I", (String)dtuGlobalData.pv0.current);
-    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV1_P", (String)dtuGlobalData.pv0.power);
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV1_U", (String)dtuGlobalData.pv0.voltage.getValue());
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV1_I", (String)dtuGlobalData.pv0.current.getValue());
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV1_P", (String)dtuGlobalData.pv0.power.getValue());
     postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV1_E_day", String(dtuGlobalData.pv0.dailyEnergy, 3));
     if (dtuGlobalData.pv0.totalEnergy != 0)
     {
       postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV1_E_total", String(dtuGlobalData.pv0.totalEnergy, 3));
     }
 
-    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV2_U", (String)dtuGlobalData.pv1.voltage);
-    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV2_I", (String)dtuGlobalData.pv1.current);
-    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV2_P", (String)dtuGlobalData.pv1.power);
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV2_U", (String)dtuGlobalData.pv1.voltage.getValue());
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV2_I", (String)dtuGlobalData.pv1.current.getValue());
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV2_P", (String)dtuGlobalData.pv1.power.getValue());
     postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV2_E_day", String(dtuGlobalData.pv1.dailyEnergy, 3));
     if (dtuGlobalData.pv1.totalEnergy != 0)
     {
       postMessageToOpenhab(String(userConfig.openItemPrefix) + "PV2_E_total", String(dtuGlobalData.pv1.totalEnergy, 3));
     }
 
-    postMessageToOpenhab(String(userConfig.openItemPrefix) + "_Temp", (String)dtuGlobalData.inverterTemp);
+    postMessageToOpenhab(String(userConfig.openItemPrefix) + "_Temp", (String)dtuGlobalData.inverterTemp.getValue());
     if (dtuGlobalData.powerLimit != -1)
       postMessageToOpenhab(String(userConfig.openItemPrefix) + "_PowerLimit", (String)dtuGlobalData.powerLimit);
     postMessageToOpenhab(String(userConfig.openItemPrefix) + "_WifiRSSI", (String)dtuGlobalData.dtuRssi);
@@ -824,29 +830,29 @@ void updateValuesToMqtt(boolean haAutoDiscovery = false)
   std::map<std::string, std::string> keyValueStore;
   keyValueStore["time_stamp"] = getTimeStringByTimestamp(platformData.currentNTPtimeUTC).c_str();
   // grid
-  keyValueStore["grid_U"] = String(dtuGlobalData.grid.voltage).c_str();
-  keyValueStore["grid_I"] = String(dtuGlobalData.grid.current).c_str();
-  keyValueStore["grid_P"] = String(dtuGlobalData.grid.power).c_str();
+  keyValueStore["grid_U"] = String(dtuGlobalData.grid.voltage.getValue()).c_str();
+  keyValueStore["grid_I"] = String(dtuGlobalData.grid.current.getValue()).c_str();
+  keyValueStore["grid_P"] = String(dtuGlobalData.grid.power.getValue()).c_str();
   keyValueStore["grid_dailyEnergy"] = String(dtuGlobalData.grid.dailyEnergy, 3).c_str();
   if (dtuGlobalData.grid.totalEnergy != 0)
     keyValueStore["grid_totalEnergy"] = String(dtuGlobalData.grid.totalEnergy, 3).c_str();
   // pv0
-  keyValueStore["pv0_U"] = String(dtuGlobalData.pv0.voltage).c_str();
-  keyValueStore["pv0_I"] = String(dtuGlobalData.pv0.current).c_str();
-  keyValueStore["pv0_P"] = String(dtuGlobalData.pv0.power).c_str();
+  keyValueStore["pv0_U"] = String(dtuGlobalData.pv0.voltage.getValue()).c_str();
+  keyValueStore["pv0_I"] = String(dtuGlobalData.pv0.current.getValue()).c_str();
+  keyValueStore["pv0_P"] = String(dtuGlobalData.pv0.power.getValue()).c_str();
   keyValueStore["pv0_dailyEnergy"] = String(dtuGlobalData.pv0.dailyEnergy, 3).c_str();
   if (dtuGlobalData.pv0.totalEnergy != 0)
     keyValueStore["pv0_totalEnergy"] = String(dtuGlobalData.pv0.totalEnergy, 3).c_str();
   // pv1
-  keyValueStore["pv1_U"] = String(dtuGlobalData.pv1.voltage).c_str();
-  keyValueStore["pv1_I"] = String(dtuGlobalData.pv1.current).c_str();
-  keyValueStore["pv1_P"] = String(dtuGlobalData.pv1.power).c_str();
+  keyValueStore["pv1_U"] = String(dtuGlobalData.pv1.voltage.getValue()).c_str();
+  keyValueStore["pv1_I"] = String(dtuGlobalData.pv1.current.getValue()).c_str();
+  keyValueStore["pv1_P"] = String(dtuGlobalData.pv1.power.getValue()).c_str();
   keyValueStore["pv1_dailyEnergy"] = String(dtuGlobalData.pv1.dailyEnergy, 3).c_str();
   if (dtuGlobalData.pv0.totalEnergy != 0)
     keyValueStore["pv1_totalEnergy"] = String(dtuGlobalData.pv1.totalEnergy, 3).c_str();
   // inverter
-  keyValueStore["grid_Freq"] = String(dtuGlobalData.gridFreq).c_str();
-  keyValueStore["inverter_Temp"] = String(dtuGlobalData.inverterTemp).c_str();
+  keyValueStore["grid_Freq"] = String(dtuGlobalData.gridFreq.getValue()).c_str();
+  keyValueStore["inverter_Temp"] = String(dtuGlobalData.inverterTemp.getValue()).c_str();
   keyValueStore["inverter_PowerLimit"] = String(dtuGlobalData.powerLimit).c_str();
   keyValueStore["inverter_PowerLimitSet"] = String(dtuGlobalData.powerLimitSet).c_str();
   keyValueStore["inverter_WifiRSSI"] = String(dtuGlobalData.dtuRssi).c_str();
@@ -942,18 +948,22 @@ void setup()
     Serial.println(F("Failed to load user config"));
     dtuWebServer = new DTUwebserver();
   }
-  // ------- user config loaded --------------------------------------------
+// ------- user config loaded --------------------------------------------
 
-  // init display according to userConfig
+// init display according to userConfig
+#ifndef DGC9A01_MOUNTED
   if (userConfig.displayConnected == 0)
   {
     displayOLED.setup();
     displayOLED.setRemoteDisplayMode(userConfig.remoteDisplayActive);
   }
   else if (userConfig.displayConnected == 1)
+#else
+// For DGC9A01_MOUNTED, always use TFT display
+#endif
   {
     displayTFT.setup();
-    displayTFT.setRemoteDisplayMode(userConfig.remoteDisplayActive, userConfig.remoteSummaryDisplayActive);
+    displayTFT.setRemoteDisplayMode(userConfig.remoteDisplayActive, userConfig.remoteDisplay_SolarMonitor, userConfig.remoteDisplay_BatteryMonitor);
   }
 
   if (userConfig.wifiAPstart)
@@ -1004,13 +1014,17 @@ void setup()
     Serial.println(F("Ready! Open http://dtuGateway.local in your browser"));
     Serial.println("Or connect to AP '" + platformData.espUniqueName + "' and navigate to " + WiFi.softAPIP().toString());
 
-    // display - change every reboot in first start mode
+// display - change every reboot in first start mode
+#ifndef DGC9A01_MOUNTED
     if (userConfig.displayConnected == 0)
     {
       displayOLED.drawFactoryMode(String(platformData.fwVersion), platformData.espUniqueName, apIP.toString());
       userConfig.displayConnected = 1;
     }
     else if (userConfig.displayConnected == 1)
+#else
+// For DGC9A01_MOUNTED, always use TFT display
+#endif
     {
       displayTFT.drawFactoryMode(String(platformData.fwVersion), platformData.espUniqueName, apIP.toString());
       userConfig.displayConnected = 0;
@@ -1068,12 +1082,12 @@ void startServices()
 
     dtuWebServer->start();
 
-    if (!userConfig.remoteDisplayActive && !userConfig.remoteSummaryDisplayActive)
+    if (!userConfig.remoteDisplayActive && !userConfig.remoteDisplay_SolarMonitor && !userConfig.remoteDisplay_BatteryMonitor)
       dtuInterface.setup(userConfig.dtuHostIpDomain);
 
     mqttHandler.setConfiguration(userConfig.mqttBrokerIpDomain, userConfig.mqttBrokerPort, userConfig.mqttBrokerUser, userConfig.mqttBrokerPassword, userConfig.mqttUseTLS, (platformData.espUniqueName).c_str(), userConfig.mqttBrokerMainTopic, userConfig.mqttHAautoDiscoveryON, ((platformData.dtuGatewayIP).toString()).c_str());
     mqttHandler.setup();
-    mqttHandler.setRemoteDisplayData(userConfig.remoteDisplayActive, userConfig.remoteSummaryDisplayActive);
+    mqttHandler.setRemoteDisplayData(userConfig.remoteDisplayActive, userConfig.remoteDisplay_SolarMonitor, userConfig.remoteDisplay_BatteryMonitor);
 
     mqttHandler.setTopicStructure(userConfig.mqttOpenDTUtopics);
     // autodiscovery for home assistant with opendtu topics not implemented yet
@@ -1388,17 +1402,25 @@ void loop()
       // dtuInterface.disconnect(DTU_STATE_STOPPED);
       dtuInterface.flushConnection();
       mqttHandler.stopConnection();
+#ifndef DGC9A01_MOUNTED
       if (userConfig.displayConnected == 0)
         displayOLED.drawUpdateMode("update running ...");
       else if (userConfig.displayConnected == 1)
+#else
+// For DGC9A01_MOUNTED, always use TFT display
+#endif
         displayTFT.drawUpdateMode("update running ...");
       updateInfo.updateState = UPDATE_STATE_INSTALLING;
     }
     if (updateInfo.updateState == UPDATE_STATE_DONE)
     {
+#ifndef DGC9A01_MOUNTED
       if (userConfig.displayConnected == 0)
         displayOLED.drawUpdateMode("update done", "rebooting ...");
       else if (userConfig.displayConnected == 1)
+#else
+// For DGC9A01_MOUNTED, always use TFT display
+#endif
         displayTFT.drawUpdateMode("update done", "rebooting ...");
       updateInfo.updateState = UPDATE_STATE_RESTART;
     }
@@ -1426,26 +1448,38 @@ void loop()
     // reboot screen
     if (platformData.rebootRequested)
     {
+#ifndef DGC9A01_MOUNTED
       if (userConfig.displayConnected == 0)
         displayOLED.drawUpdateMode("rebooting ...", "in " + String(platformData.rebootRequestedInSec) + " s");
       else if (userConfig.displayConnected == 1)
+#else
+// For DGC9A01_MOUNTED, always use TFT display
+#endif
         displayTFT.drawUpdateMode("rebooting ...", "in " + String(platformData.rebootRequestedInSec) + " s");
     }
     // reboot screen
     else if (platformData.rebootStarted)
     {
+#ifndef DGC9A01_MOUNTED
       if (userConfig.displayConnected == 0)
         displayOLED.drawUpdateMode("rebooting ...", "now");
       else if (userConfig.displayConnected == 1)
+#else
+// For DGC9A01_MOUNTED, always use TFT display
+#endif
         displayTFT.drawUpdateMode("rebooting ...", "now");
     }
     // normal screen
     else if (!userConfig.wifiAPstart)
     {
-      // display tasks every 50ms = 20Hz
+// display tasks every 50ms = 20Hz
+#ifndef DGC9A01_MOUNTED
       if (userConfig.displayConnected == 0)
         displayOLED.renderScreen(getCurrentTimeString(), String(platformData.fwVersion));
       else if (userConfig.displayConnected == 1)
+#else
+// For DGC9A01_MOUNTED, always use TFT display
+#endif
         displayTFT.renderScreen(getCurrentTimeString(), String(platformData.fwVersion));
     }
   }
@@ -1513,25 +1547,25 @@ void loop()
       RemoteInverterData remoteData = mqttHandler.getRemoteInverterData();
       if (remoteData.updateReceived == true)
       {
-        dtuGlobalData.grid.power = remoteData.grid.power;
-        dtuGlobalData.grid.current = remoteData.grid.current;
-        dtuGlobalData.grid.voltage = remoteData.grid.voltage;
+        dtuGlobalData.grid.power.update(remoteData.grid.power);
+        dtuGlobalData.grid.current.update(remoteData.grid.current);
+        dtuGlobalData.grid.voltage.update(remoteData.grid.voltage);
         dtuGlobalData.grid.dailyEnergy = remoteData.grid.dailyEnergy;
         dtuGlobalData.grid.totalEnergy = remoteData.grid.totalEnergy;
 
-        dtuGlobalData.pv0.power = remoteData.pv0.power;
-        dtuGlobalData.pv0.current = remoteData.pv0.current;
-        dtuGlobalData.pv0.voltage = remoteData.pv0.voltage;
+        dtuGlobalData.pv0.power.update(remoteData.pv0.power);
+        dtuGlobalData.pv0.current.update(remoteData.pv0.current);
+        dtuGlobalData.pv0.voltage.update(remoteData.pv0.voltage);
         dtuGlobalData.pv0.dailyEnergy = remoteData.pv0.dailyEnergy;
         dtuGlobalData.pv0.totalEnergy = remoteData.pv0.totalEnergy;
 
-        dtuGlobalData.pv1.power = remoteData.pv1.power;
-        dtuGlobalData.pv1.current = remoteData.pv1.current;
-        dtuGlobalData.pv1.voltage = remoteData.pv1.voltage;
+        dtuGlobalData.pv1.power.update(remoteData.pv1.power);
+        dtuGlobalData.pv1.current.update(remoteData.pv1.current);
+        dtuGlobalData.pv1.voltage.update(remoteData.pv1.voltage);
         dtuGlobalData.pv1.dailyEnergy = remoteData.pv1.dailyEnergy;
         dtuGlobalData.pv1.totalEnergy = remoteData.pv1.totalEnergy;
 
-        dtuGlobalData.inverterTemp = remoteData.inverterTemp;
+        dtuGlobalData.inverterTemp.update(remoteData.inverterTemp);
         dtuGlobalData.powerLimit = remoteData.powerLimit;
         dtuGlobalData.dtuRssi = remoteData.dtuRssi;
 
@@ -1543,6 +1577,8 @@ void loop()
         dtuGlobalData.warningsActive = remoteData.warningsActive;
         dtuGlobalData.lastRespTimestamp = remoteData.respTimestamp;
         dtuGlobalData.currentTimestamp = remoteData.respTimestamp; // setting the local counter
+        dtuGlobalData.batterySOC = remoteData.batterySOC;
+        dtuGlobalData.batteryStoredEnergy = remoteData.batteryStoredEnergy;
         Serial.println("\nMQTT: changed remote inverter data");
       }
     }
@@ -1596,14 +1632,14 @@ void loop()
       if (dtuConnection.dtuActiveOffToCloudUpdate)
         blinkCode = BLINK_PAUSE_CLOUD_UPDATE;
 
-      if (userConfig.openhabActive && !userConfig.remoteDisplayActive && !userConfig.remoteSummaryDisplayActive)
+      if (userConfig.openhabActive && !userConfig.remoteDisplayActive && !userConfig.remoteDisplay_SolarMonitor && !userConfig.remoteDisplay_BatteryMonitor)
         getPowerSetDataFromOpenHab();
 
       // direct request of new powerLimit
       if (dtuGlobalData.powerLimitSet != 101 &&
           dtuGlobalData.uptodate &&
           dtuConnection.dtuConnectState == DTU_STATE_CONNECTED &&
-          !userConfig.remoteDisplayActive && !userConfig.remoteSummaryDisplayActive)
+          !userConfig.remoteDisplayActive && !userConfig.remoteDisplay_SolarMonitor && !userConfig.remoteDisplay_BatteryMonitor)
       {
         if (!(dtuGlobalData.powerLimitSet == 1 && dtuGlobalData.inverterControl.stateOn) &&
             ((dtuGlobalData.powerLimitSet != dtuGlobalData.powerLimit && dtuGlobalData.inverterControl.stateOn) ||
@@ -1682,8 +1718,9 @@ void loop()
     // dtuConnection.dtuConnectState = DTU_STATE_CONNECTED;
     // dtuGlobalData.inverterControl.stateOn = false;
 
-    // Request device info periodically
-    dtuInterface.requestDeviceInfoPeriodically();
+    // Request device info periodically (only when NOT in remote display mode)
+    if (!userConfig.remoteDisplayActive && !userConfig.remoteDisplay_SolarMonitor && !userConfig.remoteDisplay_BatteryMonitor)
+      dtuInterface.requestDeviceInfoPeriodically();
   }
 
   // mid task
@@ -1697,7 +1734,7 @@ void loop()
     // -------->
 
     // requesting data from DTU
-    if (WiFi.status() == WL_CONNECTED && !userConfig.remoteDisplayActive && !userConfig.remoteSummaryDisplayActive)
+    if (WiFi.status() == WL_CONNECTED && !userConfig.remoteDisplayActive && !userConfig.remoteDisplay_SolarMonitor && !userConfig.remoteDisplay_BatteryMonitor)
       dtuInterface.getDataUpdate();
   }
 

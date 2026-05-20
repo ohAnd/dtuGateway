@@ -1,8 +1,9 @@
-# dtuGateway for Hoymiles HMS-xxxW-2T Inverters
+# dtuGateway for Hoymiles HMS-xxxxW-2T Inverters
 
 > 🔌 A reliable ESP32-based gateway that bridges your Hoymiles solar inverter to smart home systems like Home Assistant, openHAB, and MQTT.
 
 [![GitHub Downloads](https://img.shields.io/github/downloads/ohAnd/dtuGateway/latest/total)](https://github.com/ohAnd/dtuGateway/releases/latest)
+[![Total Downloads](https://img.shields.io/github/downloads/ohAnd/dtuGateway/total?label=Total%20Downloads)](https://github.com/ohAnd/dtuGateway/releases)
 [![GitHub Release Date](https://img.shields.io/github/release-date/ohAnd/dtuGateway)](https://github.com/ohAnd/dtuGateway/releases/latest)
 [![Build Status](https://img.shields.io/github/actions/workflow/status/ohAnd/dtuGateway/main_build.yml)](https://github.com/ohAnd/dtuGateway/actions)
 
@@ -10,11 +11,21 @@
 
 | What you need | What you get |
 |---------------|--------------|
-| ESP32 board + Hoymiles HMS-xxxW-2T | Real-time solar data in your smart home |
+| ESP32 board + Hoymiles HMS-xxxxW-2T | Real-time solar data in your smart home |
 | 5 minutes setup | Power monitoring, remote control, automatic updates |
 | Any smartphone/tablet/laptop | Zero-configuration setup with universal captive portal |
 
 **Ready to start?** → [5-Minute Setup Guide](#5-minute-setup)
+
+---
+
+## ❤️ Support This Project
+
+**Love dtuGateway?** Consider supporting its development:
+
+🎉 **[→ Become a Sponsor](https://github.com/sponsors/ohAnd)** — Help keep this project active, maintained, and continuously improved!
+
+Or [contribute code](CONTRIBUTING.md) — We welcome PRs and community feedback!
 
 ---
 
@@ -45,6 +56,7 @@
 - [API Reference](#api-reference)
 - [Advanced Configuration](#advanced-configuration)
 - [Developer Information](#developer-information)
+- [📜 Changelog](CHANGELOG.md) - View project history and recent updates
 
 > **📖 New User-Friendly Documentation**  
 > This README has been restructured for easier navigation and first-time setup. Looking for the original technical documentation? Find it in [`readme_old.md`](readme_old.md).
@@ -119,13 +131,18 @@ dtuGateway provides a reliable, dedicated gateway to your Hoymiles DTU where no 
 ## Compatible Hardware
 
 ### ✅ Required
+
 - **ESP32 microcontroller**
   - ESP-WROOM-32 NodeMCU-32S *(tested, recommended)*
-  - ESP32-S3 *(untested by maintainer, but tested by community users)*
-  - ESP32-S3 16MB N16R8 *(separate build target: `esp32_S3_16MB_N16R8`, tested by community)*
-- **Hoymiles HMS-xxxW-2T** solar inverter with **built-in Wi-Fi DTU**
-  - ✅ **Supported**: HMS-800W-2T, HMS-1000W-2T, HMS-600W-2T, HMS-300W-2T
-  - ✅ **Confirmed**: All HMS inverters with 2 panel connections **and integrated Wi-Fi DTU**
+  - ESP32-S3 *(standard build: `esp32_S3`, tested by community users)*
+  - ESP32-S3 16MB N16R8 *(build target: `esp32_S3_16MB_N16R8`, tested by community)*
+  - ESP32-S3 with 1.28" round TFT *(special build target: `esp32_S3_lcd_128`, for pre-mounted round GC9A01 displays, e.g. Waveshare board)*
+    > **Most common:** [Waveshare ESP32-S3 1.28 inch IPS LCD](https://www.waveshare.com/esp32-s3-lcd-1.28-b.htm) (GC9A01 driver, 240x240). Widely available as a single board with display and supported by the `esp32_S3_lcd_128` build target.  
+    > **Buy:** [Waveshare](https://www.waveshare.com/esp32-s3-lcd-1.28-b.htm) · [Amazon (search)](https://www.amazon.com/s?k=waveshare+esp32-s3+lcd+1.28) · [Aliexpress (search)](https://www.aliexpress.com/wholesale?SearchText=esp32-s3-lcd-1.28-b)
+
+- **Hoymiles HMS-xxxxW-2T** solar inverter with **built-in Wi-Fi DTU**
+  - ✅ **Supported**: HMS-600W-2T, HMS-700W-2T, HMS-800W-2T, HMS-900W-2T, HMS-1000W-2T
+  - ✅ **Confirmed**: All HMS-600W/700W/800W/900W/1000W-2T inverters (single phase, 2 MPPT channels, Wi-Fi integrated)
   - ✅ **Accurate Detection**: Automatic model identification via serial number analysis
   - ❌ **NOT Supported**: External DTU models (DTU-Lite stick, DTU-Pro external units)
 
@@ -133,7 +150,8 @@ dtuGateway provides a reliable, dedicated gateway to your Hoymiles DTU where no 
 | Display Type | Size | Features | Wiring |
 |--------------|------|----------|---------|
 | **OLED** | 1.3" 128x64 | SSH1106, screensaver, brightness | 4 wires (VCC, GND, SCL, SDA) |
-| **Round TFT** | 1.28" 240x240 | GC9A01, night mode, backlight | 8 wires (see pinout table) |
+| **Round TFT (standard)** | 1.28" 240x240 | GC9A01, night mode, backlight | 8 wires (see standard pinout below) |
+| **Round TFT (pre-mounted/128)** | 1.28" 240x240 | GC9A01, night mode, backlight | 8 wires (see special pinout for `esp32_S3_lcd_128` below) |
 
 **Need wiring help?** → [Hardware Setup Guide](#hardware-setup)
 
@@ -150,6 +168,17 @@ dtuGateway provides a reliable, dedicated gateway to your Hoymiles DTU where no 
 - dtuGateway connects directly to the inverter, not external DTU hardware
 
 *Not sure about your setup?* Check if your inverter has its own Wi-Fi network or connects directly to your home Wi-Fi. If it does, you have a compatible integrated Wi-Fi DTU model.
+
+
+**Model naming explained:**
+> - `HM`= Hoymiles
+> - `S` = S - single phase inverter
+> - `xxx' / 'xxxx` = wattage (e.g., 800, 1000)
+> - `W` = Wi-Fi version
+> - `2` = 2 channels (for 2 PV panels)
+> - `T` = MPPT (Maximum Power Point Tracking)
+>  
+> Example: **HMS-1000W-2T** means a 1000W inverter, Wi-Fi version, 2 MPPT channels.
 
 ---
 
@@ -251,7 +280,10 @@ Your solar data is now flowing into your smart home system. The device will:
 | SCL | GPIO22 (D22) | I2C Clock |
 | SDA | GPIO21 (D21) | I2C Data |
 
+
 ### ESP32 Pinout for Round TFT Display
+
+**Standard wiring (for `esp32`, `esp32_S3`, `esp32_S3_16MB_N16R8`):**
 
 | Display Pin | ESP32 Pin | Description |
 |-------------|-----------|-------------|
@@ -264,12 +296,28 @@ Your solar data is now flowing into your smart home system. The device will:
 | RST | 3.3V | Reset (pulled high) |
 | BLK | GPIO4 (D4) | Backlight control (ESP32) / GPIO12 (ESP8266) |
 
+**Special wiring for pre-mounted round TFT (for `esp32_S3_lcd_128`):**
+
+| Display Pin | ESP32 Pin | Description |
+|-------------|-----------|-------------|
+| VCC | 3.3V | Power supply |
+| GND | GND | Ground |
+| SCL | GPIO10 | SPI Clock |
+| SDA | GPIO11 | SPI Data (MOSI) |
+| DC | GPIO8 | Data/Command |
+| CS | GPIO9 | Chip Select |
+| RST | GPIO12 | Reset |
+| BLK | GPIO40 | Backlight control |
+
+
 ### Assembly Tips
 - **OLED**: Simple 4-wire connection, plug and play
-- **TFT**: 8 wires required, but backlight control enables night mode
+- **TFT (standard)**: 8 wires required, PWM backlight control enables night mode and smooth brightness
+- **TFT (pre-mounted/128)**: Use the special wiring and `esp32_S3_lcd_128` build target for pre-mounted round TFT modules. Backlight is always ON (no brightness/PWM control).
 - **Both displays**: Factory mode alternates between OLED/TFT config on each reboot until configured
 - **No display**: Gateway works perfectly via web interface only
 - **OLED pins**: Uses default I2C pins (GPIO21/SDA, GPIO22/SCL) for ESP32
+- **esp32_S3_lcd_128**: Use only with pre-mounted round TFT hardware (see above pinout and build target). This build excludes all OLED code and optimizes memory for the TFT display.
 
 ---
 
@@ -378,34 +426,330 @@ Access expert mode at `http://<device-ip>/config`:
 - Wi-Fi signal strength indicators
 
 ### Round TFT Display (GC9A01)
+
+**Build targets:**
+- `esp32`, `esp32_S3`, `esp32_S3_16MB_N16R8`: Standard round TFT wiring (see table above)
+- `esp32_S3_lcd_128`: For pre-mounted round TFT modules (special wiring, memory config, and display code optimization)
+
+**Conditional compilation:**
+- The firmware uses conditional compilation to optimize memory and code for each display type. When building for `esp32_S3_lcd_128`, all OLED code is excluded, and the TFT code is optimized for the mounted display.
 <img src="doc/images/roundTFT.jpg" alt="Round TFT Display" width="200"/>
 
 **Features:**
 - **Gauge-style display**: Analog power meter with digital readouts
 - **Night mode**: Automatic dimming or clock-only display
-- **Backlight control**: PWM brightness adjustment
+- **Backlight control**: PWM brightness adjustment (standard builds only; pre-mounted/128 is always ON)
 - **Status rings**: Visual indicators for system status
 
 **Modes:**
 - **Normal**: Full power and energy display
 - **Night**: Clock only or dimmed display
+- **Remote Display**: Full dashboard mirror (displays all inverter data)
 - **Solar Monitor**: Multi-source power aggregation display
-- **Remote Display**: Mirror another dtuGateway's data
+- **Battery Monitor**: Battery state of charge display  
+- **Solar + Battery**: Combined power and battery display
 
-### Solar Monitor Mode
-<img src="doc/images/dtuGateway_solarMonitor_1.jpg" alt="Solar Monitor" width="200"/>
+---
 
-Special TFT mode for monitoring multiple solar sources:
-- **Aggregate display**: Combined power from multiple inverters
-- **MQTT-based**: Receives data from other dtuGateways
-- **Clean interface**: Gauge + daily yield + real-time clock
-- **Perfect for**: Main monitoring point in multi-inverter setups
+### 🔄 Operating Modes Explained
+
+dtuGateway can operate in three distinct **modes**, each with different capabilities:
+
+| Aspect | Normal Mode | Remote Display | Monitor Modes (Solar/Battery) |
+|--------|------------|-----------------|------------------------------|
+| **DTU Connection** | ✅ Direct to inverter | ✅ Receives from source | ❌ Disabled (MQTT only) |
+| **Data Source** | Local inverter | MQTT mirror of another device | MQTT subscribed topics |
+| **Web Dashboard** | ✅ Full monitoring & control | ✅ Mirrors main gateway | ❌ Shows only aggregated data |
+| **Power Limiting** | ✅ Control inverter output | ✅ Full control available | ❌ Not available |
+| **MQTT Required** | Optional | ✅ Yes (both devices) | ✅ Yes (required) |
+| **Display Types** | OLED + TFT | TFT only | TFT only |
+| **Best For** | Direct solar monitoring | Multi-location display mirror | Aggregating from multiple sources |
+
+**Mode Selection** (mutually exclusive - choose only ONE):
+- ✅ Normal mode (default) + DTU connection enabled
+- ✅ Remote display mode  
+- ✅ Solar monitor mode
+- ✅ Battery monitor mode
+- ✅ Solar + Battery combined (check both boxes)
+
+---
+
+### Solar / Battery Monitor Mode
+
+These modes allow one dtuGateway to act as a display terminal for aggregated solar and/or battery data from other dtuGateway instances or external sources via MQTT. When enabled, the device disables direct DTU connection and subscribes to specific MQTT topics to receive data. Perfect for monitoring multiple inverters or battery systems in one place.
+
+**⚠️ Important Differences:**
+- **Normal mode**: Actively monitors your inverter, can control it
+- **Monitor modes**: Passive display only, receives data via MQTT (no DTU connection)
+
+#### Solar Monitor
+<img src="doc/images/dtuGateway_solar_monitor.jpg" alt="Solar Monitor" width="170"/>
+<img src="doc/images/dtuGateway_solar_monitor_value.jpg" alt="Solar Monitor Value" width="170"/>
+
+Displays aggregated solar power and daily energy from multiple sources.
+- **Features**: Power gauge, daily yield, real-time clock with blinking colon.
+- **MQTT Topics Required** (subscribed under the configured main topic path):
+  - `<main-topic>/PV_Power_Sum/state`: Current aggregated power (e.g., total watts from all sources).
+  - `<main-topic>/PV_Energy_Sum_Day/state`: Daily aggregated energy (e.g., total kWh produced today).
+- **Display Logic**: Updates [`lastDisplayData.totalPower`](include/displayTFT.h ) and [`lastDisplayData.totalYieldDay`](include/displayTFT.h ) from received MQTT data. Resets max power daily at midnight.
+
+#### Battery Monitor
+
+<img src="doc/images/dtuGateway_bat_monitor.jpg" alt="Battery Monitor" width="170"/>
+<img src="doc/images/dtuGateway_bat_monitor_value.jpg" alt="Battery Monitor Value" width="170"/>
+
+Displays battery state of charge (SOC) and stored energy.
+- **Features**: SOC gauge, stored energy value, real-time clock.
+- **MQTT Topics Required** (subscribed under the configured main topic path):
+  - `<main-topic>/Battery_SOC/state`: Battery state of charge (e.g., percentage, 0-100).
+  - `<main-topic>/Battery_Stored_Energy/state`: Stored energy in the battery (e.g., kWh).
+- **Display Logic**: Updates [`lastDisplayData.battery_SOC`](include/displayTFT.h ) and [`lastDisplayData.battery_StoredEnergy`](include/displayTFT.h ) from received MQTT data. Limits SOC to 100% and handles invalid values.
+
+> **💡 Tip**: Ensure your MQTT data source publishes valid battery values. See [Troubleshooting Monitor Modes](#troubleshooting-monitor-modes) if display shows no data.
+
+#### Solar & Battery Monitor
+
+<img src="doc/images/dtuGateway_solar_battery_monitor.jpg" alt="Solar & Battery Monitor" width="170"/>
+
+Combines solar power monitoring with battery status for a comprehensive view.
+- **Features**: Power gauge with SOC ring overlay, daily yield, stored energy, real-time clock.
+- **MQTT Topics Required** (subscribed under the configured main topic path; all topics from Solar and Battery Monitor above):
+  - `<main-topic>/PV_Power_Sum/state`: Current aggregated power.
+  - `<main-topic>/PV_Energy_Sum_Day/state`: Daily aggregated energy.
+  - `<main-topic>/Battery_SOC/state`: Battery SOC.
+  - `<main-topic>/Battery_Stored_Energy/state`: Stored energy.
+- **Display Logic**: Merges solar and battery data into a single screen (e.g., power ring with SOC arc in [`drawGauge_SolarBatteryMonitor`](src/displayTFT.cpp )). Updates both solar and battery display data structures.
+
+**⚠️ Important**: Monitor modes **disable direct DTU connection**. Your device will act as a display-only node and stop receiving inverter data until you switch back to normal mode.
 
 **Configuration:**
-1. Enable "run as remote summary display" in DTU settings
-2. Configure MQTT broker connection
-3. Set main topic path for data sources
-4. Expects data at: `<path>/PV_Power_Sum/state` and `<path>/PV_Energy_Sum_Day/state`
+1. Go to **DTU Settings** in the web interface
+2. Find **Display modes** section
+3. Choose **exactly one** mode (mutually exclusive):
+   - **Solar monitor** — Displays aggregated solar power and daily yield
+   - **Battery monitor** — Displays battery SOC and stored energy  
+   - **Solar & Battery combined** — Both gauges on one display (check both checkboxes)
+4. Click **Save DTU** — Device will restart
+5. Configure **MQTT broker** connection in Bindings settings (same broker as data source)
+6. Set **main topic path** to match your data source (other dtuGateway instance or Home Assistant)
+7. Verify data source is publishing to required MQTT topics
+
+**MQTT Requirements:**
+- ❌ **No DTU connection** — only receives data via MQTT
+- ✅ **Requires MQTT broker** — won't work without it
+- ✅ **Requires data source** — another dtuGateway or external system publishing data
+
+**Data Flow:**
+- Data source (Device A) → publishes to MQTT broker
+- Display node (Device B) → subscribes to MQTT topics
+- Both must use same MQTT broker and topic path
+
+**Notes:**
+- Monitor modes disable DTU connection automatically
+- If both Solar and Battery Monitor are checked, the display combines elements (implementation in [`drawScreen_monitorSolarBattery`](src/displayTFT.cpp ))
+- Night mode, brightness, and orientation apply as configured for the TFT display
+- To return to normal mode: uncheck monitor checkboxes and re-enable DTU connection
+
+---
+
+## Remote Display Setup Guide
+
+### Scenario 1: Full Dashboard Mirror (Remote Display Mode)
+
+Use this when you want another dtuGateway to show the exact same dashboard as your main gateway.
+
+**Architecture:**
+```
+Inverter ←→ Main Gateway (normal mode, publishes all data)
+                  ↓ (MQTT broker)
+            Display Gateway (remote display mode, subscribes to all topics)
+```
+
+**Setup Steps:**
+
+**Device A (Main Gateway):**
+1. Configure normally with DTU connection → DTU IP address
+2. Enable MQTT and configure broker details
+3. Note the main MQTT topic (e.g., `dtu_12345678`)
+
+**Device B (Display Gateway):**
+1. Connect to WiFi (same network or accessible to same MQTT broker)
+2. Go to **DTU Settings** → **Display modes**
+3. Check **Remote display (full dashboard mirror)**
+4. Click **Save DTU** → Device restarts
+5. Go to **Bindings** settings
+6. Enable MQTT with **same broker settings** as Device A
+7. Set **main topic** to match Device A's topic
+8. Click **Save Bindings** → Device reboots
+
+**Verification:**
+- Device B's web dashboard should mirror Device A's data
+- TFT display shows all gauges and readings from Device A
+- If blank: check MQTT connection and topic names match exactly
+
+---
+
+### Scenario 2: Solar Monitor (Aggregated Solar Display)
+
+Use this when you want to display total solar power from multiple sources (e.g., multiple inverters or a home energy system).
+
+**Architecture:**
+```
+Inverter 1 } ─→ dtuGateway instances    ┐
+Inverter 2 } ─→ (publish to MQTT)      ├─→ MQTT Broker ←─ Solar Monitor Display
+Home Energy } ─→ or Home Assistant      ┘  (aggregates data)
+System
+```
+
+**Required MQTT Topics (published by data source):**
+- `<main-topic>/PV_Power_Sum/state` → Current total power in watts
+- `<main-topic>/PV_Energy_Sum_Day/state` → Daily total energy in kWh
+
+**Setup Steps:**
+
+**Step 1: Configure Data Sources**
+- Each inverter device publishes solar data to MQTT under a common topic
+- Example: If you have 2 dtuGateway instances publishing to:
+  - `inverter1/grid/power` and `inverter1/grid/daily`
+  - `inverter2/grid/power` and `inverter2/grid/daily`
+- Use Home Assistant or automation script to aggregate these into single topics:
+  - `solar_aggregate/PV_Power_Sum/state`
+  - `solar_aggregate/PV_Energy_Sum_Day/state`
+
+**Step 2: Configure Solar Monitor Device**
+1. Go to **DTU Settings** → **Display modes**
+2. Check **Solar monitor** (uncheck Remote display if was enabled)
+3. Click **Save DTU** → Device restarts
+4. Go to **Bindings** settings
+5. Enable MQTT with broker that has aggregated topics
+6. Set **main topic** to match aggregation topic (e.g., `solar_aggregate`)
+7. Click **Save Bindings** → Device reboots
+
+**Verification:**
+- TFT display shows power gauge and daily yield
+- Gauge updates every ~30 seconds
+- If blank: verify aggregated MQTT topics are being published
+
+---
+
+### Scenario 3: Battery Monitor (Aggregated Battery Display)
+
+Use this when you want to display battery state of charge from external sources (e.g., battery system, BMS, Home Assistant).
+
+**Required MQTT Topics (published by data source):**
+- `<main-topic>/Battery_SOC/state` → Battery state of charge (0-100%)
+- `<main-topic>/Battery_Stored_Energy/state` → Stored energy in kWh
+
+**Setup Steps:**
+
+**Step 1: Configure Data Source**
+- Your battery system (Powerwall, BYD, Growatt, etc.) must publish SOC and energy to MQTT
+- Or use Home Assistant to read battery state and publish to MQTT
+
+**Step 2: Configure Battery Monitor Device**
+1. Go to **DTU Settings** → **Display modes**
+2. Check **Battery monitor** (uncheck others)
+3. Click **Save DTU** → Device restarts
+4. Go to **Bindings** settings
+5. Enable MQTT with broker that has battery topics
+6. Set **main topic** to match battery data topic (e.g., `battery_system`)
+7. Click **Save Bindings** → Device reboots
+
+**Verification:**
+- TFT display shows SOC gauge and stored energy value
+- Updates when battery data changes on source
+- If blank: verify MQTT topics are being published with correct values
+
+---
+
+### Scenario 4: Combined Solar + Battery Monitor
+
+Display aggregated solar power and battery status on a single screen.
+
+**Required MQTT Topics:**
+- `<main-topic>/PV_Power_Sum/state` → Current solar power (watts)
+- `<main-topic>/PV_Energy_Sum_Day/state` → Daily solar energy (kWh)
+- `<main-topic>/Battery_SOC/state` → Battery state of charge (%)
+- `<main-topic>/Battery_Stored_Energy/state` → Stored energy (kWh)
+
+**Setup Steps:**
+
+1. Go to **DTU Settings** → **Display modes**
+2. Check **both** Solar monitor AND Battery monitor
+3. Click **Save DTU** → Device restarts
+4. Configure MQTT same as above (both solar and battery topics must be available)
+
+**Display:**
+- Power gauge with SOC ring overlay
+- Daily yield and stored energy indicators
+- Single-screen monitoring of both systems
+
+---
+
+## Troubleshooting Monitor Modes
+
+### Monitor Display Shows Blank / No Data
+
+**Possible causes:**
+
+1. **MQTT not configured or not connected**
+   - Check: **Bindings** → Is MQTT enabled?
+   - Check: Broker IP and port are correct
+   - Check: Username and password (if required)
+   - Fix: Go to Bindings, re-enter MQTT settings, click Save
+
+2. **Wrong MQTT topic path**
+   - Symptom: MQTT is connected but display stays blank
+   - Check: Main topic in **Bindings** matches your data source
+   - Example: If data publishes to `home/solar/PV_Power_Sum/state`, 
+     your topic should be `home/solar`
+   - Fix: Edit topic in Bindings settings, click Save
+
+3. **Data source not publishing MQTT topics**
+   - Check: Other dtuGateway or system is actually publishing data
+   - Test: Use MQTT client app to verify topics exist and have values
+   - Fix: Verify data source device is running and configured
+
+4. **Wrong display mode selected**
+   - Check: DTU Settings → Display modes
+   - Make sure correct mode is checked (Solar, Battery, or both)
+   - Fix: Select correct mode, click Save DTU, wait for restart
+
+### Monitor Display Not Updating
+
+**Possible causes:**
+
+1. **Data source stopped publishing**
+   - Check: Source device is still running
+   - Fix: Restart source device
+
+2. **MQTT connection lost**
+   - Check: MQTT broker still running and accessible
+   - Fix: Restart MQTT broker or reconfigure connection
+
+3. **Device in sleep/offline mode**
+   - Fix: Restart display device
+
+### Remote Display Not Syncing with Main Device
+
+**Possible causes:**
+
+1. **Different MQTT brokers**
+   - Check: Both devices connected to same broker?
+   - Fix: Configure both to use same broker IP and port
+
+2. **Different MQTT topics**
+   - Check: Main topic in Bindings matches exactly
+   - Example: `dtu_12345678` not `dtu_12345679`
+   - Fix: Verify topic names character-by-character
+
+3. **Network connectivity issue**
+   - Check: Both devices can see each other (ping test)
+   - Fix: Check WiFi network, firewall rules, MQTT broker accessibility
+
+### Device Reboots After Switching Modes
+
+**This is normal** — device restarts to reconfigure MQTT subscriptions and display rendering. Wait 30-60 seconds for device to come back online.
 
 ---
 
@@ -607,8 +951,8 @@ your-topic-prefix/
 │   └── yieldtotal              # Panel 2 total energy (kWh)
 ├── status/
 │   └── limit_relative          # Current power limit (%)
-└── dtu/
-    └── rssi                    # DTU Wi-Fi signal strength
+└── radio/
+    └── rssi                    # DTU Wi-Fi signal strength (dBm)
 ```
 
 #### Compatibility Benefits
@@ -630,7 +974,26 @@ your-topic-prefix/
 - **No discovery conflicts**: Prevents topic structure conflicts between modes
 - **Standard vs OpenDTU**: Choose one topic structure, not both simultaneously
 
-### Standard dtuGateway Topics (Default Mode)
+### MQTT Mode Selection Summary
+
+dtuGateway supports three distinct MQTT modes. Choose the one that matches your setup:
+
+| Feature | Mode 1: Standard + HA | Mode 2: OpenDTU | Mode 3: Standard Only |
+|---------|----------------------|-----------------|----------------------|
+| **Web UI Setting** | HA Auto-discovery: ✓, OpenDTU: ✗ | HA Auto-discovery: ✗, OpenDTU: ✓ | HA Auto-discovery: ✗, OpenDTU: ✗ |
+| **Topic Structure** | `dtuGateway_XXXXX/grid/power` | `prefix/0/power` | `dtuGateway_XXXXX/grid/power` |
+| **Home Assistant** | Auto-discovery enabled | Manual setup required | Manual setup required |
+| **Use Case** | Standard HA setups | OpenDTU migrations | Custom integrations |
+| **Best For** | Home Assistant users | Replacing OpenDTU | Existing custom config |
+
+**How to Switch Modes**:
+1. Go to **Web Interface** → **Settings** → **MQTT**
+2. Adjust these checkboxes:
+   - ✓ "HomeAssistant auto-discovery" = Enable HA discovery
+   - ✓ "OpenDTU topic structure" = Use OpenDTU topic format
+3. **Note**: Enabling both checkboxes automatically selects Mode 1 (HA discovery takes priority)
+4. Click **Save** - device will restart to apply new topic structure
+
 ### Standard dtuGateway Topics (Default Mode)
 
 When using the standard topic structure (default), dtuGateway publishes to:
@@ -666,12 +1029,167 @@ dtuGateway_12345678/inverter/RebootDtu/set      # Reboot DTU (send 1)
 dtuGateway_12345678/inverter/RebootDtuGw/set    # Reboot gateway (send 1)
 ```
 
+### Extended Topics (Available in All Modes)
+
+These additional topics are available in both Standard and OpenDTU modes for advanced monitoring and control:
+
+**Standard Mode Extended Topics**:
+```
+dtuGateway_12345678/
+├── dtuGW_special/
+│   ├── limit_relative_set      # Current power limit setting (%)
+│   ├── cloud_pause             # Cloud update pause status (0/1)
+│   ├── dtu_connect_state       # DTU connection state code
+│   ├── dtu_connection_online   # DTU online status (0/1)
+│   ├── inverter_control_state_on # Inverter control enabled (0/1)
+│   └── warnings_active         # Active warning count
+└── timestamp                    # Last data update (Unix timestamp)
+```
+
+**OpenDTU Mode Extended Topics**:
+```
+your-topic-prefix/
+├── dtuGW_special/
+│   ├── limit_relative_set      # Current power limit setting (%)
+│   ├── cloud_pause             # Cloud update pause status (0/1)
+│   ├── dtu_connect_state       # DTU connection state code
+│   ├── dtu_connection_online   # DTU online status (0/1)
+│   ├── inverter_control_state_on # Inverter control enabled (0/1)
+│   └── warnings_active         # Active warning count
+└── status/
+    └── last_update             # Last data update (Unix timestamp)
+```
+
+**Extended Topic Details**:
+- `limit_relative_set`: The configured power limit percentage (2-100, 101 = no limit)
+- `cloud_pause`: Whether Hoymiles cloud updates are paused (0 = active, 1 = paused)
+- `dtu_connect_state`: Internal DTU connection state (0 = searching, 1 = connected)
+- `dtu_connection_online`: Whether DTU is actively online (0 = offline, 1 = online)
+- `inverter_control_state_on`: Whether inverter control is enabled (0 = disabled, 1 = enabled)
+- `warnings_active`: Number of active warnings/faults from the inverter
+- `timestamp` / `last_update`: Unix timestamp of last successful data publication
+
 ### TLS Configuration
 For secure connections (e.g., HiveMQ Cloud):
 - **Enable TLS**: Check "Use TLS" in MQTT settings
 - **Port**: Usually 8883 for TLS
 - **Certificates**: Uses ESP32 built-in CA certificates
 - **Note**: TLS only available on ESP32 (not ESP8266)
+
+---
+
+## MQTT Topic Reference: Publish vs Subscribe
+
+**Understanding the difference is critical for setting up monitor modes correctly.**
+
+### 📤 TOPICS PUBLISHED (Sent by dtuGateway)
+
+**In Normal Mode**: dtuGateway actively connects to your inverter's DTU and publishes real-time data to the MQTT broker.
+
+**Published Topics** (dtuGateway sends these):
+- `dtuGateway_XXXXX/grid/P` → Power output from inverter (W)
+- `dtuGateway_XXXXX/grid/dailyEnergy` → Energy produced today (kWh)
+- `dtuGateway_XXXXX/inverter/Temp` → Inverter temperature (°C)
+- `dtuGateway_XXXXX/pv0/P`, `dtuGateway_XXXXX/pv1/P` → Panel powers (W)
+- ...and many more (see "Standard dtuGateway Topics" section above)
+
+**What this means**: Your home automation system (HA, openHAB, etc.) **receives** these topics and displays the data.
+
+---
+
+### 📥 TOPICS SUBSCRIBED (Received by dtuGateway)
+
+**In Monitor Mode**: dtuGateway disables DTU connection and instead **listens** for specific MQTT topics to display aggregated data.
+
+**Monitor mode expects to RECEIVE these specific topics:**
+
+#### Solar Monitor Mode Subscriptions
+- `<main-topic>/PV_Power_Sum/state` ← Must receive current solar power (watts)
+- `<main-topic>/PV_Energy_Sum_Day/state` ← Must receive daily solar energy (kWh)
+
+**Where this data comes from** (data source could be):
+- Another dtuGateway device publishing its `grid/P` values
+- Home Assistant aggregating multiple devices
+- A solar system with MQTT integration
+- Custom automation script summing multiple sources
+
+#### Battery Monitor Mode Subscriptions
+- `<main-topic>/Battery_SOC/state` ← Must receive battery state of charge (0-100%)
+- `<main-topic>/Battery_Stored_Energy/state` ← Must receive stored energy (kWh)
+
+**Where this data comes from** (data source could be):
+- External battery system with MQTT output
+- Home Assistant reading from battery BMS
+- Smart battery management system
+- Inverter with battery capabilities
+
+#### Remote Display Mode Subscriptions
+- **All topics** from the main gateway (mirrors everything)
+- Same as what the main gateway publishes
+- Both devices must connect to same MQTT broker
+
+---
+
+### 🔄 Data Flow Diagram
+
+```
+SCENARIO 1: NORMAL GATEWAY (Publishes)
+═══════════════════════════════════════
+Inverter
+   ↓ (Wi-Fi connection)
+dtuGateway (Normal Mode)
+   ↓ (Publishes MQTT topics)
+MQTT Broker
+   ↓ (Subscribes to topics)
+Home Assistant / openHAB / Dashboard
+
+
+SCENARIO 2: MONITOR MODE (Subscribes)
+══════════════════════════════════════
+Data Source(s): Inverter(s), Battery, HA, etc.
+   ↓ (Publish MQTT topics: PV_Power_Sum, Battery_SOC, etc.)
+MQTT Broker
+   ↓ (Monitor device subscribes to specific topics)
+dtuGateway (Monitor Mode)
+   ↓ (Displays aggregated data on TFT)
+Local Display (Solar/Battery gauge)
+
+
+SCENARIO 3: REMOTE DISPLAY (Subscribes to All)
+═══════════════════════════════════════════════
+Inverter
+   ↓ (Wi-Fi)
+Main dtuGateway (Normal Mode, publishes all topics)
+   ↓ (MQTT Broker)
+Display dtuGateway (Remote Display Mode, subscribes to all)
+   ↓
+Two identical dashboards / TFT displays
+```
+
+---
+
+### ⚠️ Common Mistakes
+
+**❌ Mistake #1: Wrong topic path**
+- User sets monitor mode main topic as `dtuGateway_123/grid/P`
+- But the aggregator publishes to `solar_monitor/PV_Power_Sum/state`
+- **Result**: Monitor display stays blank
+- **Fix**: Main topic should be `solar_monitor`, not `dtuGateway_123/grid/P`
+
+**❌ Mistake #2: Forgetting to configure data source**
+- User enables battery monitor mode
+- Expects data to appear automatically
+- But no system is publishing to `Battery_SOC/state` and `Battery_Stored_Energy/state`
+- **Result**: Display shows 0% SOC, 0 kWh
+- **Fix**: Set up Home Assistant or system to publish battery data first
+
+**❌ Mistake #3: Using topic before the path separator**
+- User needs aggregated power from multiple inverters
+- Publishes individual inverter data to `inverter1/grid/P`, `inverter2/grid/P`
+- Tries to subscribe to `inverter1` as monitor topic
+- But aggregated topics are at `combined_solar/PV_Power_Sum/state`
+- **Result**: Monitor doesn't find the aggregated data
+- **Fix**: Publish aggregated data to correct topics first, then monitor subscribes to aggregated path
 
 ---
 
@@ -751,7 +1269,7 @@ For secure connections (e.g., HiveMQ Cloud):
     "dtuCloudPause": 1,
     "dtuCloudPauseTime": 30,
     "dtuRemoteDisplay": 0,
-    "dtuRemoteSummaryDisplay": 0,
+    "dtuRemoteDisplay_SolarMonitor": 0,
     "deviceData": {
       "dtu_version": 4097,
       "dtu_version_string": "01.00.01",
@@ -908,6 +1426,12 @@ Post your inverter model and setup photos in [GitHub Discussions](https://github
 - **Check**: DTU signal strength in web interface
 - **Automatic**: Gateway detects weak WiFi signals (< -75 dBm) and attempts reconnection
 - **Fix**: Improve DTU Wi-Fi signal or move gateway closer
+
+**Problem**: MQTT updates only appear every 15 minutes (just before cloudPause)
+- **Cause**: Power limit was not set in the Hoymiles mobile app
+- **Solution**: Open Hoymiles app → Device settings → Set power limit to any value (e.g., 100%)
+- **Result**: After setting power limit, MQTT updates should appear every ~30 seconds with real-time data
+- **Technical Note**: Power limit initialization is used as a synchronization point for data updates
 
 **Problem**: Wrong timezone/time
 - **Fix**: Set timezone offset in advanced config
@@ -1095,24 +1619,19 @@ protectSettings 0                # Disable settings protection
 ```
 
 ### Remote Display Configuration
-Use one dtuGateway as display for another:
 
-1. **Main gateway**: Configure normally with DTU connection
-2. **Display gateway**: 
-   - Enable "run as remote summary display"
-   - Configure MQTT to same broker as main gateway
-   - Set main topic to match main gateway
-3. **Result**: Display gateway shows main gateway's data
+**For comprehensive setup guides, see** [Remote Display Setup Guide](#remote-display-setup-guide) section above.
+
+The Advanced Configuration section below provides quick reference for the API endpoints used by remote display modes.
+
+**Quick Reference** (Full guides in main section):
+- **Remote Display (full mirror)**: See [Scenario 1: Full Dashboard Mirror](#scenario-1-full-dashboard-mirror-remote-display-mode)
+- **Solar Monitor**: See [Scenario 2: Solar Monitor](#scenario-2-solar-monitor-aggregated-solar-display)
+- **Battery Monitor**: See [Scenario 3: Battery Monitor](#scenario-3-battery-monitor-aggregated-battery-display)
+- **Combined Solar+Battery**: See [Scenario 4: Combined Solar + Battery Monitor](#scenario-4-combined-solar--battery-monitor)
 
 ### Solar Monitor Setup
-Aggregate multiple solar sources on one display:
-
-1. **Enable monitor mode**: Check "run as remote summary display"
-2. **Configure MQTT**: Set broker connecting all sources
-3. **Set data path**: Configure main topic for aggregated data
-4. **Data format**: Sources publish to:
-   - `<main-topic>/PV_Power_Sum/state` (current power)
-   - `<main-topic>/PV_Energy_Sum_Day/state` (daily energy)
+See the [Solar Monitor](#solar-monitor) subsection under [Solar / Battery Monitor Mode](#solar--battery-monitor-mode) for full details on aggregating solar sources, required MQTT topics, and configuration.
 
 ### Custom MQTT Topics
 Override default topic structure:
@@ -1139,6 +1658,240 @@ Cloud Pause Time: 0-60           # Coordinate with Hoymiles cloud
 Connection Retries: 3-10         # DTU connection attempts
 Wi-Fi Power: 20.5dBm             # Reduce if interference issues
 ```
+
+---
+
+## Silent Background Gateway Operation
+
+**For users wanting to run dtuGateway as a reliable background service without displays or manual monitoring.**
+
+### Overview
+dtuGateway is designed to run continuously in the background, providing real-time solar data to your smart home system with minimal manual intervention. Once configured, it handles all DTU connection issues automatically and recovers from network interruptions.
+
+### Minimal Setup for Background Operation
+
+#### Step 1: Hardware
+- **No display required** — Works perfectly without OLED or TFT displays
+- **Just ESP32** + DTU connection (Wi-Fi)
+- **Optional**: Outdoor placement, weatherproof enclosure
+
+#### Step 2: Initial Configuration
+1. Flash firmware to ESP32
+2. Connect to setup Wi-Fi: `dtuGateway_XXXXXX`
+3. Configure:
+   - Home WiFi SSID and password
+   - DTU IP address
+   - MQTT broker IP (or openHAB IP)
+4. Device connects automatically and starts publishing data
+
+#### Step 3: Let It Run
+- Device automatically polls DTU every ~31 seconds
+- Publishes data to MQTT broker
+- Handles DTU reconnections automatically
+- No manual monitoring needed
+
+### Automatic Recovery Mechanisms
+
+**DTU Connection Loss**:
+- Automatically detects when DTU stops responding
+- Waits for DTU to come back online
+- Retries connection every 30 seconds (configurable)
+- No manual restart needed
+
+**WiFi Disconnection**:
+- Automatically reconnects to WiFi
+- Weak signal detection and recovery
+- Stays connected even with intermittent connectivity
+
+**Power Loss**:
+- Restarts automatically when power returns
+- Resumes polling and data publishing without intervention
+
+**Inverter Reboot**:
+- DTU automatically re-establishes connection
+- Gateway continues sending data within ~1 minute
+
+### Reliability Characteristics
+
+| Scenario | Behavior | Recovery Time |
+|----------|----------|---------------|
+| **DTU offline 10 min** | Stops polling, waits | <1 minute after DTU returns |
+| **WiFi drops 30 sec** | Buffers/stops MQTT | <1 minute reconnection |
+| **Inverter reboots** | Pauses polling | <2 minutes reconnection |
+| **Hoymiles cloud issues** | Uses cloud pause feature | ~30 sec retry |
+| **Power failure** | Restarts device | Full restart ~20 sec |
+
+### Configuration Recommendations
+
+#### For Maximum Reliability
+```yaml
+DTU Update Cycle: 31            # Default, proven stable
+DTU Connection Timeout: 10      # Reasonable timeout
+Cloud Pause: 30                 # Coordinate with cloud
+Retry Strategy: Aggressive      # Default settings
+WiFi Power Level: 20.5 dBm      # Full power
+```
+
+#### For Reduced Power Consumption (if on battery/solar)
+```yaml
+DTU Update Cycle: 60-120        # Polling every 1-2 minutes instead of 31s
+Display: Disable                # No display = less power
+WiFi Power Level: 10 dBm        # Lower (may reduce range slightly)
+```
+
+#### For Weak Network Conditions
+```yaml
+DTU Connection Timeout: 15-20   # Extended timeout
+DTU Retry Count: 5-10           # More aggressive retries
+Cloud Pause: 60                 # Longer coordination window
+```
+
+### Data Flow Without Web Interface
+
+```
+dtuGateway (no display, no web access needed)
+    ↓ (Polls DTU every ~31s)
+Your Hoymiles Inverter
+    ↓
+MQTT Broker
+    ↓ (Subscribed by)
+Home Assistant / openHAB / Node-RED / etc.
+    ↓
+Your automations and dashboards
+```
+
+**What you can do** (from Home Assistant/openHAB):
+- ✅ Monitor real-time power
+- ✅ Set power limits
+- ✅ Reboot DTU/inverter
+- ✅ Check system health
+- ✅ Create automations (e.g., "alert if offline")
+
+**What you can't do** (without web interface):
+- ❌ Change WiFi network (need to factory reset)
+- ❌ Adjust polling interval (need to factory reset)
+- ❌ Update firmware over-the-air (need web interface)
+
+### Monitoring Without Web Interface
+
+#### Via MQTT Status Topics
+Subscribe to these topics to monitor device health:
+
+```
+dtuGateway_XXXXX/dtuGW_special/
+  ├── dtu_connection_online     → 0=offline, 1=online
+  ├── dtu_connect_state         → Connection state code
+  ├── inverter_control_state_on → Inverter power state
+  ├── warnings_active           → Active warning count
+  └── timestamp                 → Last update time
+```
+
+**Example Home Assistant automation** (alert if offline):
+```yaml
+- alias: Solar System Offline Alert
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.dtugateway_dtu_online
+      to: "off"
+      for:
+        minutes: 5
+  action:
+    - service: notify.mobile_app_yourphone
+      data:
+        message: "Solar system offline for 5 minutes"
+```
+
+#### Via MQTT Heartbeat
+dtuGateway publishes timestamp every time DTU responds:
+- No timestamp update for >2 minutes = DTU offline
+- Use this for automations or monitoring
+
+#### Via openHAB
+If using openHAB:
+- Items automatically populate with inverter data
+- Monitor using openHAB rules and persistence
+- Create sitemaps without web interface access
+
+### Recommended Deployment
+
+#### Minimum Setup
+```
+┌─────────────────────┐
+│   ESP32 (no case)   │
+│  (no display)       │
+│  (powered 5V USB)   │
+└──────────┬──────────┘
+           │ WiFi
+      Your Home Network
+           │
+       MQTT Broker (or HA)
+```
+
+#### Recommended Setup (Robust)
+```
+┌─────────────────────────┐
+│  ESP32 in weatherproof  │
+│     enclosure           │
+│  (outdoor placement)    │
+│  (5V power supply)      │
+└──────────┬──────────────┘
+           │ WiFi (directed antenna)
+      Your Home Network (mesh or AP nearby)
+           │
+    HA/openHAB with MQTT
+           │
+    Cloud backup (HA Cloud, etc.)
+```
+
+#### Considerations
+- **Placement**: Inside (near router) or outside (weatherproof enclosure)
+- **Power**: USB power supply (usually in garage/attic)
+- **WiFi**: Should see signal >-75 dBm (device shows in logs/MQTT)
+- **MQTT Broker**: Can be on same home server as HA/openHAB
+
+### Troubleshooting Background Operation
+
+#### "Data hasn't updated in 15 minutes"
+1. Check MQTT timestamp topic hasn't changed
+2. Check DTU connection status via MQTT (`dtu_connection_online`)
+3. Check WiFi signal (MQTT topic: `inverter/WifiRSSI`)
+4. If DTU offline: restart inverter or check DTU WiFi
+5. If WiFi offline: check home network status
+
+#### "Getting 'offline' alerts constantly"
+1. Check DTU IP is correct (Device settings → DTU section)
+2. Check DTU WiFi signal (may need to move ESP32 closer)
+3. Increase DTU connection timeout (Advanced settings)
+4. Check if DTU is in power-saving mode
+
+#### "MQTT not connecting"
+1. Verify MQTT broker is running
+2. Check MQTT broker IP and port are correct
+3. Check username/password if required
+4. Verify ESP32 can reach MQTT broker (WiFi network)
+5. Check firewall rules for MQTT port
+
+#### "Device restarts frequently"
+1. Check power supply voltage (must be stable 5V)
+2. Check for WiFi disconnections (reduce WiFi power if interference)
+3. Check DTU for errors (may be crashing)
+4. Monitor serial output if accessible
+
+### Logging for Background Monitoring
+
+**Via Serial Console** (if attached):
+- Connect serial monitor at 115200 baud
+- See all connection attempts and errors
+- Useful for diagnostics
+
+**Via MQTT**:
+- All status visible in MQTT topics
+- Home Assistant shows all entities
+- Can create history/graphs for long-term monitoring
+
+**No centralized log file** (by design for low-memory ESP32):
+- Logs are ephemeral
+- Best monitoring is via MQTT status and HA history
 
 ---
 

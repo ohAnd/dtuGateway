@@ -9,6 +9,17 @@ TFT_eSPI tft = TFT_eSPI();
 
 setup_t user;
 
+// Constants for gauge angles and radii
+const int32_t GAUGE_MIN_ANGLE = 30;
+const int32_t GAUGE_MAX_ANGLE = 330;
+const int32_t POWER_MIN_ANGLE = 55;
+const int32_t POWER_MAX_ANGLE = 305;
+const uint8_t GAUGE_RADIUS = 119;
+const uint8_t GAUGE_INNER_RADIUS = 104; // r - 15 for arcs
+// Constants for SOC ring
+const int32_t SOC_START_LEFT = 50;
+const int32_t SOC_START_RIGHT = 310;
+
 DisplayTFT::DisplayTFT() {}
 
 void DisplayTFT::setup()
@@ -29,18 +40,25 @@ void DisplayTFT::setup()
     tft.setSwapBytes(true);
 
     pinMode(BACKLIIGHT_PIN, OUTPUT);
+
+#ifndef DGC9A01_MOUNTED
     brightness = userConfig.displayBrightnessDay;
     // set brightness to max - workaround for unconfigured brightness and no backlight control
     if (brightness == 0)
         brightness = 255;
     analogWrite(BACKLIIGHT_PIN, brightness);
+#else
+    digitalWrite(BACKLIIGHT_PIN, 1);
+#endif
+
     Serial.println(F("TFT display initialized"));
 }
 
-void DisplayTFT::setRemoteDisplayMode(bool remoteDisplayActive, bool remoteSummaryDisplayActive)
+void DisplayTFT::setRemoteDisplayMode(bool remoteDisplayActive, bool remoteDisplay_SolarMonitor, bool remoteDisplay_BatteryMonitor)
 {
     lastDisplayData.remoteDisplayActive = remoteDisplayActive;
-    lastDisplayData.remoteSummaryDisplayActive = remoteSummaryDisplayActive;
+    lastDisplayData.remoteDisplay_SolarMonitor = remoteDisplay_SolarMonitor;
+    lastDisplayData.remoteDisplay_BatteryMonitor = remoteDisplay_BatteryMonitor;
 }
 
 // function has to be called every 50 milliseconds
@@ -63,9 +81,12 @@ void DisplayTFT::renderScreen(String time, String version)
     // every 0.5 second
     if (displayTicks % 10 == 0)
     {
-        // drawScreen(version, time); // draw every 0.5 second
-        if (lastDisplayData.remoteSummaryDisplayActive)
-            drawScreen_RemoteSummary(version, time); // draw every 0.5 second
+        if (lastDisplayData.remoteDisplay_SolarMonitor && lastDisplayData.remoteDisplay_BatteryMonitor)
+            drawScreen_monitorSolarBattery(version, time);
+        else if (lastDisplayData.remoteDisplay_SolarMonitor)
+            drawScreen_monitorSolar(version, time);
+        else if (lastDisplayData.remoteDisplay_BatteryMonitor)
+            drawScreen_monitorBattery(version, time);
         else
             drawScreen(version, time); // draw every 0.5 second
         // Serial.println("Displaying screen");
@@ -97,8 +118,8 @@ void DisplayTFT::drawScreen(String version, String time)
     lastDisplayData.totalYieldTotal = dtuGlobalData.grid.totalEnergy;
     lastDisplayData.rssiGW = dtuGlobalData.wifi_rssi_gateway;
     lastDisplayData.rssiDTU = dtuGlobalData.dtuRssi;
-    if (dtuGlobalData.grid.power > 0)
-        lastDisplayData.totalPower = round(dtuGlobalData.grid.power);
+    if (dtuGlobalData.grid.power.getValue() > 0)
+        lastDisplayData.totalPower = round(dtuGlobalData.grid.power.getValue());
     lastDisplayData.powerLimit = dtuGlobalData.powerLimit;
 
     drawHeader(version);
@@ -106,6 +127,13 @@ void DisplayTFT::drawScreen(String version, String time)
     // main screen
     if (!isNight)
     {
+        // EXTERNAL CONTROL FIX: Detect inverter state changes (rare: Hoymile app control)
+        // Force display refresh even if DTU is temporarily offline
+        static bool lastInverterState = dtuGlobalData.inverterControl.stateOn;
+        bool inverterStateChanged = (lastInverterState != dtuGlobalData.inverterControl.stateOn);
+        if (inverterStateChanged)
+            lastInverterState = dtuGlobalData.inverterControl.stateOn;
+
         if (dtuConnection.dtuConnectState == DTU_STATE_CONNECTED)
         {
             drawMainDTUOnline();
@@ -115,6 +143,13 @@ void DisplayTFT::drawScreen(String version, String time)
         {
             drawMainDTUOnline(true);
             displayState = 0;
+        }
+        else if (inverterStateChanged)
+        {
+            // Rare case: Inverter controlled externally, show state even if DTU offline
+            drawMainDTUOnline(false);
+            displayState = 0;
+            Serial.println("DisplayTFT:\t >> external inverter state change detected");
         }
         else if (dtuConnection.dtuConnectionOnline == false)
         {
@@ -137,20 +172,18 @@ void DisplayTFT::drawScreen(String version, String time)
     }
 }
 
-void DisplayTFT::drawScreen_RemoteSummary(String version, String time)
+void DisplayTFT::drawScreen_monitorSolar(String version, String time)
 {
     // store last shown value
     lastDisplayData.totalYieldDay = dtuGlobalData.grid.dailyEnergy;
-    if (dtuGlobalData.grid.power > 0)
-        lastDisplayData.totalPower = round(dtuGlobalData.grid.power);
+    if (dtuGlobalData.grid.power.getValue() > 0)
+        lastDisplayData.totalPower = round(dtuGlobalData.grid.power.getValue());
 
     drawHeaderSummary(version);
 
-    // main screen
     if (!isNight)
     {
-
-        drawMainSummary();
+        drawText_Value_Large(120, 85, lastDisplayData.totalPower, "W");
         displayState = 0;
     }
     else
@@ -159,7 +192,77 @@ void DisplayTFT::drawScreen_RemoteSummary(String version, String time)
     }
 
     drawFooter(time);
-    drawFooterSummary(time);
+    drawGauge_SolarMonitor(time);
+
+    if (displayState != displayStateOld)
+    {
+        Serial.println("DisplayTFT:\t >> display state changed - state: " + String(displayState) + " - old state: " + String(displayStateOld));
+        displayStateOld = displayState;
+        tft.fillScreen(TFT_BLACK);
+    }
+}
+
+void DisplayTFT::drawScreen_monitorBattery(String version, String time)
+{
+    // store last shown value
+    if (dtuGlobalData.batteryStoredEnergy >= 0 || dtuGlobalData.batteryStoredEnergy == -1234)
+        lastDisplayData.battery_StoredEnergy = dtuGlobalData.batteryStoredEnergy;
+    if (dtuGlobalData.grid.dailyEnergy > 0)
+        lastDisplayData.totalYieldDay = dtuGlobalData.grid.dailyEnergy;
+    if (dtuGlobalData.batterySOC >= 0)
+        lastDisplayData.battery_SOC = dtuGlobalData.batterySOC;
+    if (lastDisplayData.battery_SOC > 100)
+        lastDisplayData.battery_SOC = 100;
+
+    drawHeaderSummary(version);
+
+    if (!isNight)
+    {
+        drawText_Value_Large(120, 85, round(lastDisplayData.battery_SOC), "%");
+        displayState = 0;
+    }
+    else
+    {
+        displayState = 4;
+    }
+
+    drawFooter(time);
+    drawGauge_BatteryMonitor(time);
+
+    if (displayState != displayStateOld)
+    {
+        Serial.println("DisplayTFT:\t >> display state changed - state: " + String(displayState) + " - old state: " + String(displayStateOld));
+        displayStateOld = displayState;
+        tft.fillScreen(TFT_BLACK);
+    }
+}
+
+void DisplayTFT::drawScreen_monitorSolarBattery(String version, String time)
+{
+    // store last shown value
+    lastDisplayData.totalYieldDay = dtuGlobalData.grid.dailyEnergy;
+    if (dtuGlobalData.grid.power.getValue() > 0)
+        lastDisplayData.totalPower = round(dtuGlobalData.grid.power.getValue());
+    if (dtuGlobalData.batteryStoredEnergy >= 0)
+        lastDisplayData.battery_StoredEnergy = dtuGlobalData.batteryStoredEnergy;
+    if (dtuGlobalData.batterySOC >= 0)
+        lastDisplayData.battery_SOC = dtuGlobalData.batterySOC;
+
+    drawHeaderSummary(version);
+
+    if (!isNight)
+    {
+        drawText_Value_Large(120, 85, lastDisplayData.totalPower, "W");
+        displayState = 0;
+    }
+    else
+    {
+        displayState = 4;
+    }
+
+    drawFooter(time);
+    if (!isNight)
+        drawGauge_SolarBatteryMonitor(time);
 
     if (displayState != displayStateOld)
     {
@@ -301,8 +404,10 @@ void DisplayTFT::drawHeader(String version)
         String headline = "dtuGateway";
         if (lastDisplayData.remoteDisplayActive)
             headline = "dtuMonitor";
-        else if (lastDisplayData.remoteSummaryDisplayActive)
+        else if (lastDisplayData.remoteDisplay_SolarMonitor && !lastDisplayData.remoteDisplay_BatteryMonitor)
             headline = "Solar Monitor";
+        else if (lastDisplayData.remoteDisplay_BatteryMonitor && !lastDisplayData.remoteDisplay_SolarMonitor)
+            headline = "Battery Monitor";
         tft.setTextColor(isNight ? TFT_MAROON : TFT_GOLD);
         tft.drawCentreString(headline, 120, 15, 1);
 
@@ -310,7 +415,7 @@ void DisplayTFT::drawHeader(String version)
         tft.drawCentreString(version, 120, 28, 1);
     }
 
-    if (!isNight && !lastDisplayData.remoteSummaryDisplayActive)
+    if (!isNight && !lastDisplayData.remoteDisplay_SolarMonitor && !lastDisplayData.remoteDisplay_BatteryMonitor)
     {
         tft.setTextColor(TFT_DARKCYAN, TFT_BLACK);
         tft.drawCentreString("gw", 52, 37, 1);
@@ -327,25 +432,28 @@ void DisplayTFT::drawHeader(String version)
 
 void DisplayTFT::drawFooter(String time)
 {
-    // remote summary display mode - draw yield day
-    if (lastDisplayData.remoteSummaryDisplayActive)
+    // monitor display modes - draw mode-specific values
+    if (lastDisplayData.remoteDisplay_SolarMonitor || lastDisplayData.remoteDisplay_BatteryMonitor)
     {
-        uint32_t textColorYieldDay = (isNight ? TFT_DARKCYAN : tft.color565(33, 150, 243)); // Define a light blue
-        // ---------- draw yield day ------------------
-        if (lastDisplayData.totalYieldDay < 0)
-            lastDisplayData.totalYieldDay = 0;
-
-        int padding = tft.textWidth("00.00", 4);
-        tft.setTextColor(textColorYieldDay, TFT_BLACK);
-        tft.setTextDatum(TC_DATUM); // centered datum
-        tft.setTextPadding(padding);
-        tft.drawCentreString(String(lastDisplayData.totalYieldDay, 2), 120, 180, 4);
-
-        padding = tft.textWidth("kWh", 1);
-        tft.setTextColor(textColorYieldDay, TFT_BLACK);
-        tft.setTextDatum(TL_DATUM); // left bottom datum
-        tft.setTextPadding(padding);
-        tft.drawString("kWh", 157, 191, 1);
+        if (lastDisplayData.remoteDisplay_SolarMonitor && lastDisplayData.remoteDisplay_BatteryMonitor)
+        {
+            // solar+battery: yield day at top with 3 decimals, battery SOC at bottom
+            drawText_Value_Small(120, 42, lastDisplayData.totalYieldDay, 3, "kWh", 201, 134, 0);
+            drawText_Value_Small(120, 180, lastDisplayData.battery_SOC, 1, "%", 0, 151, 65);
+        }
+        else if (lastDisplayData.remoteDisplay_SolarMonitor)
+        {
+            drawText_Value_Small(120, 180, lastDisplayData.totalYieldDay, 3, "kWh", 201, 134, 0);
+        }
+        else if (lastDisplayData.remoteDisplay_BatteryMonitor)
+        {
+            // special case: battery_StoredEnergy == -1234 means show yield day instead
+            float footerVal = (lastDisplayData.battery_StoredEnergy == -1234)
+                                  ? lastDisplayData.totalYieldDay
+                                  : lastDisplayData.battery_StoredEnergy;
+            uint8_t footerDec = (lastDisplayData.battery_StoredEnergy == -1234) ? 3 : 1;
+            drawText_Value_Small(120, 180, footerVal, footerDec, "kWh", 0, 151, 65);
+        }
 
         if (isNight)
         {
@@ -399,100 +507,74 @@ void DisplayTFT::drawFooter(String time)
     }
 
     // show second clock ring only if generally enabled and if it is not night or it is night and night clock is enabled
-    if ((!isNight && !userConfig.remoteSummaryDisplayActive) || (isNight && userConfig.displayNightClock))
+    if ((!isNight && !userConfig.remoteDisplay_SolarMonitor && !userConfig.remoteDisplay_BatteryMonitor) || (isNight && userConfig.displayNightClock))
     {
-        uint32_t secActiveRingColor = isNight ? TFT_MAROON : TFT_RED;
-        uint32_t secEmptyRingColor = isNight ? TFT_BLACK : TFT_SILVER;
-        // draw circular arc for current second red on a silver base circle
-        static uint8_t x = 119;
-        static uint8_t y = 119;
-        static uint8_t r = 119;
-
-        int sec = (time.substring(time.lastIndexOf(":") + 1)).toInt();
-        int secpoint = (sec * 6) + 180;
-
-        if (userConfig.displayTFTsecondsRing == false)
-            sec = 0;
-
-        // black circle
-        if (sec < 31)
-        {
-            tft.drawSmoothArc(x, y, r, r - 1, 0, 180, secEmptyRingColor, TFT_BLACK);
-            if (sec != 0)
-                tft.drawSmoothArc(x, y, r, r - 1, 180, secpoint, secActiveRingColor, TFT_BLACK);
-            if (sec != 30)
-                tft.drawSmoothArc(x, y, r, r - 1, secpoint, 360, secEmptyRingColor, TFT_BLACK);
-        }
-        else
-        {
-            tft.drawSmoothArc(x, y, r, r - 1, secpoint - 360, 180, secEmptyRingColor, TFT_BLACK);
-            tft.drawSmoothArc(x, y, r, r - 1, 180, 360, secActiveRingColor, TFT_BLACK);
-            tft.drawSmoothArc(x, y, r, r - 1, 0, secpoint - 360, secActiveRingColor, TFT_BLACK);
-        }
+        drawSecondsRing(time);
     }
 }
 
-void DisplayTFT::drawMainSummary()
+void DisplayTFT::drawText_Value_Large(uint16_t x, uint16_t y, uint16_t value, String unit)
 {
-    // main screen
-    String displayPower = "--";
-    String displayUnit = "W";
+    String displayValue = "--";
+    String displayUnit = unit;
     int padding = tft.textWidth("999", 8);
 
-    // current power
-
-    // check incoming power for a useful unit
-    if (lastDisplayData.totalPower > 9999)
+    if (value > 9999)
     {
-        displayPower = String(lastDisplayData.totalPower / 1000.0, 1);
+        displayValue = String(value / 1000.0, 1);
         padding = tft.textWidth("99.9", 8);
-        displayUnit = "kW";
+        displayUnit = unit == "W" ? "kW" : "%";
     }
-    else if (lastDisplayData.totalPower > 999)
+    else if (value > 999)
     {
-        displayPower = String(lastDisplayData.totalPower / 1000.0, 1);
+        displayValue = String(value / 1000.0, 1);
         padding = tft.textWidth(" 9.9 ", 8);
-        displayUnit = "kW";
+        displayUnit = unit == "W" ? "kW" : "%";
     }
-    else if (lastDisplayData.totalPower >= 0)
+    else if (value >= 0)
     {
-        displayPower = String(lastDisplayData.totalPower);
+        displayValue = String(value);
         padding = tft.textWidth(".999", 8);
-        displayUnit = "W";
+        displayUnit = unit == "W" ? " W " : "%";
     }
-    else if (lastDisplayData.totalPower < 0)
+    else
     {
-        displayPower = "--";
+        displayValue = "--";
         padding = tft.textWidth("99", 8);
         displayUnit = " ";
     }
 
     tft.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
-    tft.setTextDatum(TL_DATUM); // left bottom datum
-    tft.setTextPadding(tft.textWidth("WW", 2));
+    tft.setTextDatum(TL_DATUM);
+    tft.setTextPadding(tft.textWidth("%", 2));
     tft.drawCentreString(displayUnit, 185, 165, 2);
 
     tft.setTextColor(TFT_WHITE, TFT_BLACK);
-    tft.setTextDatum(TC_DATUM); // centered datum
+    tft.setTextDatum(TC_DATUM);
     tft.setTextPadding(padding);
-    tft.drawCentreString(displayPower, 120, 85, 8);
-    // }
-    // else {
-    //     tft.setTextColor(TFT_DARKCYAN, TFT_BLACK);
-    //     tft.drawCentreString("keine Sonne", 120, 100, 4);
-    // }
+    tft.drawCentreString(displayValue, x, y, 8);
 }
 
 void DisplayTFT::drawHeaderSummary(String version)
 {
-    // header
-    // show header info only if it is not night or it is night and night clock is enabled
     if (!isNight || (isNight && userConfig.displayNightClock))
     {
         tft.setTextSize(1);
-        // header - content center
+        if (lastDisplayData.remoteDisplay_SolarMonitor && lastDisplayData.remoteDisplay_BatteryMonitor)
+        {
+            // combined mode: no headline and no version - space reserved for yield display
+            return;
+        }
         String headline = "Solar Monitor";
-        tft.setTextColor(isNight ? TFT_MAROON : TFT_GOLD);
+        if (lastDisplayData.remoteDisplay_BatteryMonitor)
+        {
+            headline = "Battery Monitor";
+            tft.setTextColor(isNight ? TFT_MAROON : TFT_DARKGREEN);
+        }
+        else
+        {
+            tft.setTextColor(isNight ? TFT_MAROON : TFT_GOLD);
+        }
         tft.drawCentreString(headline, 120, 45, 1);
 
         tft.setTextColor(isNight ? TFT_MAROON : TFT_DARKCYAN);
@@ -501,64 +583,132 @@ void DisplayTFT::drawHeaderSummary(String version)
 }
 
 uint8_t last_timeSS = 0;
+int lastValueWidth_Small_y42 = 0;  // Track max width for position y=42 (top)
+int lastValueWidth_Small_y180 = 0; // Track max width for position y=180 (bottom)
 
-void DisplayTFT::drawFooterSummary(String time)
+void DisplayTFT::drawText_Value_Small(uint8_t x, uint8_t y, float value, uint8_t decimals, String unit, uint8_t colorRed, uint8_t colorGreen, uint8_t colorBlue)
 {
-    uint32_t powerRingColor = tft.color565(255, 165, 0);    // Define a dark orange color
-    uint32_t powerRingColorDark = tft.color565(64, 64, 64); // Define a very dark gray color
-    uint32_t textColorClock = TFT_DARKCYAN;
+    if (x == 0 && y == 0)
+    {
+        x = 120;
+        y = 180;
+    }
+    uint32_t textColor = isNight ? tft.color565(185, 0, 0) : tft.color565(colorRed, colorGreen, colorBlue);
+    if (value < 0)
+        value = 0;
+
+    String shownValue = String(value, (uint)decimals);
+    int currentWidth = tft.textWidth(shownValue, 4);
+
+    // Select tracker based on y position
+    int &maxWidthRef = (y == 42) ? lastValueWidth_Small_y42 : lastValueWidth_Small_y180;
+
+    // Track maximum width for this position to ensure full clearing
+    if (currentWidth > maxWidthRef)
+        maxWidthRef = currentWidth;
+
+    tft.setTextColor(textColor, TFT_BLACK);
+    tft.setTextDatum(TC_DATUM);
+    // Use textPadding to clear the full area based on max width seen at this position
+    tft.setTextPadding(maxWidthRef + 10); // Add extra padding for safety
+    tft.drawCentreString(shownValue, x, y, 4);
+    tft.setTextPadding(0); // Reset padding
+
+    // Position unit based on current value width, with fixed gap
+    int unit_x_pos = x + (currentWidth / 2) + 6;
+    tft.setTextColor(textColor, TFT_BLACK);
+    tft.setTextDatum(TL_DATUM);
+    tft.setTextPadding(0);
+    tft.drawString(unit, unit_x_pos, y + 11, 1);
+}
+
+void DisplayTFT::drawClockWithBlinkingColon(String time)
+{
+    tft.setTextSize(1);
+    tft.setTextColor(TFT_DARKCYAN, TFT_BLACK);
+    uint8_t timeSS = time.substring(time.lastIndexOf(":") + 1).toInt();
+    static bool blinkColon = true;
+    if (timeSS != last_timeSS)
+    {
+        last_timeSS = timeSS;
+        blinkColon = !blinkColon;
+    }
+    String hours = time.substring(0, 2);
+    String minutes = time.substring(3, 5);
+    String colon = blinkColon ? ":" : " ";
+    int xHours = 101, xColon = 120, xMinutes = 140, yPosition = 215;
+    tft.setTextDatum(TC_DATUM);
+    int padding = tft.textWidth("00", 4);
+    tft.setTextPadding(padding);
+    tft.drawString(hours, xHours, yPosition, 4);
+    tft.drawString(minutes, xMinutes, yPosition, 4);
+    padding = tft.textWidth(":", 4);
+    tft.setTextPadding(padding);
+    tft.drawString(colon, xColon, yPosition, 4);
+}
+
+void DisplayTFT::drawSecondsRing(String time)
+{
+    uint8_t x = GAUGE_RADIUS, y = GAUGE_RADIUS, r = GAUGE_RADIUS;
+    int sec = time.substring(time.lastIndexOf(":") + 1).toInt();
+    int secpoint = (sec * 6) + 180;
+    uint32_t secActiveRingColor = isNight ? TFT_MAROON : TFT_RED;
+    uint32_t secEmptyRingColor = isNight ? TFT_BLACK : TFT_SILVER;
+    if (userConfig.displayTFTsecondsRing == false)
+        sec = 0;
+    if (sec < 31)
+    {
+        tft.drawSmoothArc(x, y, r, r - 1, 0, 180, secEmptyRingColor, TFT_BLACK);
+        if (sec != 0)
+            tft.drawSmoothArc(x, y, r, r - 1, 180, secpoint, secActiveRingColor, TFT_BLACK);
+        if (sec != 30)
+            tft.drawSmoothArc(x, y, r, r - 1, secpoint, 360, secEmptyRingColor, TFT_BLACK);
+    }
+    else
+    {
+        tft.drawSmoothArc(x, y, r, r - 1, secpoint - 360, 180, secEmptyRingColor, TFT_BLACK);
+        tft.drawSmoothArc(x, y, r, r - 1, 180, 360, secActiveRingColor, TFT_BLACK);
+        tft.drawSmoothArc(x, y, r, r - 1, 0, secpoint - 360, secActiveRingColor, TFT_BLACK);
+    }
+}
+
+void DisplayTFT::drawGaugeRing(int32_t value, int32_t maxValue, uint32_t color, uint32_t darkColor, uint32_t edgeColor, int32_t minAngle, int32_t maxAngle)
+{
+    const uint32_t POWER_RING_COLOR = tft.color565(255, 165, 0);
+    const uint32_t POWER_RING_DARK = tft.color565(80, 53, 0);
+    const uint32_t POWER_RING_DARK_LIGHT = tft.color565(125, 83, 0);
+    (void)POWER_RING_COLOR;
+    (void)POWER_RING_DARK;
+    (void)POWER_RING_DARK_LIGHT;
+
+    int32_t angle = map(value, 0, maxValue, minAngle + 1, maxAngle);
+    angle = constrain(angle, minAngle + 1, maxAngle);
+    if (angle != maxAngle && (maxAngle - angle) > 1 && angle < (maxAngle - 2))
+    {
+        tft.drawSmoothArc(GAUGE_RADIUS, GAUGE_RADIUS, GAUGE_RADIUS - 2, GAUGE_INNER_RADIUS + 1, angle + 1, maxAngle - 1, darkColor, TFT_BLACK);
+        if (angle <= (minAngle + 1))
+            tft.drawSmoothArc(GAUGE_RADIUS, GAUGE_RADIUS, GAUGE_RADIUS, GAUGE_INNER_RADIUS, minAngle, minAngle + 1, edgeColor, TFT_BLACK);
+        tft.drawSmoothArc(GAUGE_RADIUS, GAUGE_RADIUS, GAUGE_RADIUS, GAUGE_INNER_RADIUS, maxAngle - 1, maxAngle, edgeColor, TFT_BLACK);
+        tft.drawSmoothArc(GAUGE_RADIUS, GAUGE_RADIUS, GAUGE_INNER_RADIUS - 1, GAUGE_INNER_RADIUS, angle, maxAngle, edgeColor, TFT_BLACK);
+        tft.drawSmoothArc(GAUGE_RADIUS, GAUGE_RADIUS, GAUGE_RADIUS, GAUGE_RADIUS - 1, angle, maxAngle, edgeColor, TFT_BLACK);
+    }
+    if (minAngle < angle && (angle - minAngle) > 1 && minAngle > 0)
+    {
+        tft.drawSmoothArc(GAUGE_RADIUS, GAUGE_RADIUS, GAUGE_RADIUS - 1, GAUGE_INNER_RADIUS, minAngle, angle, color, TFT_BLACK);
+    }
+}
+
+void DisplayTFT::drawGauge_SolarMonitor(String time)
+{
+    const uint32_t POWER_RING_COLOR = tft.color565(255, 165, 0);
+    const uint32_t POWER_RING_DARK = tft.color565(80, 53, 0);
+    const uint32_t POWER_RING_DARK_LIGHT = tft.color565(125, 83, 0);
 
     if (!isNight)
     {
-        // --- show a clock at the bottom of the screen with blinking colon ------------------
-        tft.setTextSize(1);
-        tft.setTextColor(textColorClock, TFT_BLACK);
-        // get seconds from time string
-        uint8_t timeSS = time.substring(time.lastIndexOf(":") + 1).toInt(); // get seconds from time string
-        static bool blinkColon = true;                                      // toggle state for blinking colon
-        if (timeSS != last_timeSS)
-        {
-            last_timeSS = timeSS;
-            blinkColon = !blinkColon; // toggle the colon state
-        }
-        // Split the time string into components
-        String hours = time.substring(0, 2);   // Extract hours (HH)
-        String minutes = time.substring(3, 5); // Extract minutes (MM)
-        String colon = blinkColon ? ":" : " "; // Toggle colon visibility
+        drawClockWithBlinkingColon(time);
 
-        // Define fixed positions for each component
-        int xHours = 101;    // X position for hours
-        int xColon = 120;    // X position for colon
-        int xMinutes = 140;  // X position for minutes
-        int yPosition = 215; // Y position for all components
-
-        // Draw each component individually
-        tft.setTextDatum(TC_DATUM); // Centered datum
-
-        int padding = tft.textWidth("00", 4);
-        tft.setTextPadding(padding);
-        // Draw hours (HH)
-        tft.drawString(hours, xHours, yPosition, 4);
-        // Draw minutes (MM)
-        tft.drawString(minutes, xMinutes, yPosition, 4);
-
-        // Draw colon (: or space)
-        padding = tft.textWidth(":", 4);
-        tft.setTextPadding(padding);
-        tft.drawString(colon, xColon, yPosition, 4);
-
-        // --- draw circular arc for current second red on a silver base circle ------------------
-        static uint8_t x = 119;
-        static uint8_t y = 119;
-        static uint8_t r = 119;
-        static uint16_t min = 30;
-        static uint16_t max = 330;
-        uint16_t wattage_length = 0;
-        uint16_t display_wattage = 0;
-        if (lastDisplayData.totalPower > 0)
-            display_wattage = lastDisplayData.totalPower;
-        else
-            display_wattage = 0;
+        uint16_t display_wattage = (lastDisplayData.totalPower > 0) ? lastDisplayData.totalPower : 0;
 
         if (display_wattage > lastDisplayData.totalPowerMax)
         {
@@ -566,48 +716,132 @@ void DisplayTFT::drawFooterSummary(String time)
             Serial.println("\nDisplayTFT:\t >>>>>>>> new max power: " + String(lastDisplayData.totalPowerMax) + "\n");
             lastDisplayData.totalPowerMaxTimestamp = platformData.currentNTPtime;
         }
-        // reset max power if it is older than 24 hours or if it is midnight
         if (lastDisplayData.totalPowerMax > 0)
         {
             bool isMidnight = (((platformData.currentNTPtime / 60) % 1440) == 0);
-            // Serial.println("DisplayTFT:\t >> current time: " + String(platformData.currentNTPtime) + " - last max power timestamp: " + String(lastDisplayData.totalPowerMaxTimestamp) + " - diff: " + String(platformData.currentNTPtime - lastDisplayData.totalPowerMaxTimestamp) + " max power: " + String(lastDisplayData.totalPowerMax) + " - is midnight: " + String(isMidnight));
-            if (isMidnight || ((platformData.currentNTPtime - lastDisplayData.totalPowerMaxTimestamp) > (3600 * 12))) // 12 hours
+            if (isMidnight || ((platformData.currentNTPtime - lastDisplayData.totalPowerMaxTimestamp) > (3600 * 12)))
             {
                 lastDisplayData.totalPowerMax = 1;
                 lastDisplayData.totalPowerMaxTimestamp = platformData.currentNTPtime;
-                Serial.println("\nDisplayTFT:\t >> reset max power to 1 - midnight: " + String(isMidnight) + " - diff: " + String(platformData.currentNTPtime - lastDisplayData.totalPowerMaxTimestamp) + "\n");
+                Serial.println("\nDisplayTFT:\t >> reset max power to 1 - midnight: " + String(isMidnight) + "\n");
             }
         }
-
         if (lastDisplayData.totalPowerMax <= 1)
             lastDisplayData.totalPowerMax = 1;
 
-        wattage_length = map(display_wattage, 0, lastDisplayData.totalPowerMax, min + 1, max);
-        if (wattage_length > max)
-            wattage_length = max;
+        drawGaugeRing(display_wattage, lastDisplayData.totalPowerMax, POWER_RING_COLOR, POWER_RING_DARK, POWER_RING_DARK_LIGHT, GAUGE_MIN_ANGLE, GAUGE_MAX_ANGLE);
+    }
+}
 
-        // Serial.println("DisplayTFT:\t >> current power: " + String(display_wattage) + " - max power: " + String(lastDisplayData.totalPowerMax) + " - wattage length: " + String(wattage_length));
-        // if (lastDisplayData.totalPowerLast != lastDisplayData.totalPower && wattage_length != max)
-        if (wattage_length != max)
+void DisplayTFT::drawGauge_BatteryMonitor(String time)
+{
+    const uint32_t SOC_RING_COLOR = tft.color565(0, 252, 105);
+    const uint32_t SOC_RING_DARK = tft.color565(0, 55, 20);
+    const uint32_t SOC_RING_DARK_LIGHT = tft.color565(0, 105, 46);
+
+    if (!isNight)
+    {
+        drawClockWithBlinkingColon(time);
+        uint16_t display_soc = (lastDisplayData.battery_SOC > 0) ? (uint16_t)lastDisplayData.battery_SOC : 0;
+        drawGaugeRing(display_soc, 100, SOC_RING_COLOR, SOC_RING_DARK, SOC_RING_DARK_LIGHT, GAUGE_MIN_ANGLE, GAUGE_MAX_ANGLE);
+    }
+}
+
+void DisplayTFT::drawGauge_SolarBatteryMonitor(String time)
+{
+    const uint32_t POWER_RING_COLOR = tft.color565(255, 165, 0);
+    const uint32_t POWER_RING_DARK = tft.color565(80, 53, 0);
+    const uint32_t POWER_RING_DARK_LIGHT = tft.color565(125, 83, 0);
+
+    uint16_t display_wattage = (lastDisplayData.totalPower > 0) ? lastDisplayData.totalPower : 0;
+
+    if (display_wattage > lastDisplayData.totalPowerMax)
+    {
+        lastDisplayData.totalPowerMax = display_wattage;
+        Serial.println("\nDisplayTFT:\t >>>>>>>> new max power: " + String(lastDisplayData.totalPowerMax) + "\n");
+        lastDisplayData.totalPowerMaxTimestamp = platformData.currentNTPtime;
+    }
+    if (lastDisplayData.totalPowerMax > 0)
+    {
+        bool isMidnight = (((platformData.currentNTPtime / 60) % 1440) == 0);
+        if (isMidnight || ((platformData.currentNTPtime - lastDisplayData.totalPowerMaxTimestamp) > (3600 * 12)))
         {
-            tft.drawSmoothArc(x, y, r, r - 15, wattage_length, max, powerRingColorDark, TFT_BLACK);
-            // tft.drawSmoothArc(x, y, r, r - 1, wattage_length, max, TFT_DARKGREY, TFT_BLACK);
+            lastDisplayData.totalPowerMax = 1;
+            lastDisplayData.totalPowerMaxTimestamp = platformData.currentNTPtime;
+            Serial.println("\nDisplayTFT:\t >> reset max power to 1 - midnight: " + String(isMidnight) + "\n");
         }
-        if (min < wattage_length)
-            tft.drawSmoothArc(x, y, r, r - 15, min, wattage_length, powerRingColor, TFT_BLACK);
-        lastDisplayData.totalPowerLast = lastDisplayData.totalPower;
+    }
+    if (lastDisplayData.totalPowerMax <= 1)
+        lastDisplayData.totalPowerMax = 1;
+
+    drawGaugeRing(display_wattage, lastDisplayData.totalPowerMax, POWER_RING_COLOR, POWER_RING_DARK, POWER_RING_DARK_LIGHT, POWER_MIN_ANGLE, POWER_MAX_ANGLE);
+
+    // battery SOC ring (two quarter-arcs at bottom: 50°→0° left side, 310°→360° right side)
+    const uint32_t SOC_COLOR = tft.color565(0, 252, 105);
+    const uint32_t SOC_DARK = tft.color565(1, 66, 25);
+    const uint32_t SOC_DARK_LIGHT = tft.color565(0, 105, 46);
+    static uint8_t soc_r_outer = GAUGE_RADIUS;
+    uint8_t soc_r_inner = soc_r_outer - 15;
+
+    uint16_t display_soc = (lastDisplayData.battery_SOC > 0) ? (uint16_t)lastDisplayData.battery_SOC : 0;
+
+    if (display_soc < 100)
+    {
+        if (display_soc <= 50)
+        {
+            uint16_t left_angle = map(display_soc, 0, 50, SOC_START_LEFT, 0);
+            if (left_angle != 0)
+            {
+                tft.drawSmoothArc(GAUGE_RADIUS, GAUGE_RADIUS, soc_r_outer - 2, soc_r_inner + 2, 0, left_angle, SOC_DARK, TFT_BLACK);
+                tft.drawSmoothArc(GAUGE_RADIUS, GAUGE_RADIUS, soc_r_inner, soc_r_inner + 1, 0, left_angle, SOC_DARK_LIGHT, TFT_BLACK);
+                tft.drawSmoothArc(GAUGE_RADIUS, GAUGE_RADIUS, soc_r_outer, soc_r_outer - 1, 0, left_angle, SOC_DARK_LIGHT, TFT_BLACK);
+            }
+            if (left_angle >= SOC_START_LEFT)
+                tft.drawSmoothArc(GAUGE_RADIUS, GAUGE_RADIUS, soc_r_outer, soc_r_inner, SOC_START_LEFT - 1, SOC_START_LEFT, SOC_DARK_LIGHT, TFT_BLACK);
+            tft.drawSmoothArc(GAUGE_RADIUS, GAUGE_RADIUS, soc_r_outer - 2, soc_r_inner + 2, SOC_START_RIGHT + 1, 360, SOC_DARK, TFT_BLACK);
+            tft.drawSmoothArc(GAUGE_RADIUS, GAUGE_RADIUS, soc_r_outer, soc_r_inner, SOC_START_RIGHT, SOC_START_RIGHT + 1, SOC_DARK_LIGHT, TFT_BLACK);
+            tft.drawSmoothArc(GAUGE_RADIUS, GAUGE_RADIUS, soc_r_inner, soc_r_inner + 1, SOC_START_RIGHT, 360, SOC_DARK_LIGHT, TFT_BLACK);
+            tft.drawSmoothArc(GAUGE_RADIUS, GAUGE_RADIUS, soc_r_outer, soc_r_outer - 1, SOC_START_RIGHT, 360, SOC_DARK_LIGHT, TFT_BLACK);
+        }
+        else
+        {
+            uint16_t right_angle = map(display_soc, 50, 100, 360, SOC_START_RIGHT);
+            if (right_angle != SOC_START_RIGHT)
+            {
+                tft.drawSmoothArc(GAUGE_RADIUS, GAUGE_RADIUS, soc_r_outer - 2, soc_r_inner + 2, SOC_START_RIGHT, right_angle, SOC_DARK, TFT_BLACK);
+                tft.drawSmoothArc(GAUGE_RADIUS, GAUGE_RADIUS, soc_r_outer, soc_r_inner, SOC_START_RIGHT, SOC_START_RIGHT + 1, SOC_DARK_LIGHT, TFT_BLACK);
+                tft.drawSmoothArc(GAUGE_RADIUS, GAUGE_RADIUS, soc_r_inner, soc_r_inner + 1, SOC_START_RIGHT, right_angle, SOC_DARK_LIGHT, TFT_BLACK);
+                tft.drawSmoothArc(GAUGE_RADIUS, GAUGE_RADIUS, soc_r_outer, soc_r_outer - 1, SOC_START_RIGHT, right_angle, SOC_DARK_LIGHT, TFT_BLACK);
+            }
+        }
+    }
+
+    if (display_soc > 0 && display_soc <= 50)
+    {
+        uint16_t left_angle = map(display_soc, 0, 50, SOC_START_LEFT, 0);
+        tft.drawSmoothArc(GAUGE_RADIUS, GAUGE_RADIUS, soc_r_outer, soc_r_inner, left_angle, SOC_START_LEFT, SOC_COLOR, TFT_BLACK);
+    }
+    else if (display_soc > 50)
+    {
+        tft.drawSmoothArc(GAUGE_RADIUS, GAUGE_RADIUS, soc_r_outer, soc_r_inner, 0, SOC_START_LEFT, SOC_COLOR, TFT_BLACK);
+        uint16_t right_angle = map(display_soc, 50, 100, 360, SOC_START_RIGHT);
+        tft.drawSmoothArc(GAUGE_RADIUS, GAUGE_RADIUS, soc_r_outer, soc_r_inner, right_angle, 360, SOC_COLOR, TFT_BLACK);
     }
 }
 
 void DisplayTFT::checkChangedValues()
 {
     valueChanged = false;
-    if (lastDisplayData.totalPower != round(dtuGlobalData.grid.power))
+    if (lastDisplayData.totalPower != round(dtuGlobalData.grid.power.getValue()))
         valueChanged = true;
 }
 
 void DisplayTFT::setBrightnessAuto()
 {
+#ifdef DGC9A01_MOUNTED
+    digitalWrite(BACKLIIGHT_PIN, 1);
+#else
+
     // do not change brightness if it is set to 0
     if (userConfig.displayBrightnessDay == 0)
         return;
@@ -630,6 +864,7 @@ void DisplayTFT::setBrightnessAuto()
         brightness = brightness + 1;
         analogWrite(BACKLIIGHT_PIN, brightness);
     }
+#endif
 }
 
 void DisplayTFT::checkNightMode()

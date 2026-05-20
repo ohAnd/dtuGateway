@@ -49,6 +49,7 @@ jobs:
             mv .pio/build/esp32/firmware.bin .pio/build/dtuGateway_ESP32_$VERSIONNUMBER.bin
             mv .pio/build/esp32_S3/firmware.bin .pio/build/dtuGateway_ESP32_S3_$VERSIONNUMBER.bin
             mv .pio/build/esp32_S3_16MB_N16R8/firmware.bin .pio/build/dtuGateway_ESP32_S3_16MB_PS_$VERSIONNUMBER.bin
+            mv .pio/build/esp32_S3_lcd_128/firmware.bin .pio/build/dtuGateway_ESP32_S3_LCD128_$VERSIONNUMBER.bin
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -58,3 +59,4 @@ jobs:
             .pio/build/dtuGateway_ESP32_${{ env.CURRENT_VERSIONNUMBER }}.bin
             .pio/build/dtuGateway_ESP32_S3_${{ env.CURRENT_VERSIONNUMBER }}.bin
             .pio/build/dtuGateway_ESP32_S3_16MB_PS_${{ env.CURRENT_VERSIONNUMBER }}.bin
+            .pio/build/dtuGateway_ESP32_S3_LCD128_${{ env.CURRENT_VERSIONNUMBER }}.bin

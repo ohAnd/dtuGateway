@@ -23,11 +23,19 @@ void DTUInterface::setup(const char *server)
     if (!client)
     {
         dtuGlobalData.currentTimestamp = 0;
+
+        // Initialize event monitoring system
+        memset(&dtuConnection.events, 0, sizeof(dtuConnection.events));
+        memset(&dtuConnection.lastEventTime, 0, sizeof(dtuConnection.lastEventTime));
+        dtuConnection.eventIndex = 0;
+        dtuConnection.healthyStateDetected = false;
+        dtuConnection.consecutiveShortConnections = 0;
+
         // Serial.println(F("DTUinterface:\t no client - setup new client"));
         client = new AsyncClient();
         if (client)
         {
-            Serial.println("DTUinterface:\t setup for DTU: '" + String(server) + "'");
+            Serial.println("DTUinterface:\t setup for DTU: '" + String(server) + "' with event monitoring");
             serverIP = server;
             client->onConnect(onConnect, this);
             client->onDisconnect(onDisconnect, this);
@@ -192,12 +200,66 @@ void DTUInterface::requestAlarms()
     }
 }
 
+void DTUInterface::requestEventHistory()
+{
+    Serial.println(F("DTUinterface:\t requestEventHistory - displaying DTU event monitoring data..."));
+
+    // Display current connection health summary
+    Serial.println("DTUinterface:\t === CONNECTION HEALTH SUMMARY ===");
+    Serial.println("DTUinterface:\t Total connections: " + String(dtuConnection.totalConnections));
+    Serial.println("DTUinterface:\t Short connections: " + String(dtuConnection.shortConnections));
+    if (dtuConnection.totalConnections > 0)
+    {
+        float failureRate = (float)dtuConnection.shortConnections / dtuConnection.totalConnections * 100;
+        Serial.println("DTUinterface:\t Failure rate: " + String(failureRate, 1) + "%");
+    }
+    Serial.println("DTUinterface:\t Longest connection: " + String(dtuConnection.longestConnection) + "ms");
+    Serial.println("DTUinterface:\t Average duration: " + String(dtuConnection.averageConnectionTime) + "ms");
+    Serial.println("DTUinterface:\t Healthy state: " + String(dtuConnection.healthyStateDetected ? "YES" : "NO"));
+
+    if (isConnected())
+    {
+        Serial.println("DTUinterface:\t Current buffer: " + String(getConnectionBufferSpace()) + " bytes");
+        Serial.println("DTUinterface:\t Current connection: " + String(getCurrentConnectionDuration()) + "ms");
+    }
+
+    Serial.println();
+    printEventHistory();
+}
+
+// Connection status methods for API access
+bool DTUInterface::isConnected()
+{
+    return client && client->connected();
+}
+
+uint16_t DTUInterface::getConnectionBufferSpace()
+{
+    if (client && client->connected())
+    {
+        return client->space();
+    }
+    return 0;
+}
+
+unsigned long DTUInterface::getCurrentConnectionDuration()
+{
+    if (isConnected() && dtuConnection.lastConnectTime > 0)
+    {
+        return millis() - dtuConnection.lastConnectTime;
+    }
+    return 0;
+}
+
 // internal control methods
 
 void DTUInterface::dtuLoop()
 {
     txrxStateObserver();
     dtuConnectionObserver();
+
+    // EVENT MONITORING: Check for DTU health recovery patterns
+    detectHealthyStateRecovery();
 
     // check if cloud pause is active to prevent cloud errors
     if (dtuConnection.preventCloudErrors)
@@ -235,7 +297,11 @@ void DTUInterface::dtuLoop()
                 dtuConnection.dtuConnectRetriesShort += 1;
                 if (dtuConnection.dtuConnectRetriesShort <= 5)
                 {
-                    Serial.println("DTUinterface:\t dtuLoop - try to connect ... short: " + String(dtuConnection.dtuConnectRetriesShort) + " - long: " + String(dtuConnection.dtuConnectRetriesLong));
+                    Serial.println("DTUinterface:\t [DIAG] Connect attempt - short: " + String(dtuConnection.dtuConnectRetriesShort) + " - long: " + String(dtuConnection.dtuConnectRetriesLong));
+                    Serial.println("DTUinterface:\t [DIAG] Time since boot: " + String(millis()) + "ms");
+                    Serial.println("DTUinterface:\t [DIAG] Free heap: " + String(ESP.getFreeHeap()) + " bytes");
+                    Serial.println("DTUinterface:\t [DIAG] WiFi RSSI: " + String(WiFi.RSSI()) + " dBm");
+
                     dtuConnection.dtuConnectState = DTU_STATE_TRY_RECONNECT;
                     connect(); // Attempt to connect
                 }
@@ -271,7 +337,7 @@ void DTUInterface::txrxStateObserver()
     else if (millis() - dtuConnection.dtuTxRxStateLastChange > 30000 && dtuConnection.dtuTxRxState != DTU_TXRX_STATE_IDLE)
     {
         // Check WiFi quality before forcing disconnect
-        if (WiFi.RSSI() < -75)
+        if (WiFi.RSSI() < -80)
         {
             Serial.println(F("DTUinterface:\t [[stateObserver]] - timeout with poor WiFi signal - attempting WiFi reconnect"));
             WiFi.reconnect();
@@ -387,12 +453,27 @@ void DTUInterface::onConnect(void *arg, AsyncClient *c)
 {
     // Connection established
     dtuConnection.dtuConnectState = DTU_STATE_CONNECTED;
-    // DTUInterface *conn = static_cast<DTUInterface *>(arg);
-    Serial.println(F("DTUinterface:\t connected to DTU"));
+
+    // Track connection timing and statistics
+    dtuConnection.lastConnectTime = millis();
+    dtuConnection.totalConnections++;
+
+    Serial.println("DTUinterface:\t connected to DTU (" + String(dtuConnection.totalConnections) +
+                   ") - Buffer: " + String(c->space()) + " bytes");
+
+    // EVENT MONITORING: Check for DTU health issues on connect
+    if (c->space() == 0)
+    {
+        DTUInterface *dtuInterface = static_cast<DTUInterface *>(arg);
+        if (dtuInterface)
+        {
+            dtuInterface->logDtuEvent(DTU_EVENT_UNEXPECTED_DISCONNECT, "DTU buffer full on connect", 0);
+        }
+    }
+
     DTUInterface *dtuInterface = static_cast<DTUInterface *>(arg);
     if (dtuInterface)
     {
-        Serial.println(F("DTUinterface:\t starting keep-alive timer..."));
         dtuInterface->keepAliveTimer.attach(10, DTUInterface::keepAliveStatic, dtuInterface);
     }
     // initiate next data update immediately (at startup or re-connect)
@@ -401,14 +482,53 @@ void DTUInterface::onConnect(void *arg, AsyncClient *c)
 
 void DTUInterface::onDisconnect(void *arg, AsyncClient *c)
 {
-    // Connection lost
-    Serial.println(F("DTUinterface:\t disconnected from DTU"));
-    dtuConnection.dtuConnectState = DTU_STATE_OFFLINE;
-    // dtuGlobalData.dtuRssi = 0;
+    // Track disconnection timing and patterns
+    dtuConnection.lastDisconnectTime = millis();
+    unsigned long connectionDuration = dtuConnection.lastConnectTime > 0 ? dtuConnection.lastDisconnectTime - dtuConnection.lastConnectTime : 0;
+
+    Serial.println("DTUinterface:\t disconnected - Duration: " + String(connectionDuration) + "ms");
+
+    // Update connection statistics
+    if (connectionDuration > 0)
+    {
+        if (connectionDuration > dtuConnection.longestConnection)
+        {
+            dtuConnection.longestConnection = connectionDuration;
+        }
+
+        // Track short connections (potential DTU issues)
+        if (connectionDuration < DTU_EVENT_SHORT_CONNECTION_MS)
+        {
+            dtuConnection.shortConnections++;
+        }
+
+        // Calculate rolling average
+        dtuConnection.averageConnectionTime =
+            (dtuConnection.averageConnectionTime * (dtuConnection.totalConnections - 1) + connectionDuration) / dtuConnection.totalConnections;
+    }
+
+    // EVENT MONITORING: Check for anomalies and log significant events
     DTUInterface *dtuInterface = static_cast<DTUInterface *>(arg);
     if (dtuInterface)
     {
-        // Serial.println(F("DTUinterface:\t stopping keep-alive timer..."));
+        dtuInterface->checkConnectionAnomalies();
+
+        // Report critical patterns
+        if (dtuConnection.totalConnections > 5)
+        {
+            float shortConnectionRate = (float)dtuConnection.shortConnections / dtuConnection.totalConnections * 100;
+            if (shortConnectionRate > 50)
+            {
+                dtuInterface->logDtuEvent(DTU_EVENT_PATTERN_ANOMALY,
+                                          ("High failure rate: " + String(shortConnectionRate, 1) + "%").c_str(), connectionDuration);
+            }
+        }
+    }
+
+    // Connection lost
+    dtuConnection.dtuConnectState = DTU_STATE_OFFLINE;
+    if (dtuInterface)
+    {
         dtuInterface->keepAliveTimer.detach();
     }
 }
@@ -501,7 +621,7 @@ void DTUInterface::onDataReceived(void *arg, AsyncClient *client, void *data, si
 void DTUInterface::printDataAsTextToSerial()
 {
     Serial.print("power limit (set): " + String(dtuGlobalData.powerLimit) + " % (" + String(dtuGlobalData.powerLimitSet) + " %) --- inverter mode: " + String(dtuGlobalData.inverterControl.stateOn ? "On" : "Off") + " --- ");
-    Serial.print("inverter temp: " + String(dtuGlobalData.inverterTemp) + " °C - serial number: " + dtuGlobalData.device_serial_number_dtu + "\n");
+    Serial.print("inverter temp: " + String(dtuGlobalData.inverterTemp.getValue()) + " °C - serial number: " + dtuGlobalData.device_serial_number_dtu + "\n");
 
     Serial.print(F(" \t |_____current____|_____voltage___|_____power_____|________daily______|_____total_____|\n"));
     // 12341234 |1234 current  |1234 voltage  |1234 power1234|12341234daily 1234|12341234total 1234|
@@ -509,23 +629,23 @@ void DTUInterface::printDataAsTextToSerial()
     // pvO 1234 |1234 123456 A |1234 123456 V |1234 123456 W |1234 12345678 kWh |1234 12345678 kWh |
     // pvI 1234 |1234 123456 A |1234 123456 V |1234 123456 W |1234 12345678 kWh |1234 12345678 kWh |
     Serial.print(F("grid\t"));
-    Serial.printf(" |\t %6.2f A", dtuGlobalData.grid.current);
-    Serial.printf(" |\t %6.2f V", dtuGlobalData.grid.voltage);
-    Serial.printf(" |\t %6.2f W", dtuGlobalData.grid.power);
+    Serial.printf(" |\t %6.2f A", dtuGlobalData.grid.current.getValue());
+    Serial.printf(" |\t %6.2f V", dtuGlobalData.grid.voltage.getValue());
+    Serial.printf(" |\t %6.2f W", dtuGlobalData.grid.power.getValue());
     Serial.printf(" |\t %8.3f kWh", dtuGlobalData.grid.dailyEnergy);
     Serial.printf(" |\t %8.3f kWh |\n", dtuGlobalData.grid.totalEnergy);
 
     Serial.print(F("pv0\t"));
-    Serial.printf(" |\t %6.2f A", dtuGlobalData.pv0.current);
-    Serial.printf(" |\t %6.2f V", dtuGlobalData.pv0.voltage);
-    Serial.printf(" |\t %6.2f W", dtuGlobalData.pv0.power);
+    Serial.printf(" |\t %6.2f A", dtuGlobalData.pv0.current.getValue());
+    Serial.printf(" |\t %6.2f V", dtuGlobalData.pv0.voltage.getValue());
+    Serial.printf(" |\t %6.2f W", dtuGlobalData.pv0.power.getValue());
     Serial.printf(" |\t %8.3f kWh", dtuGlobalData.pv0.dailyEnergy);
     Serial.printf(" |\t %8.3f kWh |\n", dtuGlobalData.pv0.totalEnergy);
 
     Serial.print(F("pv1\t"));
-    Serial.printf(" |\t %6.2f A", dtuGlobalData.pv1.current);
-    Serial.printf(" |\t %6.2f V", dtuGlobalData.pv1.voltage);
-    Serial.printf(" |\t %6.2f W", dtuGlobalData.pv1.power);
+    Serial.printf(" |\t %6.2f A", dtuGlobalData.pv1.current.getValue());
+    Serial.printf(" |\t %6.2f V", dtuGlobalData.pv1.voltage.getValue());
+    Serial.printf(" |\t %6.2f W", dtuGlobalData.pv1.power.getValue());
     Serial.printf(" |\t %8.3f kWh", dtuGlobalData.pv1.dailyEnergy);
     Serial.printf(" |\t %8.3f kWh |\n", dtuGlobalData.pv1.totalEnergy);
 }
@@ -540,23 +660,23 @@ void DTUInterface::printDataAsJsonToSerial()
     doc["dtuRssi"] = dtuGlobalData.dtuRssi;
     doc["powerLimit"] = dtuGlobalData.powerLimit;
     doc["powerLimitSet"] = dtuGlobalData.powerLimitSet;
-    doc["inverterTemp"] = dtuGlobalData.inverterTemp;
+    doc["inverterTemp"] = dtuGlobalData.inverterTemp.getValue();
 
-    doc["grid"]["current"] = dtuGlobalData.grid.current;
-    doc["grid"]["voltage"] = dtuGlobalData.grid.voltage;
-    doc["grid"]["power"] = dtuGlobalData.grid.power;
+    doc["grid"]["current"] = dtuGlobalData.grid.current.getValue();
+    doc["grid"]["voltage"] = dtuGlobalData.grid.voltage.getValue();
+    doc["grid"]["power"] = dtuGlobalData.grid.power.getValue();
     doc["grid"]["dailyEnergy"] = dtuGlobalData.grid.dailyEnergy;
     doc["grid"]["totalEnergy"] = dtuGlobalData.grid.totalEnergy;
 
-    doc["pv0"]["current"] = dtuGlobalData.pv0.current;
-    doc["pv0"]["voltage"] = dtuGlobalData.pv0.voltage;
-    doc["pv0"]["power"] = dtuGlobalData.pv0.power;
+    doc["pv0"]["current"] = dtuGlobalData.pv0.current.getValue();
+    doc["pv0"]["voltage"] = dtuGlobalData.pv0.voltage.getValue();
+    doc["pv0"]["power"] = dtuGlobalData.pv0.power.getValue();
     doc["pv0"]["dailyEnergy"] = dtuGlobalData.pv0.dailyEnergy;
     doc["pv0"]["totalEnergy"] = dtuGlobalData.pv0.totalEnergy;
 
-    doc["pv1"]["current"] = dtuGlobalData.pv1.current;
-    doc["pv1"]["voltage"] = dtuGlobalData.pv1.voltage;
-    doc["pv1"]["power"] = dtuGlobalData.pv1.power;
+    doc["pv1"]["current"] = dtuGlobalData.pv1.current.getValue();
+    doc["pv1"]["voltage"] = dtuGlobalData.pv1.voltage.getValue();
+    doc["pv1"]["power"] = dtuGlobalData.pv1.power.getValue();
     doc["pv1"]["dailyEnergy"] = dtuGlobalData.pv1.dailyEnergy;
     doc["pv1"]["totalEnergy"] = dtuGlobalData.pv1.totalEnergy;
     serializeJson(doc, Serial);
@@ -613,7 +733,7 @@ void DTUInterface::initializeCRC()
 void DTUInterface::checkingForLastDataReceived()
 {
     // check if last data received - currentTimestamp + 5 sec (to debounce async current timestamp) - lastRespTimestamp > 3 min
-    if (((dtuGlobalData.currentTimestamp + 5) - dtuGlobalData.lastRespTimestamp) > (3 * 60) && dtuGlobalData.grid.voltage > 0 && dtuConnection.dtuErrorState != DTU_ERROR_LAST_SEND) // dtuGlobalData.grid.voltage > 0 indicates dtu/ inverter was working
+    if (((dtuGlobalData.currentTimestamp + 5) - dtuGlobalData.lastRespTimestamp) > (3 * 60) && dtuGlobalData.grid.voltage.getValue() > 0 && dtuConnection.dtuErrorState != DTU_ERROR_LAST_SEND) // dtuGlobalData.grid.voltage > 0 indicates dtu/ inverter was working
     {
         resetDtuGlobalData(DTU_ERROR_LAST_SEND, DTU_STATE_OFFLINE);
         Serial.println("DTUinterface:\t checkingForLastDataReceived >>>>> TIMEOUT 5 min for DTU -> NIGHT - send zero values +++ currentTimestamp: " + String(dtuGlobalData.currentTimestamp) + " - lastRespTimestamp: " + String(dtuGlobalData.lastRespTimestamp));
@@ -622,18 +742,29 @@ void DTUInterface::checkingForLastDataReceived()
 
 void DTUInterface::resetDtuGlobalData(uint8_t errorState, uint8_t dtuState)
 {
-    dtuGlobalData.grid.power = 0;
-    dtuGlobalData.grid.current = 0;
-    dtuGlobalData.grid.voltage = 0;
+    // On timeout, trigger cache mode for all metrics: hold last good value for CACHE_TIMEOUT_MS, then zero
+    // This prevents false zeros in charts when DTU temporarily disconnects
 
-    dtuGlobalData.pv0.power = 0;
-    dtuGlobalData.pv0.current = 0;
-    dtuGlobalData.pv0.voltage = 0;
+    // Grid metrics
+    dtuGlobalData.grid.voltage.resetOnTimeout();
+    dtuGlobalData.grid.current.resetOnTimeout();
+    dtuGlobalData.grid.power.resetOnTimeout();
 
-    dtuGlobalData.pv1.power = 0;
-    dtuGlobalData.pv1.current = 0;
-    dtuGlobalData.pv1.voltage = 0;
+    // PV0 metrics
+    dtuGlobalData.pv0.voltage.resetOnTimeout();
+    dtuGlobalData.pv0.current.resetOnTimeout();
+    dtuGlobalData.pv0.power.resetOnTimeout();
 
+    // PV1 metrics
+    dtuGlobalData.pv1.voltage.resetOnTimeout();
+    dtuGlobalData.pv1.current.resetOnTimeout();
+    dtuGlobalData.pv1.power.resetOnTimeout();
+
+    // Inverter metrics (temperature and frequency now consistent with other metrics)
+    dtuGlobalData.inverterTemp.resetOnTimeout();
+    dtuGlobalData.gridFreq.resetOnTimeout();
+
+    // RSSI is not cached (immediate zero on timeout is acceptable for signal strength)
     dtuGlobalData.dtuRssi = 0;
 
     dtuConnection.dtuErrorState = errorState;
@@ -653,7 +784,7 @@ void DTUInterface::checkingDataUpdate()
 {
     // checking for hanging values on DTU side
     // fill grid voltage history
-    gridVoltHist[gridVoltCnt++] = dtuGlobalData.grid.voltage;
+    gridVoltHist[gridVoltCnt++] = dtuGlobalData.grid.voltage.getValue();
     if (gridVoltCnt > 9)
         gridVoltCnt = 0;
 
@@ -682,6 +813,7 @@ void DTUInterface::checkingDataUpdate()
     {
         dtuGlobalData.uptodate = true;
         dtuConnection.dtuErrorState = DTU_ERROR_NO_ERROR;
+        dtuGlobalData.updateReceived = true;
         // sync local time (in seconds) to DTU time, only if abbrevation about 3 seconds
         if (abs((int(dtuGlobalData.respTimestamp) - int(dtuGlobalData.currentTimestamp))) > 3)
         {
@@ -801,11 +933,11 @@ void DTUInterface::readRespRealDataNew(pb_istream_t istream)
         // Serial.printf("\ngridData temperature:\t %f C", calcValue(gridData.temperature));
         // Serial.printf("\nDTUinterface:\t readRespRealDataNew  - gridData warning_number:\t %i\n", gridData.warning_number);
 
-        dtuGlobalData.grid.current = calcValue(gridData.current, 100);
-        dtuGlobalData.grid.voltage = calcValue(gridData.voltage);
-        dtuGlobalData.grid.power = calcValue(gridData.active_power);
-        dtuGlobalData.inverterTemp = calcValue(gridData.temperature);
-        dtuGlobalData.gridFreq = calcValue(gridData.frequency, 100);
+        dtuGlobalData.grid.current.update(calcValue(gridData.current, 100));
+        dtuGlobalData.grid.voltage.update(calcValue(gridData.voltage));
+        dtuGlobalData.grid.power.update(calcValue(gridData.active_power));
+        dtuGlobalData.inverterTemp.update(calcValue(gridData.temperature));
+        dtuGlobalData.gridFreq.update(calcValue(gridData.frequency, 100));
 
         // Serial.printf("\npvData data count:\t %i\n", realdatanewreqdto.pv_data_count);
         // Serial.printf("\npvData 0 current:\t %f A", calcValue(pvData0.current, 100));
@@ -815,9 +947,9 @@ void DTUInterface::readRespRealDataNew(pb_istream_t istream)
         // Serial.printf("\npvData 0 energy_total:\t %f kWh", calcValue(pvData0.energy_total, 1000));
         // Serial.printf("\npvData 0 port_number:\t %i\n", pvData0.port_number);
 
-        dtuGlobalData.pv0.current = calcValue(pvData0.current, 100);
-        dtuGlobalData.pv0.voltage = calcValue(pvData0.voltage);
-        dtuGlobalData.pv0.power = calcValue(pvData0.power);
+        dtuGlobalData.pv0.current.update(calcValue(pvData0.current, 100));
+        dtuGlobalData.pv0.voltage.update(calcValue(pvData0.voltage));
+        dtuGlobalData.pv0.power.update(calcValue(pvData0.power));
         dtuGlobalData.pv0.dailyEnergy = calcValue(pvData0.energy_daily, 1000);
         if (pvData0.energy_total != 0)
         {
@@ -831,9 +963,9 @@ void DTUInterface::readRespRealDataNew(pb_istream_t istream)
         // Serial.printf("\npvData 1 energy_total:\t %f kWh", calcValue(pvData1.energy_total, 1000));
         // Serial.printf("\npvData 1 port_number:\t %i", pvData1.port_number);
 
-        dtuGlobalData.pv1.current = calcValue(pvData1.current, 100);
-        dtuGlobalData.pv1.voltage = calcValue(pvData1.voltage);
-        dtuGlobalData.pv1.power = calcValue(pvData1.power);
+        dtuGlobalData.pv1.current.update(calcValue(pvData1.current, 100));
+        dtuGlobalData.pv1.voltage.update(calcValue(pvData1.voltage));
+        dtuGlobalData.pv1.power.update(calcValue(pvData1.power));
         dtuGlobalData.pv1.dailyEnergy = calcValue(pvData1.energy_daily, 1000);
         if (pvData1.energy_total != 0)
         {
@@ -1220,9 +1352,9 @@ void DTUInterface::readRespGetConfig(pb_istream_t istream)
     if (!dtuGlobalData.inverterControl.stateOn)
         dtuGlobalData.powerLimit = 0;
     dtuGlobalData.dtuRssi = getconfigreqdto.wifi_rssi;
-    // no update if still init value
-    if (dtuGlobalData.powerLimit != 254)
-        dtuGlobalData.updateReceived = true;
+    // Mark update received on any successful DTU response, regardless of power limit state
+    // This ensures MQTT updates are published on every data cycle, not just when power limit is configured
+    dtuGlobalData.updateReceived = true;
 }
 
 boolean DTUInterface::writeReqCommandSetPowerlimit(uint8_t setPercent)
@@ -2059,6 +2191,7 @@ boolean DTUInterface::readRespCommandGetAlarms(pb_istream_t istream)
 
     std::map<int, std::string> warningCodeMap = {
         // General inverter alarms
+        {72, "Power grid over-frequency load reduction (FW) function enable"},
         {121, "Over temperature"},
         {124, "Shut down by remote control"},
         {125, "Grid configuration parameter error"},
@@ -2168,7 +2301,12 @@ boolean DTUInterface::cloudPauseActiveControl()
     int min = stamp.minute;
     int sec = stamp.second;
 
-    if (sec >= 40 && (min == 59 || min == 14 || min == 29 || min == 44) && !dtuConnection.dtuActiveOffToCloudUpdate)
+    // HOYMILES CLOUD SYNC COORDINATION (5-minute intervals)
+    // Hoymiles backend changed from 15min to 5min sync intervals
+    // real measurements: 15:05:02, 15:10:02, 15:15:15, 15:20:02, 15:25:02, 15:30:25 ...
+    // Cloud sync windows: every 5 minutes at :04:50, :09:50, :14:50, :19:50, :24:50, etc.
+    // Pattern: minutes ending in 4 (04, 09, 14, 19, 24, 29, 34, 39, 44, 49, 54, 59) at 50+ seconds
+    if (sec >= 50 && (min % 5 == 4) && !dtuConnection.dtuActiveOffToCloudUpdate)
     {
         Serial.printf("\n<<< dtuCloudPauseActiveControl >>> --- ");
         Serial.printf("local time: %02i.%02i. - %02i:%02i:%02i ", stamp.day, stamp.month, stamp.hour, stamp.minute, stamp.second);
@@ -2376,4 +2514,193 @@ String DTUInterface::getInverterModelFromIntSerial(int64_t serialNumber)
     }
 
     return series + "-" + String(b0, HEX) + String(b1, HEX) + "-" + type;
+}
+
+// =====================================================================================
+// EVENT MONITORING: Intelligent DTU Issue Tracking System
+// =====================================================================================
+
+void DTUInterface::logDtuEvent(uint8_t eventType, const char *description, unsigned long connectionDuration)
+{
+    // Check if we should throttle this event type (validate bounds first)
+    if (eventType >= 6)
+        return; // Protect against array overflow
+
+    unsigned long currentTime = millis();
+    if (currentTime - dtuConnection.lastEventTime[eventType] < DTU_EVENT_MIN_INTERVAL_MS)
+    {
+        return; // Skip if too soon since last similar event
+    }
+
+    // Store event in circular buffer (memory)
+    dtuEventRecord *event = &dtuConnection.events[dtuConnection.eventIndex];
+    event->eventType = eventType;
+    event->timestamp = currentTime;
+    event->connectionDuration = connectionDuration;
+    event->dtuState = dtuConnection.dtuConnectState;
+    event->bufferSpace = client && client->connected() ? client->space() : 0;
+    strncpy(event->description, description, sizeof(event->description) - 1);
+    event->description[sizeof(event->description) - 1] = '\0';
+
+    // Update circular buffer index
+    dtuConnection.eventIndex = (dtuConnection.eventIndex + 1) % DTU_EVENT_BUFFER_SIZE;
+    dtuConnection.lastEventTime[eventType] = currentTime;
+
+    // Convert event type to string for persistent storage
+    const char *eventTypeStr;
+    switch (eventType)
+    {
+    case DTU_EVENT_SHORT_CONNECT:
+        eventTypeStr = "SHORT_CONNECT";
+        break;
+    case DTU_EVENT_UNEXPECTED_DISCONNECT:
+        eventTypeStr = "UNEXPECTED_DISC";
+        break;
+    case DTU_EVENT_RECOVERY_DETECTED:
+        eventTypeStr = "RECOVERY";
+        break;
+    case DTU_EVENT_PATTERN_ANOMALY:
+        eventTypeStr = "PATTERN_ANOMALY";
+        break;
+    case DTU_EVENT_CLOUD_PAUSE_RECOVERY:
+        eventTypeStr = "CLOUD_RECOVERY";
+        break;
+    default:
+        eventTypeStr = "UNKNOWN";
+        break;
+    }
+
+    // Save to persistent storage (LittleFS)
+    configManager.saveDtuEvent(eventTypeStr, description, currentTime, connectionDuration,
+                               dtuConnection.dtuConnectState, event->bufferSpace);
+
+    // Log event to serial (only for significant events)
+    Serial.println("DTUinterface:\t [EVENT] " + String(description) + " (Type:" + String(eventType) +
+                   " Duration:" + String(connectionDuration) + "ms Buffer:" + String(event->bufferSpace) + ")");
+}
+
+void DTUInterface::checkConnectionAnomalies()
+{
+    if (dtuConnection.totalConnections < 3)
+        return; // Need some data first
+
+    unsigned long currentTime = millis();
+
+    // Check for pattern: consecutive short connections
+    if (dtuConnection.lastDisconnectTime > 0 && dtuConnection.lastConnectTime > 0)
+    {
+        unsigned long lastDuration = dtuConnection.lastDisconnectTime - dtuConnection.lastConnectTime;
+
+        if (lastDuration < DTU_EVENT_SHORT_CONNECTION_MS)
+        {
+            dtuConnection.consecutiveShortConnections++;
+
+            if (dtuConnection.consecutiveShortConnections >= 3)
+            {
+                logDtuEvent(DTU_EVENT_PATTERN_ANOMALY, "Multiple short connections - DTU degrading", lastDuration);
+                dtuConnection.consecutiveShortConnections = 0; // Reset to avoid spam
+            }
+        }
+        else
+        {
+            dtuConnection.consecutiveShortConnections = 0; // Reset on good connection
+        }
+    }
+
+    // Check for unexpected disconnects (very short connections)
+    if (dtuConnection.lastDisconnectTime > dtuConnection.lastConnectTime &&
+        dtuConnection.lastConnectTime > 0)
+    {
+        unsigned long duration = dtuConnection.lastDisconnectTime - dtuConnection.lastConnectTime;
+        if (duration < DTU_EVENT_SHORT_CONNECTION_MS)
+        {
+            logDtuEvent(DTU_EVENT_SHORT_CONNECT, "Short connection detected", duration);
+        }
+    }
+}
+
+void DTUInterface::detectHealthyStateRecovery()
+{
+    if (!client || !client->connected())
+        return;
+
+    unsigned long currentTime = millis();
+    uint16_t bufferSpace = client->space();
+
+    // Define healthy state: good buffer space and connection duration > 30 seconds
+    boolean currentlyHealthy = (bufferSpace > 1000) &&
+                               (currentTime - dtuConnection.lastConnectTime > 30000);
+
+    // Detect recovery: transition from unhealthy to healthy
+    if (currentlyHealthy && !dtuConnection.healthyStateDetected)
+    {
+        dtuConnection.healthyStateDetected = true;
+        dtuConnection.lastHealthyStateTime = currentTime;
+
+        // Check if this recovery coincides with cloud pause cycle
+        if (dtuConnection.dtuConnectState == DTU_STATE_CLOUD_PAUSE ||
+            (currentTime - dtuConnection.pauseStartTime < 60000))
+        {
+            logDtuEvent(DTU_EVENT_CLOUD_PAUSE_RECOVERY, "DTU recovered during cloud pause cycle",
+                        currentTime - dtuConnection.lastConnectTime);
+        }
+        else
+        {
+            logDtuEvent(DTU_EVENT_RECOVERY_DETECTED, "DTU healthy state recovered",
+                        currentTime - dtuConnection.lastConnectTime);
+        }
+    }
+
+    // Reset healthy flag if state degrades
+    if (!currentlyHealthy && dtuConnection.healthyStateDetected)
+    {
+        dtuConnection.healthyStateDetected = false;
+    }
+}
+
+void DTUInterface::printEventHistory()
+{
+    Serial.println(F("DTUinterface:\t === EVENT HISTORY ==="));
+
+    // Print events in chronological order (oldest first)
+    for (int i = 0; i < DTU_EVENT_BUFFER_SIZE; i++)
+    {
+        int idx = (dtuConnection.eventIndex + i) % DTU_EVENT_BUFFER_SIZE;
+        dtuEventRecord *event = &dtuConnection.events[idx];
+
+        if (event->timestamp == 0)
+            continue; // Skip empty slots
+
+        const char *eventTypeStr;
+        switch (event->eventType)
+        {
+        case DTU_EVENT_SHORT_CONNECT:
+            eventTypeStr = "SHORT_CONNECT";
+            break;
+        case DTU_EVENT_UNEXPECTED_DISCONNECT:
+            eventTypeStr = "UNEXPECTED_DISC";
+            break;
+        case DTU_EVENT_RECOVERY_DETECTED:
+            eventTypeStr = "RECOVERY";
+            break;
+        case DTU_EVENT_PATTERN_ANOMALY:
+            eventTypeStr = "PATTERN_ANOMALY";
+            break;
+        case DTU_EVENT_CLOUD_PAUSE_RECOVERY:
+            eventTypeStr = "CLOUD_RECOVERY";
+            break;
+        default:
+            eventTypeStr = "UNKNOWN";
+            break;
+        }
+
+        Serial.println("DTUinterface:\t [" + String(event->timestamp) + "] " +
+                       String(eventTypeStr) + " - " + String(event->description) +
+                       " (Duration:" + String(event->connectionDuration) + "ms Buffer:" +
+                       String(event->bufferSpace) + ")");
+    }
+
+    Serial.println("DTUinterface:\t Total connections: " + String(dtuConnection.totalConnections) +
+                   " Short: " + String(dtuConnection.shortConnections) +
+                   " Healthy state: " + (dtuConnection.healthyStateDetected ? "YES" : "NO"));
 }

@@ -2,6 +2,11 @@ buildnumber.txt
 version.json
 version.h
 
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
 .pio
 .vscode/.browse.c_cpp.db*
 .vscode/c_cpp_properties.json

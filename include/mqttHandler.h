@@ -22,13 +22,14 @@
 // MQTT_CONNECT_BAD_CREDENTIALS (4): The username/password were rejected.
 // MQTT_CONNECT_UNAUTHORIZED (5): The client was not authorized to connect.
 
-struct PowerLimitSet {
+struct PowerLimitSet
+{
     int8_t setValue = 0;
     boolean update = false;
 };
 
-
-struct RebootDevices {
+struct RebootDevices
+{
     boolean rebootMi = false;
     boolean rebootDtu = false;
     boolean rebootDtuGw = false;
@@ -36,53 +37,57 @@ struct RebootDevices {
 
 struct RemoteBaseData
 {
-  float current = 0;
-  float voltage = 0;
-  float power = -1;
-  float dailyEnergy = 0;
-  float totalEnergy = 0;
+    float current = 0;
+    float voltage = 0;
+    float power = -1;
+    float dailyEnergy = 0;
+    float totalEnergy = 0;
 };
 
 struct RemoteInverterData
 {
-  RemoteBaseData grid;
-  RemoteBaseData pv0;
-  RemoteBaseData pv1;
-  float inverterTemp = 0;
-  uint8_t powerLimit = 254;
-  uint32_t dtuRssi = 0;
-  uint32_t wifi_rssi_gateway = 0;
-  boolean cloudPause = false;
-  boolean dtuConnectionOnline = false;
-  uint8_t dtuConnectState = 0;
-  uint32_t respTimestamp = 1704063600;     // init with start time stamp > 0
-  boolean updateReceived = false;
-  boolean remoteDisplayActive = false;
-  boolean remoteSummaryDisplayActive = false;
-  boolean inverterControlStateOn = true;
-  uint8_t warningsActive = 0;
+    RemoteBaseData grid;
+    RemoteBaseData pv0;
+    RemoteBaseData pv1;
+    float inverterTemp = 0;
+    uint8_t powerLimit = 254;
+    uint32_t dtuRssi = 0;
+    uint32_t wifi_rssi_gateway = 0;
+    boolean cloudPause = false;
+    boolean dtuConnectionOnline = false;
+    uint8_t dtuConnectState = 0;
+    uint32_t respTimestamp = 1704063600; // init with start time stamp > 0
+    boolean updateReceived = false;
+    float batterySOC = -1;         // State of Charge (SOC) of the battery in %
+    float batteryStoredEnergy = 0; // Stored energy in the battery in kWh
+    boolean remoteDisplayActive = false;
+    boolean remoteDisplay_SolarMonitor = false;
+    boolean remoteDisplay_BatteryMonitor = false;
+    boolean inverterControlStateOn = true;
+    uint8_t warningsActive = 0;
 };
 
-class MQTTHandler {
+class MQTTHandler
+{
 public:
     MQTTHandler(const char *broker, int port, const char *user, const char *password, bool useTLS);
     void setup();
     void loop();
-    void publishDiscoveryMessage(const char *entity, const char *entityName, const char *unit, bool deleteMessage, const char *icon=NULL, const char *deviceClass=NULL, boolean diagnostic=false);
+    void publishDiscoveryMessage(const char *entity, const char *entityName, const char *unit, bool deleteMessage, const char *icon = NULL, const char *deviceClass = NULL, boolean diagnostic = false);
     void publishStandardData(String entity, String value);
-    
+
     // Setters for runtime configuration
-    void setBroker(const char* broker);
+    void setBroker(const char *broker);
     void setPort(int port);
-    void setUser(const char* user);
-    void setPassword(const char* password);
+    void setUser(const char *user);
+    void setPassword(const char *password);
     void setAutoDiscovery(boolean autoDiscovery);
     void setUseTLS(bool useTLS);
-    void setConfiguration(const char *broker, int port, const char *user, const char *password, bool useTLS, const char *sensorUniqueName, const char *mainTopicPath, bool autoDiscovery, const char * ipAddress);
+    void setConfiguration(const char *broker, int port, const char *user, const char *password, bool useTLS, const char *sensorUniqueName, const char *mainTopicPath, bool autoDiscovery, const char *ipAddress);
     void setMainTopic(String mainTopicPath);
-    void setTopicStructure(bool openDtuStructure=false);
+    void setTopicStructure(bool openDtuStructure = false);
 
-    void setRemoteDisplayData(boolean remoteDisplayActive, boolean remoteSummaryDisplayActive);
+    void setRemoteDisplayData(boolean remoteDisplayActive, boolean remoteDisplay_SolarMonitor, boolean remoteDisplay_BatteryMonitor);
 
     void requestMQTTconnectionReset(boolean autoDiscoveryRemoveRequested);
 
@@ -90,30 +95,30 @@ public:
     RemoteInverterData getRemoteInverterData();
     RebootDevices getRebootDevices();
 
-    void stopConnection(boolean full=false);
+    void stopConnection(boolean full = false);
 
     static void subscribedMessageArrived(char *topic, byte *payload, unsigned int length);
 
     boolean setupDone = false;
 
 private:
-    const char* mqtt_broker;
+    const char *mqtt_broker;
     int mqtt_port;
-    const char* mqtt_user;
-    const char* mqtt_password;
+    const char *mqtt_user;
+    const char *mqtt_password;
     bool useTLS;
-    const char* deviceGroupName;
-    const char* espURL;
+    const char *deviceGroupName;
+    const char *espURL;
     String mqttMainTopicPath;
     String gw_ipAddress;
     bool useOpenDTUStructure = false;
-        
+
     WiFiClient wifiClient;
     WiFiClientSecure wifiClientSecure;
     PubSubClient client;
-    
-    static MQTTHandler* instance;
-   
+
+    static MQTTHandler *instance;
+
     boolean autoDiscoveryActive;
     boolean autoDiscoveryActiveRemove;
     boolean requestMQTTconnectionResetFlag;
@@ -122,10 +127,10 @@ private:
     PowerLimitSet lastPowerLimitSet;
     RemoteInverterData lastRemoteInverterData;
     RebootDevices rebootDevices;
-    
+
     void reconnect();
-    boolean initiateDiscoveryMessages(bool autoDiscoveryRemove=false);
-    String mapTopic(const String& baseTopic); // Mapping function
+    boolean initiateDiscoveryMessages(bool autoDiscoveryRemove = false);
+    String mapTopic(const String &baseTopic); // Mapping function
 };
 
 extern MQTTHandler mqttHandler;

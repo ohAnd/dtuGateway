@@ -164,17 +164,29 @@ void MQTTHandler::subscribedMessageArrived(char *topic, byte *payload, unsigned 
                 }
                 instance->lastRemoteInverterData.updateReceived = true;
             }
-            // summery display data
-            else if (String(topic) == instance->mqttMainTopicPath + "/PV_Power_Sum/state" && instance->lastRemoteInverterData.remoteSummaryDisplayActive)
+            // monitor display data (solar and/or battery)
+            else if (String(topic) == instance->mqttMainTopicPath + "/PV_Power_Sum/state" && (instance->lastRemoteInverterData.remoteDisplay_SolarMonitor || instance->lastRemoteInverterData.remoteDisplay_BatteryMonitor))
             {
                 instance->lastRemoteInverterData.grid.power = incommingMessage.toFloat();
                 // Serial.println("MQTT: received message for Summary Power: " + String(instance->lastRemoteInverterData.grid.power));
                 instance->lastRemoteInverterData.updateReceived = true;
             }
-            else if (String(topic) == instance->mqttMainTopicPath + "/PV_Energy_Sum_Day/state" && instance->lastRemoteInverterData.remoteSummaryDisplayActive)
+            else if (String(topic) == instance->mqttMainTopicPath + "/PV_Energy_Sum_Day/state" && (instance->lastRemoteInverterData.remoteDisplay_SolarMonitor || instance->lastRemoteInverterData.remoteDisplay_BatteryMonitor))
             {
                 instance->lastRemoteInverterData.grid.dailyEnergy = incommingMessage.toFloat();
                 // Serial.println("MQTT: received message for Summary day energy: " + String(instance->lastRemoteInverterData.grid.dailyEnergy));
+                instance->lastRemoteInverterData.updateReceived = true;
+            }
+            else if (String(topic) == instance->mqttMainTopicPath + "/Battery_SOC/state" && (instance->lastRemoteInverterData.remoteDisplay_SolarMonitor || instance->lastRemoteInverterData.remoteDisplay_BatteryMonitor))
+            {
+                instance->lastRemoteInverterData.batterySOC = incommingMessage.toFloat();
+                // Serial.println("MQTT: received message for Summary battery SOC: " + String(instance->lastRemoteInverterData.batterySOC));
+                instance->lastRemoteInverterData.updateReceived = true;
+            }
+            else if (String(topic) == instance->mqttMainTopicPath + "/Battery_Stored_Energy/state" && (instance->lastRemoteInverterData.remoteDisplay_SolarMonitor || instance->lastRemoteInverterData.remoteDisplay_BatteryMonitor))
+            {
+                instance->lastRemoteInverterData.batteryStoredEnergy = incommingMessage.toFloat();
+                // Serial.println("MQTT: received message for Summary battery stored energy: " + String(instance->lastRemoteInverterData.batteryStoredEnergy));
                 instance->lastRemoteInverterData.updateReceived = true;
             }
             else
@@ -496,12 +508,16 @@ void MQTTHandler::reconnect()
         if (client.connect(deviceGroupName, mqtt_user, mqtt_password))
         {
             Serial.println("\nMQTT:\t\t Attempting connection is now connected");
-            if (lastRemoteInverterData.remoteSummaryDisplayActive)
+            if (lastRemoteInverterData.remoteDisplay_SolarMonitor || lastRemoteInverterData.remoteDisplay_BatteryMonitor)
             {
                 client.subscribe((mqttMainTopicPath + "/PV_Power_Sum/state").c_str());
                 Serial.println("MQTT:\t\t subscribe to: " + (mqttMainTopicPath + "/PV_Power_Sum/state"));
                 client.subscribe((mqttMainTopicPath + "/PV_Energy_Sum_Day/state").c_str());
                 Serial.println("MQTT:\t\t subscribe to: " + (mqttMainTopicPath + "/PV_Energy_Sum_Day/state"));
+                client.subscribe((mqttMainTopicPath + "/Battery_SOC/state").c_str());
+                Serial.println("MQTT:\t\t subscribe to: " + (mqttMainTopicPath + "/Battery_SOC/state"));
+                client.subscribe((mqttMainTopicPath + "/Battery_Stored_Energy/state").c_str());
+                Serial.println("MQTT:\t\t subscribe to: " + (mqttMainTopicPath + "/Battery_Stored_Energy/state"));
             }
             else if (lastRemoteInverterData.remoteDisplayActive)
             {
@@ -678,13 +694,15 @@ void MQTTHandler::setTopicStructure(bool openDtuStructure)
     }
 }
 
-void MQTTHandler::setRemoteDisplayData(boolean remoteDisplayActive, boolean remoteSummaryDisplayActive)
+void MQTTHandler::setRemoteDisplayData(boolean remoteDisplayActive, boolean remoteDisplay_SolarMonitor, boolean remoteDisplay_BatteryMonitor)
 {
     Serial.println("MQTT:\t\t ... set remote display data to: " + String(remoteDisplayActive));
-    Serial.println("MQTT:\t\t ... set summary remote display data to: " + String(remoteSummaryDisplayActive));
+    Serial.println("MQTT:\t\t ... set solar monitor remote display data to: " + String(remoteDisplay_SolarMonitor));
+    Serial.println("MQTT:\t\t ... set battery monitor remote display data to: " + String(remoteDisplay_BatteryMonitor));
     stopConnection();
     instance->lastRemoteInverterData.remoteDisplayActive = remoteDisplayActive;
-    instance->lastRemoteInverterData.remoteSummaryDisplayActive = remoteSummaryDisplayActive;
+    instance->lastRemoteInverterData.remoteDisplay_SolarMonitor = remoteDisplay_SolarMonitor;
+    instance->lastRemoteInverterData.remoteDisplay_BatteryMonitor = remoteDisplay_BatteryMonitor;
 }
 
 // Setter method to combine all settings

@@ -15,6 +15,54 @@ DTUwebserver::~DTUwebserver()
     webServerTimer.detach(); // Stop the timer
 }
 
+String DTUwebserver::escapeJsonString(const String &input)
+{
+    String output;
+    output.reserve(input.length() + 16); // Reserve extra space for escape characters
+
+    for (unsigned int i = 0; i < input.length(); i++)
+    {
+        char c = input[i];
+        switch (c)
+        {
+        case '"':
+            output += "\\\"";
+            break; // Escape double quotes
+        case '\\':
+            output += "\\\\";
+            break; // Escape backslashes
+        case '\b':
+            output += "\\b";
+            break; // Escape backspace
+        case '\f':
+            output += "\\f";
+            break; // Escape form feed
+        case '\n':
+            output += "\\n";
+            break; // Escape newline
+        case '\r':
+            output += "\\r";
+            break; // Escape carriage return
+        case '\t':
+            output += "\\t";
+            break; // Escape tab
+        default:
+            if (c < 32)
+            {
+                // Control characters: escape as \uXXXX
+                char buf[7];
+                snprintf(buf, sizeof(buf), "\\u%04x", c);
+                output += buf;
+            }
+            else
+            {
+                output += c;
+            }
+        }
+    }
+    return output;
+}
+
 void DTUwebserver::backgroundTask(DTUwebserver *instance)
 {
     if (platformData.rebootRequested)
@@ -44,18 +92,26 @@ void DTUwebserver::start()
     // Set up static file serving - serve directly from PROGMEM with caching
     // Note: Using deprecated beginResponse_P because newer beginResponse() doesn't serve PROGMEM files correctly
     // This is a known limitation of ESPAsyncWebServer library - warnings can be ignored until library is fixed
-    asyncDtuWebServer.on("/jquery.min.js", HTTP_GET, [](AsyncWebServerRequest *request)
+
+    // ── Alpine.js v3 dashboard ────────
+    asyncDtuWebServer.on("/app.js", HTTP_GET, [](AsyncWebServerRequest *request)
                          {
-        AsyncWebServerResponse *response = request->beginResponse_P(200, "application/javascript", jquery_min_js);
-        response->addHeader("Cache-Control", "public, max-age=31536000"); // Cache for 1 year
-        response->addHeader("ETag", "\"jquery-3.6.0\"");
+        AsyncWebServerResponse *response = request->beginResponse_P(200, "application/javascript", app_js);
+        response->addHeader("Cache-Control", "public, max-age=86400");
+        response->addHeader("ETag", "\"app-v1\"");
         request->send(response); });
 
+    asyncDtuWebServer.on("/vendor.js", HTTP_GET, [](AsyncWebServerRequest *request)
+                         {
+        AsyncWebServerResponse *response = request->beginResponse_P(200, "application/javascript", vendor_js);
+        response->addHeader("Cache-Control", "public, max-age=31536000");
+        response->addHeader("ETag", "\"vendor-v1\"");
+        request->send(response); });
     asyncDtuWebServer.on("/style.css", HTTP_GET, [](AsyncWebServerRequest *request)
                          {
         AsyncWebServerResponse *response = request->beginResponse_P(200, "text/css", style_css);
         response->addHeader("Cache-Control", "public, max-age=86400"); // Cache for 1 day
-        response->addHeader("ETag", "\"style-v1\"");
+        response->addHeader("ETag", "\"style-v2\"");
         request->send(response); });
 
     // index.html is handled by / which redirects to /index.html
@@ -89,15 +145,29 @@ void DTUwebserver::start()
     asyncDtuWebServer.on("/api/data.json", handleDataJson);
     asyncDtuWebServer.on("/api/info.json", handleInfojson);
     asyncDtuWebServer.on("/api/dtuData.json", handleDtuInfoJson);
+    asyncDtuWebServer.on("/api/dtuEvents.json", handleDtuEventsJson);
+    asyncDtuWebServer.on("/api/dtuEventsClear", handleDtuEventsClear);
 
     // OTA direct update
     asyncDtuWebServer.on("/updateOTASettings", handleUpdateOTASettings);
     asyncDtuWebServer.on("/updateGetInfo", handleUpdateInfoRequest);
 
     // OTA update
-    asyncDtuWebServer.on("/doupdate", HTTP_POST, [](AsyncWebServerRequest *request) {}, [](AsyncWebServerRequest *request, const String &filename, size_t index, uint8_t *data, size_t len, bool final)
+    asyncDtuWebServer.on("/doupdate", HTTP_POST, [](AsyncWebServerRequest *request)
+                         {
+        // Send acknowledgment - actual upload happens in the onData callback
+        request->send(200, "application/json", "{\"status\":\"uploading\"}"); }, [](AsyncWebServerRequest *request, const String &filename, size_t index, uint8_t *data, size_t len, bool final)
                          { handleDoUpdate(request, filename, index, data, len, final); });
     asyncDtuWebServer.on("/updateState", HTTP_GET, handleUpdateProgress);
+
+    // Debug endpoint - check if API is working
+    asyncDtuWebServer.on("/api/debug/updateState", HTTP_GET, [](AsyncWebServerRequest *request)
+                         {
+        String JSON = "{\"updateRunning\":" + String(updateInfo.updateRunning ? 1 : 0) + ",";
+        JSON += "\"updateState\":" + String(updateInfo.updateState) + ",";
+        JSON += "\"updateProgress\":" + String(updateInfo.updateProgress);
+        JSON += ",\"timestamp\":" + String(millis()) + "}";
+        request->send(200, "application/json", JSON); });
 
     // Captive Portal Detection Endpoints
     // Android captive portal detection - redirect to captive portal
@@ -184,6 +254,7 @@ void DTUwebserver::start()
 #ifdef ESP32
     Update.onProgress(printProgress);
 #endif
+    updateInfo.updateState = UPDATE_STATE_IDLE; // Initialize update state
 }
 
 void DTUwebserver::stop()
@@ -199,13 +270,18 @@ void DTUwebserver::handleDoUpdate(AsyncWebServerRequest *request, const String &
     {
         updateInfo.updateRunning = true;
         updateInfo.updateState = UPDATE_STATE_PREPARE;
-        Serial.println("OTA UPDATE:\t Update Start with file: " + filename);
-        Serial.println("OTA UPDATE:\t waiting to stop services");
+        updateInfo.updateProgress = 0;
+        Serial.println("OTA UPDATE:\t ====== UPDATE START ======");
+        Serial.println("OTA UPDATE:\t Filename: " + filename);
+        Serial.println("OTA UPDATE:\t File size: " + String(request->contentLength()) + " bytes");
+        Serial.println("OTA UPDATE:\t Stopping services...");
         delay(500);
-        Serial.println("OTA UPDATE:\t services stopped - start update");
+        Serial.println("OTA UPDATE:\t Services stopped - beginning update");
         content_len = request->contentLength();
+        Serial.println("OTA UPDATE:\t Content length set to: " + String(content_len) + " bytes");
         // if filename includes spiffs, update the spiffs partition
         int cmd = (filename.indexOf("spiffs") > -1) ? U_PART : U_FLASH;
+        Serial.println("OTA UPDATE:\t Update type: " + String(cmd == U_PART ? "SPIFFS" : "FLASH"));
 #ifdef ESP8266
         Update.runAsync(true);
         if (!Update.begin(content_len, cmd))
@@ -214,13 +290,20 @@ void DTUwebserver::handleDoUpdate(AsyncWebServerRequest *request, const String &
         if (!Update.begin(UPDATE_SIZE_UNKNOWN, cmd))
         {
 #endif
+            Serial.println("OTA UPDATE:\t ERROR - Failed to begin update!");
             Update.printError(Serial);
             updateInfo.updateState = UPDATE_STATE_FAILED;
+        }
+        else
+        {
+            updateInfo.updateState = UPDATE_STATE_INSTALLING;
+            Serial.println("OTA UPDATE:\t Update.begin() successful");
         }
     }
 
     if (Update.write(data, len) != len)
     {
+        Serial.println("OTA UPDATE:\t ERROR - Write failed!");
         Update.printError(Serial);
         updateInfo.updateState = UPDATE_STATE_FAILED;
 #ifdef ESP8266
@@ -228,24 +311,29 @@ void DTUwebserver::handleDoUpdate(AsyncWebServerRequest *request, const String &
     else
     {
         updateInfo.updateProgress = (Update.progress() * 100) / Update.size();
-        // Serial.println("OTA UPDATE:\t ESP8266 Progress: " + String(updateInfo.updateProgress, 1) + " %");
+        Serial.println("OTA UPDATE:\t ESP8266 Progress: " + String(updateInfo.updateProgress) + "% ");
 #endif
     }
 
     if (final)
     {
+        Serial.println("OTA UPDATE:\t Finalizing update...");
         // AsyncWebServerResponse *response = request->beginResponse(302, "text/plain", "Please wait while the device reboots");
         // response->addHeader("Refresh", "20");
         // response->addHeader("Location", "/");
         // request->send(response);
         if (!Update.end(true))
         {
+            Serial.println("OTA UPDATE:\t ERROR - Update.end() failed!");
             Update.printError(Serial);
             updateInfo.updateState = UPDATE_STATE_FAILED;
+            updateInfo.updateRunning = false;
         }
         else
         {
-            Serial.println("OTA UPDATE:\t Update complete");
+            Serial.println("OTA UPDATE:\t ====== UPDATE SUCCESSFUL ======");
+            Serial.println("OTA UPDATE:\t Rebooting in 3 seconds...");
+            updateInfo.updateProgress = 100;
             updateInfo.updateState = UPDATE_STATE_DONE;
             updateInfo.updateRunning = false;
             Serial.flush();
@@ -259,15 +347,46 @@ void DTUwebserver::handleDoUpdate(AsyncWebServerRequest *request, const String &
 void DTUwebserver::printProgress(size_t prg, size_t sz)
 {
     updateInfo.updateProgress = (prg * 100) / content_len;
-    // Serial.println("OTA UPDATE:\t ESP32 Progress: " + String(updateInfo.updateProgress, 1) + " %");
+    Serial.println("OTA UPDATE:\t ESP32 Progress: " + String(updateInfo.updateProgress) + "% (" + String(prg) + "/" + String(content_len) + " bytes)");
 }
 void DTUwebserver::handleUpdateProgress(AsyncWebServerRequest *request)
 {
+    String stateStr;
+    switch (updateInfo.updateState)
+    {
+    case UPDATE_STATE_IDLE:
+        stateStr = "idle";
+        break;
+    case UPDATE_STATE_PREPARE:
+        stateStr = "preparing";
+        break;
+    case UPDATE_STATE_START:
+        stateStr = "starting";
+        break;
+    case UPDATE_STATE_INSTALLING:
+        stateStr = "installing";
+        break;
+    case UPDATE_STATE_DONE:
+        stateStr = "done";
+        break;
+    case UPDATE_STATE_RESTART:
+        stateStr = "restarting";
+        break;
+    case UPDATE_STATE_FAILED:
+        stateStr = "failed";
+        break;
+    default:
+        stateStr = "unknown";
+        break;
+    }
+
     String JSON = "{";
-    JSON += "\"updateRunning\": " + String(updateInfo.updateRunning) + ",";
-    JSON += "\"updateState\": " + String(updateInfo.updateState) + ",";
-    JSON += "\"updateProgress\": " + String(updateInfo.updateProgress);
+    JSON += "\"updateRunning\":" + String(updateInfo.updateRunning ? 1 : 0) + ",";
+    JSON += "\"updateState\":" + String(updateInfo.updateState) + ",";
+    JSON += "\"updateStateStr\":\"" + stateStr + "\",";
+    JSON += "\"updateProgress\":" + String(updateInfo.updateProgress);
     JSON += "}";
+
     request->send(200, "application/json", JSON);
 }
 
@@ -322,6 +441,7 @@ void DTUwebserver::handleConfigPage(AsyncWebServerRequest *request)
 void DTUwebserver::handleDataJson(AsyncWebServerRequest *request)
 {
     String JSON = "{";
+    JSON = JSON + "\"apiVersion\": \"" API_VERSION "\",";
     JSON = JSON + "\"localtime\": " + String(dtuGlobalData.currentTimestamp) + ",";
     JSON = JSON + "\"ntpStamp\": " + String(platformData.currentNTPtimeUTC) + ",";
 
@@ -334,32 +454,40 @@ void DTUwebserver::handleDataJson(AsyncWebServerRequest *request)
     JSON = JSON + "\"inverter\": {";
     JSON = JSON + "\"pLim\": " + ((dtuGlobalData.powerLimit == 254) ? ("\"--\"") : (String(dtuGlobalData.powerLimit))) + ",";
     JSON = JSON + "\"pLimSet\": " + String(dtuGlobalData.powerLimitSet) + ",";
-    JSON = JSON + "\"temp\": " + String(dtuGlobalData.inverterTemp) + ",";
+    JSON = JSON + "\"temp\": " + String(dtuGlobalData.inverterTemp.getValue()) + ",";
     JSON = JSON + "\"active\": " + String(dtuGlobalData.inverterControl.stateOn) + ",";
     JSON = JSON + "\"uptodate\": " + String(dtuGlobalData.uptodate);
     JSON = JSON + "},";
 
+    if (userConfig.remoteDisplay_BatteryMonitor)
+    {
+        JSON = JSON + "\"battery\": {";
+        JSON = JSON + "\"soc\": " + String(dtuGlobalData.batterySOC) + ",";
+        JSON = JSON + "\"stored_energy\": " + String(dtuGlobalData.batteryStoredEnergy, 3);
+        JSON = JSON + "},";
+    }
+
     JSON = JSON + "\"grid\": {";
-    JSON = JSON + "\"v\": " + String(dtuGlobalData.grid.voltage) + ",";
-    JSON = JSON + "\"c\": " + String(dtuGlobalData.grid.current) + ",";
-    JSON = JSON + "\"p\": " + ((dtuGlobalData.grid.power == -1) ? ("\"--\"") : (String(dtuGlobalData.grid.power))) + ",";
-    JSON = JSON + "\"f\": " + String(dtuGlobalData.gridFreq) + ",";
+    JSON = JSON + "\"v\": " + String(dtuGlobalData.grid.voltage.getValue()) + ",";
+    JSON = JSON + "\"c\": " + String(dtuGlobalData.grid.current.getValue()) + ",";
+    JSON = JSON + "\"p\": " + ((dtuGlobalData.grid.power.getValue() == 0) ? ("\"--\"") : (String(dtuGlobalData.grid.power.getValue()))) + ",";
+    JSON = JSON + "\"f\": " + String(dtuGlobalData.gridFreq.getValue()) + ",";
     JSON = JSON + "\"dE\": " + String(dtuGlobalData.grid.dailyEnergy, 3) + ",";
     JSON = JSON + "\"tE\": " + String(dtuGlobalData.grid.totalEnergy, 3);
     JSON = JSON + "},";
 
     JSON = JSON + "\"pv0\": {";
-    JSON = JSON + "\"v\": " + String(dtuGlobalData.pv0.voltage) + ",";
-    JSON = JSON + "\"c\": " + String(dtuGlobalData.pv0.current) + ",";
-    JSON = JSON + "\"p\": " + ((dtuGlobalData.pv0.power == -1) ? ("\"--\"") : (String(dtuGlobalData.pv0.power))) + ",";
+    JSON = JSON + "\"v\": " + String(dtuGlobalData.pv0.voltage.getValue()) + ",";
+    JSON = JSON + "\"c\": " + String(dtuGlobalData.pv0.current.getValue()) + ",";
+    JSON = JSON + "\"p\": " + ((dtuGlobalData.pv0.power.getValue() == 0) ? ("\"--\"") : (String(dtuGlobalData.pv0.power.getValue()))) + ",";
     JSON = JSON + "\"dE\": " + String(dtuGlobalData.pv0.dailyEnergy, 3) + ",";
     JSON = JSON + "\"tE\": " + String(dtuGlobalData.pv0.totalEnergy, 3);
     JSON = JSON + "},";
 
     JSON = JSON + "\"pv1\": {";
-    JSON = JSON + "\"v\": " + String(dtuGlobalData.pv1.voltage) + ",";
-    JSON = JSON + "\"c\": " + String(dtuGlobalData.pv1.current) + ",";
-    JSON = JSON + "\"p\": " + ((dtuGlobalData.pv1.power == -1) ? ("\"--\"") : (String(dtuGlobalData.pv1.power))) + ",";
+    JSON = JSON + "\"v\": " + String(dtuGlobalData.pv1.voltage.getValue()) + ",";
+    JSON = JSON + "\"c\": " + String(dtuGlobalData.pv1.current.getValue()) + ",";
+    JSON = JSON + "\"p\": " + ((dtuGlobalData.pv1.power.getValue() == 0) ? ("\"--\"") : (String(dtuGlobalData.pv1.power.getValue()))) + ",";
     JSON = JSON + "\"dE\": " + String(dtuGlobalData.pv1.dailyEnergy, 3) + ",";
     JSON = JSON + "\"tE\": " + String(dtuGlobalData.pv1.totalEnergy, 3);
     JSON = JSON + "}";
@@ -371,6 +499,7 @@ void DTUwebserver::handleDataJson(AsyncWebServerRequest *request)
 void DTUwebserver::handleInfojson(AsyncWebServerRequest *request)
 {
     String JSON = "{";
+    JSON = JSON + "\"apiVersion\": \"" API_VERSION "\",";
     JSON = JSON + "\"chipid\": " + String(platformData.chipID) + ",";
     JSON = JSON + "\"chipType\": \"" + platformData.chipType + "\",";
     JSON = JSON + "\"host\": \"" + platformData.espUniqueName + "\",";
@@ -402,7 +531,8 @@ void DTUwebserver::handleInfojson(AsyncWebServerRequest *request)
     JSON = JSON + "\"mqttUser\": \"" + String(userConfig.mqttBrokerUser) + "\",";
     JSON = JSON + "\"mqttPass\": \"" + String(userConfig.mqttBrokerPassword) + "\",";
     JSON = JSON + "\"mqttMainTopic\": \"" + String(userConfig.mqttBrokerMainTopic) + "\",";
-    JSON = JSON + "\"mqttHAautoDiscoveryON\": " + userConfig.mqttHAautoDiscoveryON;
+    JSON = JSON + "\"mqttHAautoDiscoveryON\": " + userConfig.mqttHAautoDiscoveryON + ",";
+    JSON = JSON + "\"mqttOpenDTUtopics\": " + userConfig.mqttOpenDTUtopics;
     JSON = JSON + "},";
 
     JSON = JSON + "\"dtuConnection\": {";
@@ -413,7 +543,8 @@ void DTUwebserver::handleInfojson(AsyncWebServerRequest *request)
     JSON = JSON + "\"dtuCloudPause\": " + userConfig.dtuCloudPauseActive + ",";
     JSON = JSON + "\"dtuCloudPauseTime\": " + userConfig.dtuCloudPauseTime + ",";
     JSON = JSON + "\"dtuRemoteDisplay\": " + userConfig.remoteDisplayActive + ",";
-    JSON = JSON + "\"dtuRemoteSummaryDisplay\": " + userConfig.remoteSummaryDisplayActive + ",";
+    JSON = JSON + "\"dtuRemoteDisplay_SolarMonitor\": " + userConfig.remoteDisplay_SolarMonitor + ",";
+    JSON = JSON + "\"dtuRemoteDisplay_BatteryMonitor\": " + userConfig.remoteDisplay_BatteryMonitor + ",";
 
     // ADD FIRMWARE SECTION
     JSON = JSON + "\"deviceData\": {";
@@ -461,8 +592,8 @@ void DTUwebserver::handleInfojson(AsyncWebServerRequest *request)
     JSON = JSON + "},";
 
     JSON = JSON + "\"wifiConnection\": {";
-    JSON = JSON + "\"wifiSsid\": \"" + String(userConfig.wifiSsid) + "\",";
-    JSON = JSON + "\"wifiPassword\": \"" + String(userConfig.wifiPassword) + "\",";
+    JSON = JSON + "\"wifiSsid\": \"" + escapeJsonString(String(userConfig.wifiSsid)) + "\",";
+    JSON = JSON + "\"wifiPassword\": \"" + escapeJsonString(String(userConfig.wifiPassword)) + "\",";
     JSON = JSON + "\"rssiGW\": " + dtuGlobalData.wifi_rssi_gateway + ",";
     JSON = JSON + "\"wifiScanIsRunning\": " + wifiScanIsRunning + ",";
     JSON = JSON + "\"networkCount\": " + platformData.wifiNetworkCount + ",";
@@ -477,6 +608,7 @@ void DTUwebserver::handleInfojson(AsyncWebServerRequest *request)
 void DTUwebserver::handleDtuInfoJson(AsyncWebServerRequest *request)
 {
     String JSON = "{";
+    JSON = JSON + "\"apiVersion\": \"" API_VERSION "\",";
     JSON = JSON + "\"localtime\": " + String(dtuGlobalData.currentTimestamp) + ",";
     JSON = JSON + "\"ntpStamp\": " + String(platformData.currentNTPtimeUTC) + ",";
 
@@ -551,8 +683,8 @@ void DTUwebserver::handleUpdateWifiSettings(AsyncWebServerRequest *request)
         configManager.saveConfig(userConfig);
 
         String JSON = "{";
-        JSON = JSON + "\"wifiSSIDUser\": \"" + userConfig.wifiSsid + "\",";
-        JSON = JSON + "\"wifiPassUser\": \"" + userConfig.wifiPassword + "\"";
+        JSON = JSON + "\"wifiSSIDUser\": \"" + escapeJsonString(String(userConfig.wifiSsid)) + "\",";
+        JSON = JSON + "\"wifiPassUser\": \"" + escapeJsonString(String(userConfig.wifiPassword)) + "\"";
         JSON = JSON + "}";
 
         request->send(200, "application/json", JSON);
@@ -583,18 +715,21 @@ void DTUwebserver::handleUpdateDtuSettings(AsyncWebServerRequest *request)
         request->hasParam("dtuDataCycleSend", true) &&
         request->hasParam("dtuCloudPauseSend", true) &&
         request->hasParam("remoteDisplayActiveSend", true) &&
-        request->hasParam("remoteSummaryDisplayActiveSend", true))
+        request->hasParam("remoteSummaryDisplayActiveSend", true) &&
+        request->hasParam("remoteBatteryDisplayActiveSend", true))
     {
         String dtuHostIpDomainUser = request->getParam("dtuHostIpDomainSend", true)->value(); // retrieve message from webserver
         String dtuDataCycle = request->getParam("dtuDataCycleSend", true)->value();           // retrieve message from webserver
         String dtuCloudPause = request->getParam("dtuCloudPauseSend", true)->value();         // retrieve message from webserver
 
-        String remoteDisplayActive = request->getParam("remoteDisplayActiveSend", true)->value();               // retrieve message from webserver
-        String remoteSummaryDisplayActive = request->getParam("remoteSummaryDisplayActiveSend", true)->value(); // retrieve message from webserver
+        String remoteDisplayActive = request->getParam("remoteDisplayActiveSend", true)->value();
+        String remoteDisplay_SolarMonitor = request->getParam("remoteSummaryDisplayActiveSend", true)->value();
+        String remoteDisplay_BatteryMonitor = request->getParam("remoteBatteryDisplayActiveSend", true)->value();
 
         Serial.println("WEB:\t\t handleUpdateDtuSettings - got dtu ip: " + dtuHostIpDomainUser + "- got dtuDataCycle: " + dtuDataCycle + "- got dtu dtuCloudPause: " + dtuCloudPause);
         Serial.println("WEB:\t\t handleUpdateDtuSettings - got remoteDisplayActive: " + remoteDisplayActive);
-        Serial.println("WEB:\t\t handleUpdateDtuSettings - got remoteSummaryDisplayActive: " + remoteSummaryDisplayActive);
+        Serial.println("WEB:\t\t handleUpdateDtuSettings - got remoteDisplay_SolarMonitor: " + remoteDisplay_SolarMonitor);
+        Serial.println("WEB:\t\t handleUpdateDtuSettings - got remoteDisplay_BatteryMonitor: " + remoteDisplay_BatteryMonitor);
 
         dtuHostIpDomainUser.toCharArray(userConfig.dtuHostIpDomain, sizeof(userConfig.dtuHostIpDomain));
         userConfig.dtuUpdateTime = dtuDataCycle.toInt();
@@ -617,17 +752,23 @@ void DTUwebserver::handleUpdateDtuSettings(AsyncWebServerRequest *request)
         }
         userConfig.remoteDisplayActive = remoteDisplayActiveBool;
 
-        boolean remoteSummaryDisplayActiveBool = false;
-        if (remoteSummaryDisplayActive == "1")
-            remoteSummaryDisplayActiveBool = true;
-        else
-            remoteSummaryDisplayActiveBool = false;
-        if (remoteSummaryDisplayActiveBool != userConfig.remoteSummaryDisplayActive)
+        // solar monitor display
+        boolean remoteDisplay_SolarMonitorBool = (remoteDisplay_SolarMonitor == "1");
+        if (remoteDisplay_SolarMonitorBool != userConfig.remoteDisplay_SolarMonitor)
         {
             platformData.rebootRequestedInSec = 3;
             platformData.rebootRequested = true;
         }
-        userConfig.remoteSummaryDisplayActive = remoteSummaryDisplayActiveBool;
+        userConfig.remoteDisplay_SolarMonitor = remoteDisplay_SolarMonitorBool;
+
+        // battery monitor display
+        boolean remoteDisplay_BatteryMonitorBool = (remoteDisplay_BatteryMonitor == "1");
+        if (remoteDisplay_BatteryMonitorBool != userConfig.remoteDisplay_BatteryMonitor)
+        {
+            platformData.rebootRequestedInSec = 3;
+            platformData.rebootRequested = true;
+        }
+        userConfig.remoteDisplay_BatteryMonitor = remoteDisplay_BatteryMonitorBool;
 
         configManager.saveConfig(userConfig);
 
@@ -658,30 +799,35 @@ void DTUwebserver::handleUpdateBindingsSettings(AsyncWebServerRequest *request)
         request->send(403, "text/plain", "Settings are protected. Please disable protection per serial console command 'protectSettings 0' to change settings.");
         return;
     }
-    if (request->hasParam("openhabHostIpDomainSend", true) &&
-        request->hasParam("openhabPrefixSend", true) &&
-        request->hasParam("openhabActiveSend", true) &&
-        request->hasParam("mqttIpSend", true) &&
-        request->hasParam("mqttPortSend", true) &&
-        request->hasParam("mqttUserSend", true) &&
-        request->hasParam("mqttPassSend", true) &&
-        request->hasParam("mqttMainTopicSend", true) &&
+    if (request->hasParam("openhabActiveSend", true) &&
+        request->hasParam("openhabIPSend", true) &&
+        request->hasParam("ohItemPrefixSend", true) &&
         request->hasParam("mqttActiveSend", true) &&
         request->hasParam("mqttUseTLSSend", true) &&
-        request->hasParam("mqttHAautoDiscoveryONSend", true))
+        request->hasParam("mqttIPSend", true) &&
+        request->hasParam("mqttUserSend", true) &&
+        request->hasParam("mqttPasswordSend", true) &&
+        request->hasParam("mqttMainTopicSend", true) &&
+        request->hasParam("mqttHAautoDiscoveryONSend", true) &&
+        request->hasParam("mqttOpenDTUtopicsSend", true))
     {
-        String openhabHostIpDomainUser = request->getParam("openhabHostIpDomainSend", true)->value(); // retrieve message from webserver
-        String openhabPrefix = request->getParam("openhabPrefixSend", true)->value();
         String openhabActive = request->getParam("openhabActiveSend", true)->value();
+        String openhabHostIpDomainUser = request->getParam("openhabIPSend", true)->value();
+        String openhabPrefix = request->getParam("ohItemPrefixSend", true)->value();
 
-        String mqttIP = request->getParam("mqttIpSend", true)->value();
-        String mqttPort = request->getParam("mqttPortSend", true)->value();
-        String mqttUser = request->getParam("mqttUserSend", true)->value();
-        String mqttPass = request->getParam("mqttPassSend", true)->value();
-        String mqttMainTopic = request->getParam("mqttMainTopicSend", true)->value();
         String mqttActive = request->getParam("mqttActiveSend", true)->value();
         String mqttUseTLS = request->getParam("mqttUseTLSSend", true)->value();
+        String mqttIpPort = request->getParam("mqttIPSend", true)->value(); // format: "192.168.1.1:1883"
+        String mqttUser = request->getParam("mqttUserSend", true)->value();
+        String mqttPass = request->getParam("mqttPasswordSend", true)->value();
+        String mqttMainTopic = request->getParam("mqttMainTopicSend", true)->value();
         String mqttHAautoDiscoveryON = request->getParam("mqttHAautoDiscoveryONSend", true)->value();
+        String mqttOpenDTUtopics = request->getParam("mqttOpenDTUtopicsSend", true)->value();
+
+        // Parse IP:Port format (e.g. "192.168.1.1:1883")
+        int colonIndex = mqttIpPort.indexOf(':');
+        String mqttIP = (colonIndex > 0) ? mqttIpPort.substring(0, colonIndex) : mqttIpPort;
+        String mqttPort = (colonIndex > 0) ? mqttIpPort.substring(colonIndex + 1) : "1883";
 
         bool mqttHAautoDiscoveryONlastState = userConfig.mqttHAautoDiscoveryON;
         Serial.println("WEB:\t\t handleUpdateBindingsSettings - HAautoDiscovery current state: " + String(mqttHAautoDiscoveryONlastState));
@@ -694,8 +840,11 @@ void DTUwebserver::handleUpdateBindingsSettings(AsyncWebServerRequest *request)
         else
             userConfig.openhabActive = false;
 
+        // Store parsed IP and Port
+        mqttIP.trim();
+        mqttPort.trim();
         mqttIP.toCharArray(userConfig.mqttBrokerIpDomain, sizeof(userConfig.mqttBrokerIpDomain));
-        userConfig.mqttBrokerPort = mqttPort.toInt();
+        userConfig.mqttBrokerPort = (mqttPort.length() > 0) ? mqttPort.toInt() : 1883;
         mqttUser.toCharArray(userConfig.mqttBrokerUser, sizeof(userConfig.mqttBrokerUser));
         mqttPass.toCharArray(userConfig.mqttBrokerPassword, sizeof(userConfig.mqttBrokerPassword));
         mqttMainTopic.toCharArray(userConfig.mqttBrokerMainTopic, sizeof(userConfig.mqttBrokerMainTopic));
@@ -715,6 +864,11 @@ void DTUwebserver::handleUpdateBindingsSettings(AsyncWebServerRequest *request)
         else
             userConfig.mqttHAautoDiscoveryON = false;
 
+        if (mqttOpenDTUtopics == "1")
+            userConfig.mqttOpenDTUtopics = true;
+        else
+            userConfig.mqttOpenDTUtopics = false;
+
         configManager.saveConfig(userConfig);
 
         if (userConfig.mqttActive)
@@ -724,6 +878,10 @@ void DTUwebserver::handleUpdateBindingsSettings(AsyncWebServerRequest *request)
 
             mqttHandler.setAutoDiscovery(userConfig.mqttHAautoDiscoveryON);
             Serial.println("WEB:\t\t handleUpdateBindingsSettings - HAautoDiscovery new state: " + String(userConfig.mqttHAautoDiscoveryON));
+
+            mqttHandler.setTopicStructure(userConfig.mqttOpenDTUtopics);
+            Serial.println("WEB:\t\t handleUpdateBindingsSettings - OpenDTU topics new state: " + String(userConfig.mqttOpenDTUtopics));
+
             // mqttHAautoDiscoveryON going from on to off - send one time the delete messages
             if (!userConfig.mqttHAautoDiscoveryON && mqttHAautoDiscoveryONlastState)
                 mqttHandler.requestMQTTconnectionReset(true);
@@ -736,16 +894,17 @@ void DTUwebserver::handleUpdateBindingsSettings(AsyncWebServerRequest *request)
 
         String JSON = "{";
         JSON = JSON + "\"openhabActive\": " + userConfig.openhabActive + ",";
-        JSON = JSON + "\"openhabHostIpDomain\": \"" + userConfig.openhabHostIpDomain + "\",";
-        JSON = JSON + "\"openItemPrefix\": \"" + userConfig.openItemPrefix + "\",";
+        JSON = JSON + "\"openhabHostIpDomain\": \"" + escapeJsonString(String(userConfig.openhabHostIpDomain)) + "\",";
+        JSON = JSON + "\"openItemPrefix\": \"" + escapeJsonString(String(userConfig.openItemPrefix)) + "\",";
         JSON = JSON + "\"mqttActive\": " + userConfig.mqttActive + ",";
-        JSON = JSON + "\"mqttBrokerIpDomain\": \"" + userConfig.mqttBrokerIpDomain + "\",";
+        JSON = JSON + "\"mqttBrokerIpDomain\": \"" + escapeJsonString(String(userConfig.mqttBrokerIpDomain)) + "\",";
         JSON = JSON + "\"mqttBrokerPort\": " + String(userConfig.mqttBrokerPort) + ",";
         JSON = JSON + "\"mqttUseTLS\": " + userConfig.mqttUseTLS + ",";
-        JSON = JSON + "\"mqttBrokerUser\": \"" + userConfig.mqttBrokerUser + "\",";
-        JSON = JSON + "\"mqttBrokerPassword\": \"" + userConfig.mqttBrokerPassword + "\",";
-        JSON = JSON + "\"mqttBrokerMainTopic\": \"" + userConfig.mqttBrokerMainTopic + "\",";
-        JSON = JSON + "\"mqttHAautoDiscoveryON\": " + userConfig.mqttHAautoDiscoveryON;
+        JSON = JSON + "\"mqttBrokerUser\": \"" + escapeJsonString(String(userConfig.mqttBrokerUser)) + "\",";
+        JSON = JSON + "\"mqttBrokerPassword\": \"" + escapeJsonString(String(userConfig.mqttBrokerPassword)) + "\",";
+        JSON = JSON + "\"mqttBrokerMainTopic\": \"" + escapeJsonString(String(userConfig.mqttBrokerMainTopic)) + "\",";
+        JSON = JSON + "\"mqttHAautoDiscoveryON\": " + userConfig.mqttHAautoDiscoveryON + ",";
+        JSON = JSON + "\"mqttOpenDTUtopics\": " + userConfig.mqttOpenDTUtopics;
         JSON = JSON + "}";
 
         request->send(200, "application/json", JSON);
@@ -969,4 +1128,69 @@ void DTUwebserver::notFound(AsyncWebServerRequest *request)
         // Normal mode - return 404
         request->send(404, "text/plain", "Not found");
     }
+}
+
+// =====================================================================================
+// DTU Events API Handlers - Persistent event data access via JSON API
+// =====================================================================================
+
+void DTUwebserver::handleDtuEventsJson(AsyncWebServerRequest *request)
+{
+    Serial.println("WEB:\t\t api/dtuEvents.json requested");
+
+    // Get persistent DTU events from storage
+    String eventsJson = configManager.getDtuEventsJson();
+
+    // Add current connection statistics to the response
+    JsonDocument responseDoc;
+    DeserializationError error = deserializeJson(responseDoc, eventsJson);
+
+    if (error)
+    {
+        // If parsing fails, create minimal response
+        responseDoc.clear();
+        responseDoc["events"] = JsonArray();
+        responseDoc["error"] = "Failed to parse events data";
+    }
+
+    // Add current runtime statistics
+    responseDoc["statistics"]["totalConnections"] = dtuConnection.totalConnections;
+    responseDoc["statistics"]["shortConnections"] = dtuConnection.shortConnections;
+    responseDoc["statistics"]["longestConnection"] = dtuConnection.longestConnection;
+    responseDoc["statistics"]["averageConnectionTime"] = dtuConnection.averageConnectionTime;
+    responseDoc["statistics"]["healthyState"] = dtuConnection.healthyStateDetected;
+    responseDoc["statistics"]["eventCount"] = configManager.getDtuEventCount();
+    responseDoc["statistics"]["currentTimestamp"] = millis();
+
+    // Add current connection info if connected
+    extern DTUInterface dtuInterface;
+    if (dtuInterface.isConnected())
+    {
+        responseDoc["currentConnection"]["duration"] = dtuInterface.getCurrentConnectionDuration();
+        responseDoc["currentConnection"]["bufferSpace"] = dtuInterface.getConnectionBufferSpace();
+        responseDoc["currentConnection"]["state"] = "connected";
+    }
+    else
+    {
+        responseDoc["currentConnection"]["state"] = "disconnected";
+    }
+
+    // Serialize and send response
+    String jsonResponse;
+    serializeJson(responseDoc, jsonResponse);
+
+    request->send(200, "application/json; charset=utf-8", jsonResponse);
+}
+
+void DTUwebserver::handleDtuEventsClear(AsyncWebServerRequest *request)
+{
+    Serial.println("WEB:\t\t api/dtuEventsClear requested");
+
+    // Clear persistent DTU events
+    configManager.clearDtuEvents();
+
+    // Create response
+    String response = "{\"success\": true, \"message\": \"DTU events cleared\", \"timestamp\": " + String(millis()) + "}";
+
+    request->send(200, "application/json; charset=utf-8", response);
 }

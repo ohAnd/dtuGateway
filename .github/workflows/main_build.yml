@@ -18,7 +18,7 @@ jobs:
           key: ${{ runner.os }}-pio
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.9'
+          python-version: "3.9"
       - name: Install PlatformIO Core
         run: pip install --upgrade platformio
 
@@ -36,126 +36,162 @@ jobs:
 
       - name: got current version and changing firmware name after building
         run: |
-            VERSIONNUMBER=$(python ${{ github.workspace }}/version_inc.py getversion 2>&1)
-            echo "got versionnumber: " $VERSIONNUMBER
-            echo "CURRENT_VERSIONNUMBER=$VERSIONNUMBER" >> $GITHUB_ENV
-            mv .pio/build/esp32/firmware.bin .pio/build/esp32/dtuGateway_ESP32_release_$VERSIONNUMBER.bin
-            mv .pio/build/esp32_S3/firmware.bin .pio/build/esp32_S3/dtuGateway_ESP32_S3_release_$VERSIONNUMBER.bin
-            mv .pio/build/esp32_S3_16MB_N16R8/firmware.bin .pio/build/esp32_S3_16MB_N16R8/dtuGateway_ESP32_S3_16MB_PS_release_$VERSIONNUMBER.bin
+          VERSIONNUMBER=$(python ${{ github.workspace }}/version_inc.py getversion 2>&1)
+          echo "got versionnumber: " $VERSIONNUMBER
+          echo "CURRENT_VERSIONNUMBER=$VERSIONNUMBER" >> $GITHUB_ENV
+          mv .pio/build/esp32/firmware.bin .pio/build/esp32/dtuGateway_ESP32_release_$VERSIONNUMBER.bin
+          mv .pio/build/esp32_S3/firmware.bin .pio/build/esp32_S3/dtuGateway_ESP32_S3_release_$VERSIONNUMBER.bin
+          mv .pio/build/esp32_S3_16MB_N16R8/firmware.bin .pio/build/esp32_S3_16MB_N16R8/dtuGateway_ESP32_S3_16MB_PS_release_$VERSIONNUMBER.bin
+          mv .pio/build/esp32_S3_lcd_128/firmware.bin .pio/build/esp32_S3_lcd_128/dtuGateway_ESP32_S3_LCD128_release_$VERSIONNUMBER.bin
 
       - name: Create factory flash packages for each ESP32 variant
         run: |
-            VERSIONNUMBER=${{ env.CURRENT_VERSIONNUMBER }}
-            
-            # Create factory flash directories
-            mkdir -p .pio/build/factory_flash_esp32
-            mkdir -p .pio/build/factory_flash_esp32_S3
-            mkdir -p .pio/build/factory_flash_esp32_S3_16MB
-            
-            # ESP32 factory flash package
-            cp .pio/build/esp32/bootloader.bin .pio/build/factory_flash_esp32/
-            cp .pio/build/esp32/partitions.bin .pio/build/factory_flash_esp32/
-            cp doc/boot_app0.bin .pio/build/factory_flash_esp32/
-            cp .pio/build/esp32/dtuGateway_ESP32_release_$VERSIONNUMBER.bin .pio/build/factory_flash_esp32/firmware.bin
-            
-            # ESP32-S3 factory flash package
-            cp .pio/build/esp32_S3/bootloader.bin .pio/build/factory_flash_esp32_S3/
-            cp .pio/build/esp32_S3/partitions.bin .pio/build/factory_flash_esp32_S3/
-            cp doc/boot_app0.bin .pio/build/factory_flash_esp32_S3/
-            cp .pio/build/esp32_S3/dtuGateway_ESP32_S3_release_$VERSIONNUMBER.bin .pio/build/factory_flash_esp32_S3/firmware.bin
-            
-            # ESP32-S3 16MB factory flash package
-            cp .pio/build/esp32_S3_16MB_N16R8/bootloader.bin .pio/build/factory_flash_esp32_S3_16MB/
-            cp .pio/build/esp32_S3_16MB_N16R8/partitions.bin .pio/build/factory_flash_esp32_S3_16MB/
-            cp doc/boot_app0.bin .pio/build/factory_flash_esp32_S3_16MB/
-            cp .pio/build/esp32_S3_16MB_N16R8/dtuGateway_ESP32_S3_16MB_PS_release_$VERSIONNUMBER.bin .pio/build/factory_flash_esp32_S3_16MB/firmware.bin
-            
-            # Create flash instructions for each variant
-            cat > .pio/build/factory_flash_esp32/FLASH_INSTRUCTIONS.txt << 'EOF'
-            ESP32 Factory Flash Instructions
-            ================================
-            
-            Use ESP32 Download Tool or esptool.py with these settings:
-            
-            Files and addresses:
-            - bootloader.bin  → 0x1000
-            - partitions.bin  → 0x8000  
-            - boot_app0.bin   → 0xE000
-            - firmware.bin    → 0x10000
-            
-            ESP Download Tool settings:
-            - SPI Speed: 40MHz
-            - SPI Mode: QIO
-            - Flash Size: 4MB
-            - Baud rate: 921600
-            
-            esptool.py command:
-            esptool.py --chip esp32 --baud 921600 --before default_reset --after hard_reset write_flash \
-              0x1000 bootloader.bin \
-              0x8000 partitions.bin \
-              0xe000 boot_app0.bin \
-              0x10000 firmware.bin
-            EOF
-            
-            cat > .pio/build/factory_flash_esp32_S3/FLASH_INSTRUCTIONS.txt << 'EOF'
-            ESP32-S3 Factory Flash Instructions
-            ===================================
-            
-            Use ESP32 Download Tool or esptool.py with these settings:
-            
-            Files and addresses:
-            - bootloader.bin  → 0x1000
-            - partitions.bin  → 0x8000
-            - boot_app0.bin   → 0xE000
-            - firmware.bin    → 0x10000
-            
-            ESP Download Tool settings:
-            - SPI Speed: 40MHz
-            - SPI Mode: QIO
-            - Flash Size: 8MB
-            - Baud rate: 921600
-            
-            esptool.py command:
-            esptool.py --chip esp32s3 --baud 921600 --before default_reset --after hard_reset write_flash \
-              0x1000 bootloader.bin \
-              0x8000 partitions.bin \
-              0xe000 boot_app0.bin \
-              0x10000 firmware.bin
-            EOF
-            
-            cat > .pio/build/factory_flash_esp32_S3_16MB/FLASH_INSTRUCTIONS.txt << 'EOF'
-            ESP32-S3 16MB Factory Flash Instructions
-            ========================================
-            
-            Use ESP32 Download Tool or esptool.py with these settings:
-            
-            Files and addresses:
-            - bootloader.bin  → 0x1000
-            - partitions.bin  → 0x8000
-            - boot_app0.bin   → 0xE000
-            - firmware.bin    → 0x10000
-            
-            ESP Download Tool settings:
-            - SPI Speed: 40MHz
-            - SPI Mode: QIO
-            - Flash Size: 16MB
-            - Baud rate: 921600
-            
-            esptool.py command:
-            esptool.py --chip esp32s3 --baud 921600 --before default_reset --after hard_reset write_flash \
-              0x1000 bootloader.bin \
-              0x8000 partitions.bin \
-              0xe000 boot_app0.bin \
-              0x10000 firmware.bin
-            EOF
-            
-            # Create ZIP packages for easier distribution
-            cd .pio/build
-            zip -r dtuGateway_ESP32_FactoryFlash_release_$VERSIONNUMBER.zip factory_flash_esp32/
-            zip -r dtuGateway_ESP32_S3_FactoryFlash_release_$VERSIONNUMBER.zip factory_flash_esp32_S3/
-            zip -r dtuGateway_ESP32_S3_16MB_FactoryFlash_release_$VERSIONNUMBER.zip factory_flash_esp32_S3_16MB/
-            cd ../..
-      
+          VERSIONNUMBER=${{ env.CURRENT_VERSIONNUMBER }}
+
+          # Create factory flash directories
+          mkdir -p .pio/build/factory_flash_esp32
+          mkdir -p .pio/build/factory_flash_esp32_S3
+          mkdir -p .pio/build/factory_flash_esp32_S3_16MB
+          mkdir -p .pio/build/factory_flash_esp32_S3_LCD128
+
+          # ESP32 factory flash package
+          cp .pio/build/esp32/bootloader.bin .pio/build/factory_flash_esp32/
+          cp .pio/build/esp32/partitions.bin .pio/build/factory_flash_esp32/
+          cp doc/boot_app0.bin .pio/build/factory_flash_esp32/
+          cp .pio/build/esp32/dtuGateway_ESP32_release_$VERSIONNUMBER.bin .pio/build/factory_flash_esp32/firmware.bin
+
+          # ESP32-S3 factory flash package
+          cp .pio/build/esp32_S3/bootloader.bin .pio/build/factory_flash_esp32_S3/
+          cp .pio/build/esp32_S3/partitions.bin .pio/build/factory_flash_esp32_S3/
+          cp doc/boot_app0.bin .pio/build/factory_flash_esp32_S3/
+          cp .pio/build/esp32_S3/dtuGateway_ESP32_S3_release_$VERSIONNUMBER.bin .pio/build/factory_flash_esp32_S3/firmware.bin
+
+          # ESP32-S3 16MB factory flash package
+          cp .pio/build/esp32_S3_16MB_N16R8/bootloader.bin .pio/build/factory_flash_esp32_S3_16MB/
+          cp .pio/build/esp32_S3_16MB_N16R8/partitions.bin .pio/build/factory_flash_esp32_S3_16MB/
+          cp doc/boot_app0.bin .pio/build/factory_flash_esp32_S3_16MB/
+          cp .pio/build/esp32_S3_16MB_N16R8/dtuGateway_ESP32_S3_16MB_PS_release_$VERSIONNUMBER.bin .pio/build/factory_flash_esp32_S3_16MB/firmware.bin
+
+          # ESP32-S3 LCD128 factory flash package
+          cp .pio/build/esp32_S3_lcd_128/bootloader.bin .pio/build/factory_flash_esp32_S3_LCD128/
+          cp .pio/build/esp32_S3_lcd_128/partitions.bin .pio/build/factory_flash_esp32_S3_LCD128/
+          cp doc/boot_app0.bin .pio/build/factory_flash_esp32_S3_LCD128/
+          cp .pio/build/esp32_S3_lcd_128/dtuGateway_ESP32_S3_LCD128_release_$VERSIONNUMBER.bin .pio/build/factory_flash_esp32_S3_LCD128/firmware.bin
+
+          # Create flash instructions for each variant
+          cat > .pio/build/factory_flash_esp32/FLASH_INSTRUCTIONS.txt << 'EOF'
+          ESP32 Factory Flash Instructions
+          ================================
+
+          Use ESP32 Download Tool or esptool.py with these settings:
+
+          Files and addresses:
+          - bootloader.bin  → 0x1000
+          - partitions.bin  → 0x8000  
+          - boot_app0.bin   → 0xE000
+          - firmware.bin    → 0x10000
+
+          ESP Download Tool settings:
+          - SPI Speed: 40MHz
+          - SPI Mode: QIO
+          - Flash Size: 4MB
+          - Baud rate: 921600
+
+          esptool.py command:
+          esptool.py --chip esp32 --baud 921600 --before default_reset --after hard_reset write_flash \
+            0x1000 bootloader.bin \
+            0x8000 partitions.bin \
+            0xe000 boot_app0.bin \
+            0x10000 firmware.bin
+          EOF
+
+          cat > .pio/build/factory_flash_esp32_S3/FLASH_INSTRUCTIONS.txt << 'EOF'
+          ESP32-S3 Factory Flash Instructions
+          ===================================
+
+          Use ESP32 Download Tool or esptool.py with these settings:
+
+          Files and addresses:
+          - bootloader.bin  → 0x1000
+          - partitions.bin  → 0x8000
+          - boot_app0.bin   → 0xE000
+          - firmware.bin    → 0x10000
+
+          ESP Download Tool settings:
+          - SPI Speed: 40MHz
+          - SPI Mode: QIO
+          - Flash Size: 8MB
+          - Baud rate: 921600
+
+          esptool.py command:
+          esptool.py --chip esp32s3 --baud 921600 --before default_reset --after hard_reset write_flash \
+            0x1000 bootloader.bin \
+            0x8000 partitions.bin \
+            0xe000 boot_app0.bin \
+            0x10000 firmware.bin
+          EOF
+
+
+          cat > .pio/build/factory_flash_esp32_S3_16MB/FLASH_INSTRUCTIONS.txt << 'EOF'
+          ESP32-S3 16MB Factory Flash Instructions
+          ========================================
+
+          Use ESP32 Download Tool or esptool.py with these settings:
+
+          Files and addresses:
+          - bootloader.bin  → 0x1000
+          - partitions.bin  → 0x8000
+          - boot_app0.bin   → 0xE000
+          - firmware.bin    → 0x10000
+
+          ESP Download Tool settings:
+          - SPI Speed: 40MHz
+          - SPI Mode: QIO
+          - Flash Size: 16MB
+          - Baud rate: 921600
+
+          esptool.py command:
+          esptool.py --chip esp32s3 --baud 921600 --before default_reset --after hard_reset write_flash \
+            0x1000 bootloader.bin \
+            0x8000 partitions.bin \
+            0xe000 boot_app0.bin \
+            0x10000 firmware.bin
+          EOF
+
+          cat > .pio/build/factory_flash_esp32_S3_LCD128/FLASH_INSTRUCTIONS.txt << 'EOF'
+          ESP32-S3 LCD128 Factory Flash Instructions
+          ========================================
+
+          Use ESP32 Download Tool or esptool.py with these settings:
+
+          Files and addresses:
+          - bootloader.bin  → 0x1000
+          - partitions.bin  → 0x8000
+          - boot_app0.bin   → 0xE000
+          - firmware.bin    → 0x10000
+
+          ESP Download Tool settings:
+          - SPI Speed: 40MHz
+          - SPI Mode: QIO
+          - Flash Size: 8MB
+          - Baud rate: 921600
+
+          esptool.py command:
+          esptool.py --chip esp32s3 --baud 921600 --before default_reset --after hard_reset write_flash \
+            0x1000 bootloader.bin \
+            0x8000 partitions.bin \
+            0xe000 boot_app0.bin \
+            0x10000 firmware.bin
+          EOF
+
+          # Create ZIP packages for easier distribution
+          cd .pio/build
+          zip -r dtuGateway_ESP32_FactoryFlash_release_$VERSIONNUMBER.zip factory_flash_esp32/
+          zip -r dtuGateway_ESP32_S3_FactoryFlash_release_$VERSIONNUMBER.zip factory_flash_esp32_S3/
+          zip -r dtuGateway_ESP32_S3_16MB_FactoryFlash_release_$VERSIONNUMBER.zip factory_flash_esp32_S3_16MB/
+          zip -r dtuGateway_ESP32_S3_LCD128_FactoryFlash_release_$VERSIONNUMBER.zip factory_flash_esp32_S3_LCD128/
+          cd ../..
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -164,12 +200,27 @@ jobs:
             .pio/build/esp32/dtuGateway_ESP32_release_${{ env.CURRENT_VERSIONNUMBER }}.bin
             .pio/build/esp32_S3/dtuGateway_ESP32_S3_release_${{ env.CURRENT_VERSIONNUMBER }}.bin
             .pio/build/esp32_S3_16MB_N16R8/dtuGateway_ESP32_S3_16MB_PS_release_${{ env.CURRENT_VERSIONNUMBER }}.bin
+            .pio/build/esp32_S3_lcd_128/dtuGateway_ESP32_S3_LCD128_release_${{ env.CURRENT_VERSIONNUMBER }}.bin
             .pio/build/dtuGateway_ESP32_FactoryFlash_release_${{ env.CURRENT_VERSIONNUMBER }}.zip
             .pio/build/dtuGateway_ESP32_S3_FactoryFlash_release_${{ env.CURRENT_VERSIONNUMBER }}.zip
             .pio/build/dtuGateway_ESP32_S3_16MB_FactoryFlash_release_${{ env.CURRENT_VERSIONNUMBER }}.zip
+            .pio/build/dtuGateway_ESP32_S3_LCD128_FactoryFlash_release_${{ env.CURRENT_VERSIONNUMBER }}.zip
             .pio/build/factory_flash_esp32/
             .pio/build/factory_flash_esp32_S3/
             .pio/build/factory_flash_esp32_S3_16MB/
+            .pio/build/factory_flash_esp32_S3_LCD128/
+
+      - name: Extract and transform release notes from snapshot summary
+        id: release_notes
+        run: |
+          {
+            echo 'release_body<<EOF'
+            cat .snapshot-summary.md | \
+              sed 's/# Snapshot Release Summary/# Release Summary/' | \
+              sed 's/Status: Pre-release \/ Development Build/Status: Release/' | \
+              sed 's/snapshot build/release/'
+            echo 'EOF'
+          } >> $GITHUB_OUTPUT
 
       - uses: "marvinpinto/action-automatic-releases@latest"
         with:
@@ -178,11 +229,14 @@ jobs:
           draft: true
           prerelease: false
           title: "dtuGateway v${{ env.CURRENT_VERSIONNUMBER }}"
+          body: ${{ steps.release_notes.outputs.release_body }}
           files: |
             .pio/build/esp32/dtuGateway_ESP32_release_${{ env.CURRENT_VERSIONNUMBER }}.bin
             .pio/build/esp32_S3/dtuGateway_ESP32_S3_release_${{ env.CURRENT_VERSIONNUMBER }}.bin
             .pio/build/esp32_S3_16MB_N16R8/dtuGateway_ESP32_S3_16MB_PS_release_${{ env.CURRENT_VERSIONNUMBER }}.bin
+            .pio/build/esp32_S3_lcd_128/dtuGateway_ESP32_S3_LCD128_release_${{ env.CURRENT_VERSIONNUMBER }}.bin
             .pio/build/dtuGateway_ESP32_FactoryFlash_release_${{ env.CURRENT_VERSIONNUMBER }}.zip
             .pio/build/dtuGateway_ESP32_S3_FactoryFlash_release_${{ env.CURRENT_VERSIONNUMBER }}.zip
             .pio/build/dtuGateway_ESP32_S3_16MB_FactoryFlash_release_${{ env.CURRENT_VERSIONNUMBER }}.zip
+            .pio/build/dtuGateway_ESP32_S3_LCD128_FactoryFlash_release_${{ env.CURRENT_VERSIONNUMBER }}.zip
             include/version.json
