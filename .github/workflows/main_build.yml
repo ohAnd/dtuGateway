@@ -192,7 +192,22 @@ jobs:
           zip -r dtuGateway_ESP32_S3_LCD128_FactoryFlash_release_$VERSIONNUMBER.zip factory_flash_esp32_S3_LCD128/
           cd ../..
 
+      - name: Extract and transform release notes from snapshot summary
+        id: release_notes
+        run: |
+          cat .snapshot-summary.md | \
+            sed 's/Snapshot Release Summary/Release Summary/' | \
+            sed 's/Pre-release \/ Development Build/Release/' | \
+            sed 's/snapshot build/release/g' > /tmp/release_notes.txt
+
+          {
+            echo 'release_body<<RELEASE_EOF'
+            cat /tmp/release_notes.txt
+            echo 'RELEASE_EOF'
+          } >> $GITHUB_OUTPUT
+
       - name: Upload artifacts
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: dtuGateway_release_${{ env.CURRENT_VERSIONNUMBER }}
@@ -210,18 +225,6 @@ jobs:
             .pio/build/factory_flash_esp32_S3_16MB/
             .pio/build/factory_flash_esp32_S3_LCD128/
 
-      - name: Extract and transform release notes from snapshot summary
-        id: release_notes
-        run: |
-          cat .snapshot-summary.md | \
-            sed 's/# Snapshot Release Summary/# Release Summary/' | \
-            sed 's/Status: Pre-release \/ Development Build/Status: Release/' | \
-            sed 's/snapshot build/release/' > /tmp/release_notes.txt
-
-          echo "release_body<<EOF" >> $GITHUB_OUTPUT
-          cat /tmp/release_notes.txt >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
       - uses: "marvinpinto/action-automatic-releases@latest"
         with:
           repo_token: "${{ secrets.GITHUB_TOKEN }}"
@@ -229,7 +232,7 @@ jobs:
           draft: true
           prerelease: false
           title: "dtuGateway v${{ env.CURRENT_VERSIONNUMBER }}"
-          body: ${{ steps.release_notes.outputs.release_body }}
+          body: "${{ steps.release_notes.outputs.release_body }}"
           files: |
             .pio/build/esp32/dtuGateway_ESP32_release_${{ env.CURRENT_VERSIONNUMBER }}.bin
             .pio/build/esp32_S3/dtuGateway_ESP32_S3_release_${{ env.CURRENT_VERSIONNUMBER }}.bin
