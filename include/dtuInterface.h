@@ -25,6 +25,7 @@
 #include "APPInformationData.pb.h"
 #include "CRC16.h"
 #include "dtuConst.h"
+#include "dtuEncryption.h"
 
 #include <base/platformData.h>
 #include <Config.h>
@@ -313,10 +314,12 @@ private:
   static void onError(void *arg, AsyncClient *c, int8_t error);
   static void onDataReceived(void *arg, AsyncClient *client, void *data, size_t len);
 
+  void sendMessageWithEncryption(const uint8_t *header, const uint8_t *payload, size_t payloadLen, uint16_t commandTag, uint16_t sequence);
+
   void handleError(uint8_t errorState = DTU_ERROR_NO_ERROR);
   void initializeCRC();
 
-  static void txrxStateObserver();
+  void txrxStateObserver();
   boolean lastOnlineOfflineState = false;
   unsigned long lastOnlineOfflineChange = 0;
   void dtuConnectionObserver();
@@ -375,11 +378,43 @@ private:
 
   CRC16 crc;
 
+public:
+  // Encryption manager and state tracking (public for web API access)
+  DTUEncryption encryptionManager;
+  boolean dtuEncryptionEnabled = false;
+  unsigned long lastEncRandUpdateTime = 0;
+  static const unsigned long ENC_RAND_UPDATE_INTERVAL = 86400000; // 24 hours
+
+  // WiFi Signal Monitoring (public for web API access)
+  int lastWifiRssi = 0;             // Last measured WiFi signal strength (dBm)
+  boolean isWeakWiFiSignal = false; // Current weak signal state
+
+  /**
+   * @brief Get dynamic TX/RX timeout based on WiFi signal quality (public for web API)
+   * @return timeout in milliseconds (30000 for normal, 35000 for weak WiFi)
+   */
+  unsigned long getDynamicTxRxTimeout() const;
+
+private:
   float gridVoltHist[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
   uint8_t gridVoltCnt = 0;
   unsigned long lastSwOff = 0;
   unsigned long lastAppInfoRequest = 0; // Track last device info request time
   bool initialAppInfoRequested = false; // Track if initial device info has been requested
+
+  // WiFi Signal Monitoring (private)
+  unsigned long lastWifiSignalCheck = 0;                         // When signal was last checked
+  unsigned long weakSignalStartTime = 0;                         // When weak signal was first detected
+  unsigned long lastWiFiReconnectTime = 0;                       // When WiFi reconnect was last triggered
+  static const unsigned long WIFI_SIGNAL_CHECK_INTERVAL = 10000; // Check signal every 10 seconds
+  static const unsigned long WEAK_SIGNAL_HOLD_TIME = 5000;       // Hold weak signal detection for 5 seconds (debounce)
+  static const unsigned long WIFI_RECONNECT_COOLDOWN = 60000;    // Don't reconnect WiFi more than every 60 seconds
+
+  /**
+   * @brief Check WiFi signal strength and update state
+   * @return true if signal is weak
+   */
+  boolean checkWifiSignalQuality();
 
   static float calcValue(int32_t value, int32_t divider = 10);
 };

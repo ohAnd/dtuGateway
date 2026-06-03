@@ -62,6 +62,12 @@ struct UserConfig
     boolean wifiAPstart = true;
     int selectedUpdateChannel = 0; // 0 - release 1 - snapshot
     int timezoneOffest = 3600;     // default CEST
+
+    // WiFi Resilience Settings
+    boolean weakWiFiAutoReconnect = true; // Auto-reconnect on weak signal
+    unsigned int dtuTimeoutWeak = 35;     // TX/RX timeout in seconds for weak WiFi (default 35s)
+    unsigned int dtuTimeoutNormal = 30;   // TX/RX timeout in seconds for normal WiFi (default 30s)
+    int wifiSignalThreshold = -70;        // RSSI threshold for weak signal detection (dBm, default -70 = ~40%)
 };
 
 extern UserConfig userConfig;

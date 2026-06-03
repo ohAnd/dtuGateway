@@ -4,6 +4,18 @@ All notable changes to dtuGateway are documented here. This changelog focuses on
 
 ## [Unreleased] - Current Development
 
+### Fixed (2026-06-03)
+- **HMS-800 (Non-W) + DTU Wlite S Support** — Full AES-128-GCM encryption implementation
+  - Devices using encrypted communication (HMS-800 + DTU Wlite S) now work seamlessly
+  - Automatic encryption detection via DTU information response (dfs field)
+  - Supports both encrypted and plain-text devices simultaneously (backward compatible)
+  - Dynamic TX/RX timeout (30s normal, 35s for weak WiFi) prevents timeout failures
+  - WiFi signal monitoring with automatic reconnection on weak signals (< -70 dBm)
+  - Encryption diagnostic endpoint (/api/encryption-info.json) for troubleshooting
+  - Detailed logging of encryption state transitions and errors
+  - Single plain-text fallback on decryption failures (graceful degradation)
+  - Zero-user-configuration: all encryption/WiFi tuning automatic
+
 ### Fixed (2026-05-19)
 - Firmware update completion now shows reboot overlay instead of forcing immediate reload — prevents missing device reconnection
   - Shows "Device is rebooting..." with spinner and elapsed time counter

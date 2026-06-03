@@ -334,20 +334,36 @@ void DTUInterface::txrxStateObserver()
         dtuConnection.dtuTxRxStateLast = dtuConnection.dtuTxRxState;
         dtuConnection.dtuTxRxStateLastChange = millis();
     }
-    else if (millis() - dtuConnection.dtuTxRxStateLastChange > 30000 && dtuConnection.dtuTxRxState != DTU_TXRX_STATE_IDLE)
+    else if (millis() - dtuConnection.dtuTxRxStateLastChange > getDynamicTxRxTimeout() && dtuConnection.dtuTxRxState != DTU_TXRX_STATE_IDLE)
     {
-        // Check WiFi quality before forcing disconnect
-        if (WiFi.RSSI() < -80)
+        // TX/RX timeout occurred
+        boolean weakSignal = checkWifiSignalQuality();
+        unsigned long txrxTimeout = getDynamicTxRxTimeout();
+
+        // Check WiFi quality and attempt reconnect if weak
+        if (weakSignal && userConfig.weakWiFiAutoReconnect &&
+            millis() - lastWiFiReconnectTime > WIFI_RECONNECT_COOLDOWN)
         {
-            Serial.println(F("DTUinterface:\t [[stateObserver]] - timeout with poor WiFi signal - attempting WiFi reconnect"));
+            Serial.printf("DTUinterface:\t [[stateObserver]] - TX/RX timeout with weak WiFi signal (%d dBm) - attempting WiFi reconnect\n", lastWifiRssi);
             WiFi.reconnect();
-            dtuConnection.dtuTxRxStateLastChange = millis(); // Reset timer
+            lastWiFiReconnectTime = millis();
+            dtuConnection.dtuTxRxStateLastChange = millis(); // Reset timer to give WiFi time to reconnect
             return;
         }
 
-        Serial.println(F("DTUinterface:\t [[stateObserver]] - timeout - reset txrx state to DTU_TXRX_STATE_IDLE"));
+        // Also check for very poor signal (< -80 dBm) regardless of weakness threshold
+        if (lastWifiRssi < -80 && millis() - lastWiFiReconnectTime > WIFI_RECONNECT_COOLDOWN)
+        {
+            Serial.printf("DTUinterface:\t [[stateObserver]] - TX/RX timeout with very poor WiFi signal (%d dBm) - attempting WiFi reconnect\n", lastWifiRssi);
+            WiFi.reconnect();
+            lastWiFiReconnectTime = millis();
+            dtuConnection.dtuTxRxStateLastChange = millis();
+            return;
+        }
+
+        Serial.printf("DTUinterface:\t [[stateObserver]] - TX/RX timeout (threshold: %lu ms, WiFi: %d dBm) - reset txrx state to DTU_TXRX_STATE_IDLE\n", txrxTimeout, lastWifiRssi);
         dtuConnection.dtuTxRxState = DTU_TXRX_STATE_IDLE;
-        dtuInterface.disconnect(DTU_STATE_OFFLINE);
+        disconnect(DTU_STATE_OFFLINE);
     }
 }
 
@@ -559,10 +575,45 @@ void DTUInterface::handleError(uint8_t errorState)
 // Callback method to handle incoming data
 void DTUInterface::onDataReceived(void *arg, AsyncClient *client, void *data, size_t len)
 {
-    txrxStateObserver();
     DTUInterface *dtuInterface = static_cast<DTUInterface *>(arg);
+    dtuInterface->txrxStateObserver();
+
+    // Handle decryption if DTU is using encrypted communication
+    uint8_t *payloadData = static_cast<uint8_t *>(data) + 10;
+    size_t payloadLen = len - 10;
+    uint8_t decryptedBuffer[512];
+    boolean decrypted = false;
+
+    if (dtuInterface->dtuEncryptionEnabled && dtuInterface->encryptionManager.isEncrypted())
+    {
+        // Extract command tag and sequence from header for decryption
+        uint16_t cmdTag = (static_cast<uint8_t *>(data)[2] << 8) | static_cast<uint8_t *>(data)[3];
+        uint16_t sequence = (static_cast<uint8_t *>(data)[4] << 8) | static_cast<uint8_t *>(data)[5];
+
+        size_t decryptedLen = 0;
+        if (dtuInterface->encryptionManager.decryptResponse(cmdTag, sequence, payloadData, payloadLen, decryptedBuffer, sizeof(decryptedBuffer), decryptedLen))
+        {
+            payloadData = decryptedBuffer;
+            payloadLen = decryptedLen - 16; // Exclude the 16-byte auth tag from protobuf parsing
+            decrypted = true;
+            Serial.printf("DTUinterface:\t [ENCRYPTION] Successfully decrypted response (tag: 0x%04X, seq: %u, len: %zu bytes)\n",
+                          cmdTag, sequence, decryptedLen);
+        }
+        else
+        {
+            Serial.printf("DTUinterface:\t [ENCRYPTION ERROR] Decryption failed for tag 0x%04X, sequence %u - attempting plain-text fallback\n",
+                          cmdTag, sequence);
+            // Fallback to plain-text interpretation
+            payloadData = static_cast<uint8_t *>(data) + 10;
+            payloadLen = len - 10;
+
+            // Log this as a potential error that might indicate encryption misconfiguration
+            Serial.printf("DTUinterface:\t [ENCRYPTION WARNING] Plain-text fallback for command tag 0x%04X - ensure enc_rand is up-to-date\n", cmdTag);
+        }
+    }
+
     // first 10 bytes are header or similar and actual data starts from the 11th byte
-    pb_istream_t istream = pb_istream_from_buffer(static_cast<uint8_t *>(data) + 10, len - 10);
+    pb_istream_t istream = pb_istream_from_buffer(payloadData, payloadLen);
 
     switch (dtuConnection.dtuTxRxState)
     {
@@ -613,6 +664,82 @@ void DTUInterface::onDataReceived(void *arg, AsyncClient *client, void *data, si
     default:
         Serial.println(F("DTUinterface:\t onDataReceived - no valid or known state"));
         break;
+    }
+}
+
+/**
+ * Helper function to send messages with optional encryption
+ * Handles both encrypted and plain-text message sending
+ *
+ * @param header: 10-byte header (bytes 0-1 are magic 0x48 0x4d, bytes 2-3 are command tag)
+ * @param payload: Protobuf payload data (without CRC - CRC is in header)
+ * @param payloadLen: Length of payload data
+ * @param commandTag: Command tag (for AES-GCM AAD)
+ * @param sequence: Sequence number (for nonce derivation, typically embedded in header bytes 4-5)
+ */
+void DTUInterface::sendMessageWithEncryption(const uint8_t *header, const uint8_t *payload, size_t payloadLen, uint16_t commandTag, uint16_t sequence)
+{
+    if (!client || !client->connected())
+    {
+        Serial.println(F("DTUinterface:\t Client not connected, cannot send message"));
+        return;
+    }
+
+    // Check if this command should be encrypted
+    boolean shouldEncrypt = dtuEncryptionEnabled && encryptionManager.isEncrypted() && encryptionManager.shouldEncryptCommand(commandTag);
+
+    if (shouldEncrypt)
+    {
+        // Create buffer with payload + 16-byte placeholder for AES-GCM auth tag
+        // The encryptCommand function will compute the actual auth tag
+        uint8_t plaintextBuffer[512];
+        if (payloadLen + 16 > sizeof(plaintextBuffer))
+        {
+            Serial.println(F("DTUinterface:\t Payload too large for encryption buffer"));
+            return;
+        }
+
+        // Copy payload
+        memcpy(plaintextBuffer, payload, payloadLen);
+        // Append 16-byte placeholder (will be replaced with actual auth tag by AES-GCM)
+        memset(plaintextBuffer + payloadLen, 0, 16);
+
+        // Encrypt
+        uint8_t encryptedBuffer[512];
+        size_t encryptedLen = 0;
+
+        if (!encryptionManager.encryptCommand(commandTag, sequence, plaintextBuffer, payloadLen + 16, encryptedBuffer, sizeof(encryptedBuffer), encryptedLen))
+        {
+            Serial.println(F("DTUinterface:\t Encryption failed"));
+            return;
+        }
+
+        // Build encrypted message: header + encrypted payload
+        uint8_t messageHeader[10];
+        memcpy(messageHeader, header, 10);
+
+        // Update length in header: 10 (header) + encryptedLen (ciphertext + auth tag)
+        uint16_t newLen = encryptedLen + 10;
+        messageHeader[8] = (newLen >> 8) & 0xFF;
+        messageHeader[9] = newLen & 0xFF;
+
+        // Send header + encrypted payload together
+        uint8_t fullMessage[10 + encryptedLen];
+        memcpy(fullMessage, messageHeader, 10);
+        memcpy(fullMessage + 10, encryptedBuffer, encryptedLen);
+
+        client->write((const char *)fullMessage, 10 + encryptedLen);
+
+        Serial.printf("DTUinterface:\t Sent encrypted message (cmd: 0x%04x, encrypted len: %u)\n", commandTag, encryptedLen);
+    }
+    else
+    {
+        // Send plain-text message
+        uint8_t fullMessage[10 + payloadLen];
+        memcpy(fullMessage, header, 10);
+        memcpy(fullMessage + 10, payload, payloadLen);
+
+        client->write((const char *)fullMessage, 10 + payloadLen);
     }
 }
 
@@ -888,7 +1015,11 @@ void DTUInterface::writeReqRealDataNew()
 
     // Serial.println(F("DTUinterface:\t writeReqRealDataNew --- send request to DTU ..."));
     dtuConnection.dtuTxRxState = DTU_TXRX_STATE_WAIT_REALDATANEW;
-    client->write((const char *)message, 10 + stream.bytes_written);
+
+    // Send using encryption-aware wrapper (command tag 0xa311)
+    uint16_t commandTag = 0xa311;
+    uint16_t sequence = (header[4] << 8) | header[5];
+    sendMessageWithEncryption(header, buffer, stream.bytes_written, commandTag, sequence);
 
     // readRespRealDataNew(locTimeSec);
 }
@@ -1040,7 +1171,11 @@ boolean DTUInterface::writeReqAppInformation()
     }
 
     dtuConnection.dtuTxRxState = DTU_TXRX_STATE_WAIT_APP_INFORMATION;
-    client->write((const char *)message, 10 + stream.bytes_written);
+
+    // Send using encryption-aware wrapper (command tag 0xa301, not encrypted on first request)
+    uint16_t commandTag = 0xa301;
+    uint16_t sequence = (header[4] << 8) | header[5];
+    sendMessageWithEncryption(header, buffer, stream.bytes_written, commandTag, sequence);
 
     Serial.println(F("DTUinterface:\t writeReqAppInformation sent"));
 
@@ -1083,6 +1218,34 @@ boolean DTUInterface::readRespAppInformation(pb_istream_t istream)
         {
             Serial.println("DTUinterface:\t DTU HW: " + formatDtuVersion(dtuInfo.dtu_hw_version) +
                            " (raw: " + String(dtuInfo.dtu_hw_version) + ")");
+        }
+
+        // Check for encrypted DTU (HMS-800 Wlite S or similar)
+        // The dfs field (23) in APPDtuInfoMO contains encryption random or flag
+        if (dtuInfo.dfs != 0)
+        {
+            boolean wasEncrypted = dtuEncryptionEnabled;
+            dtuEncryptionEnabled = true;
+
+            // Log encryption state transition
+            if (!wasEncrypted)
+            {
+                Serial.printf("DTUinterface:\t [ENCRYPTION STATE] Transitioning from PLAIN to ENCRYPTED (dfs field: %d, dec: %d)\n",
+                              dtuInfo.dfs, dtuInfo.dfs);
+            }
+
+            // Check device type for HMS-800
+            if (dtuGlobalData.inverterModel.indexOf("HMS-800") != -1 && dtuGlobalData.inverterModel.indexOf("HMS-800W") == -1)
+            {
+                Serial.println(F("DTUinterface:\t [ENCRYPTION STATE] HMS-800 (non-W variant) detected - encryption required"));
+                encryptionManager.disableEncryption(); // Will be enabled once enc_rand is extracted
+            }
+        }
+        else if (dtuEncryptionEnabled)
+        {
+            // Encryption was previously enabled but not detected now
+            Serial.println(F("DTUinterface:\t [ENCRYPTION STATE] Transitioning from ENCRYPTED to PLAIN"));
+            dtuEncryptionEnabled = false;
         }
     }
     else
@@ -1215,7 +1378,11 @@ void DTUInterface::writeReqAppGetHistPower()
 
     Serial.println(F("DTUinterface:\t writeReqAppGetHistPower --- send request to DTU ..."));
     dtuConnection.dtuTxRxState = DTU_TXRX_STATE_WAIT_APPGETHISTPOWER;
-    client->write((const char *)message, 10 + stream.bytes_written);
+
+    // Send using encryption-aware wrapper (command tag 0xa315)
+    uint16_t commandTag = 0xa315;
+    uint16_t sequence = (header[4] << 8) | header[5];
+    sendMessageWithEncryption(header, buffer, stream.bytes_written, commandTag, sequence);
     //     readRespAppGetHistPower();
 }
 
@@ -1317,7 +1484,11 @@ void DTUInterface::writeReqGetConfig()
     //     client->write(message, 10 + stream.bytes_written);
     // Serial.println(F("DTUinterface:\t writeReqGetConfig --- send request to DTU ..."));
     dtuConnection.dtuTxRxState = DTU_TXRX_STATE_WAIT_GETCONFIG;
-    client->write((const char *)message, 10 + stream.bytes_written);
+
+    // Send using encryption-aware wrapper (command tag 0xa309)
+    uint16_t commandTag = 0xa309;
+    uint16_t sequence = (header[4] << 8) | header[5];
+    sendMessageWithEncryption(header, buffer, stream.bytes_written, commandTag, sequence);
     //     readRespGetConfig();
 }
 
@@ -1449,7 +1620,11 @@ boolean DTUInterface::writeReqCommandSetPowerlimit(uint8_t setPercent)
     //     dtuClient.write(message, 10 + stream.bytes_written);
     Serial.println("DTUinterface:\t writeReqCommandSetPowerlimit (" + String(limitLevel) + " /10 %) --- send request to DTU ...");
     dtuConnection.dtuTxRxState = DTU_TXRX_STATE_WAIT_COMMAND;
-    client->write((const char *)message, 10 + stream.bytes_written);
+
+    // Send using encryption-aware wrapper (command tag 0xa305)
+    uint16_t commandTag = 0xa305;
+    uint16_t sequence = (header[4] << 8) | header[5];
+    sendMessageWithEncryption(header, buffer, stream.bytes_written, commandTag, sequence);
     //     if (!readRespCommandSetPowerlimit())
     //         return false;
     return true;
@@ -1560,7 +1735,11 @@ boolean DTUInterface::writeReqCommandRestartDevice()
 
     Serial.println(F("DTUinterface:\t writeReqCommandRestartDevice --- send request to DTU ..."));
     dtuConnection.dtuTxRxState = DTU_TXRX_STATE_WAIT_RESTARTDEVICE;
-    client->write((const char *)message, 10 + stream.bytes_written);
+
+    // Send using encryption-aware wrapper (command tag 0x2305)
+    uint16_t commandTag = 0x2305;
+    uint16_t sequence = (header[4] << 8) | header[5];
+    sendMessageWithEncryption(header, buffer, stream.bytes_written, commandTag, sequence);
     return true;
 }
 
@@ -1647,7 +1826,11 @@ boolean DTUInterface::writeReqCommandRestartMi()
 
     Serial.println(F("DTUinterface:\t writeReqCommandRestartMi --- send request to DTU ..."));
     dtuConnection.dtuTxRxState = DTU_TXRX_STATE_WAIT_RESTARTMI;
-    client->write((const char *)message, 10 + stream.bytes_written);
+
+    // Send using encryption-aware wrapper (command tag 0x2305)
+    uint16_t commandTag = 0x2305;
+    uint16_t sequence = (header[4] << 8) | header[5];
+    sendMessageWithEncryption(header, buffer, stream.bytes_written, commandTag, sequence);
     resetDtuGlobalData(DTU_ERROR_NO_ERROR, DTU_STATE_INV_REBOOT);
     return true;
 }
@@ -1737,7 +1920,11 @@ boolean DTUInterface::writeReqCommandInverterTurnOn()
 
     Serial.println(F("DTUinterface:\t writeReqCommandInverterTurnOn --- send request to DTU ..."));
     dtuConnection.dtuTxRxState = DTU_TXRX_STATE_WAIT_INVERTER_TURN_ON;
-    client->write((const char *)message, 10 + stream.bytes_written);
+
+    // Send using encryption-aware wrapper (command tag 0x2305)
+    uint16_t commandTag = 0x2305;
+    uint16_t sequence = (header[4] << 8) | header[5];
+    sendMessageWithEncryption(header, buffer, stream.bytes_written, commandTag, sequence);
     // set global inverter state to on -  - will be checked by warnings update
     dtuGlobalData.inverterControl.stateOn = true;
     dtuGlobalData.inverterControl.lastSwitchedToOn = dtuGlobalData.currentTimestamp;
@@ -1841,7 +2028,11 @@ boolean DTUInterface::writeReqCommandInverterTurnOff()
 
     Serial.println(F("DTUinterface:\t writeReqCommandInverterTurnOff --- send request to DTU ..."));
     dtuConnection.dtuTxRxState = DTU_TXRX_STATE_WAIT_INVERTER_TURN_OFF;
-    client->write((const char *)message, 10 + stream.bytes_written);
+
+    // Send using encryption-aware wrapper (command tag 0x2305)
+    uint16_t commandTag = 0x2305;
+    uint16_t sequence = (header[4] << 8) | header[5];
+    sendMessageWithEncryption(header, buffer, stream.bytes_written, commandTag, sequence);
     // set global inverter state to off - will be checked by warnings update
     dtuGlobalData.inverterControl.stateOn = false;
     dtuGlobalData.inverterControl.lastSwitchedToOff = dtuGlobalData.currentTimestamp;
@@ -1944,7 +2135,11 @@ boolean DTUInterface::writeReqCommandPerformanceDataMode()
 
     Serial.println(F("DTUinterface:\t writeReqCommandPerformanceDataMode --- send request to DTU ..."));
     dtuConnection.dtuTxRxState = DTU_TXRX_STATE_WAIT_PERFORMANCE_DATA_MODE;
-    client->write((const char *)message, 10 + stream.bytes_written);
+
+    // Send using encryption-aware wrapper (command tag 0x2305)
+    uint16_t commandTag = 0x2305;
+    uint16_t sequence = (header[4] << 8) | header[5];
+    sendMessageWithEncryption(header, buffer, stream.bytes_written, commandTag, sequence);
     dtuGlobalData.inverterControl.lastSwitchedToOff = dtuGlobalData.currentTimestamp;
     // set next normal request in 5 seconds from now on, only if last data updated within last 2 times of user setted update rate
     if (dtuGlobalData.currentTimestamp - dtuGlobalData.lastRespTimestamp < (userConfig.dtuUpdateTime * 2))
@@ -2047,7 +2242,11 @@ boolean DTUInterface::writeReqCommandRequestAlarms()
 
     Serial.println(F("DTUinterface:\t writeReqCommandReqAlarms --- send request to DTU ..."));
     dtuConnection.dtuTxRxState = DTU_TXRX_STATE_WAIT_REQUEST_ALARMS;
-    client->write((const char *)message, 10 + stream.bytes_written);
+
+    // Send using encryption-aware wrapper (command tag 0xa305)
+    uint16_t commandTag = 0xa305;
+    uint16_t sequence = (header[4] << 8) | header[5];
+    sendMessageWithEncryption(header, buffer, stream.bytes_written, commandTag, sequence);
     return true;
 }
 
@@ -2129,7 +2328,11 @@ boolean DTUInterface::writeReqCommandGetAlarms()
     //     dtuClient.write(message, 10 + stream.bytes_written);
     Serial.println("DTUinterface:\t writeReqCommandGetAlarms --- send request to DTU ...");
     dtuConnection.dtuTxRxState = DTU_TXRX_STATE_WAIT_GET_ALARMS;
-    client->write((const char *)message, 10 + stream.bytes_written);
+
+    // Send using encryption-aware wrapper (command tag 0xa304)
+    uint16_t commandTag = 0xa304;
+    uint16_t sequence = (header[4] << 8) | header[5];
+    sendMessageWithEncryption(header, buffer, stream.bytes_written, commandTag, sequence);
     return true;
 }
 
@@ -2703,4 +2906,70 @@ void DTUInterface::printEventHistory()
     Serial.println("DTUinterface:\t Total connections: " + String(dtuConnection.totalConnections) +
                    " Short: " + String(dtuConnection.shortConnections) +
                    " Healthy state: " + (dtuConnection.healthyStateDetected ? "YES" : "NO"));
+}
+
+/**
+ * Check WiFi signal strength and update weak signal state
+ * Returns true if signal is currently weak
+ */
+boolean DTUInterface::checkWifiSignalQuality()
+{
+    unsigned long currentTime = millis();
+
+    // Check signal at regular intervals
+    if (currentTime - lastWifiSignalCheck < WIFI_SIGNAL_CHECK_INTERVAL)
+    {
+        return isWeakWiFiSignal; // Return cached state
+    }
+
+    lastWifiSignalCheck = currentTime;
+    int currentRssi = WiFi.RSSI();
+    lastWifiRssi = currentRssi;
+
+    boolean wasWeak = isWeakWiFiSignal;
+    boolean isCurrentlyWeak = (currentRssi < userConfig.wifiSignalThreshold);
+
+    // Debounce weak signal detection: require 5 seconds of weak signal
+    if (isCurrentlyWeak && !wasWeak)
+    {
+        // Transition to weak: start timer
+        weakSignalStartTime = currentTime;
+        return false; // Not weak yet (debouncing)
+    }
+    else if (isCurrentlyWeak && wasWeak)
+    {
+        // Already weak: check if debounce time elapsed
+        if (currentTime - weakSignalStartTime >= WEAK_SIGNAL_HOLD_TIME)
+        {
+            isWeakWiFiSignal = true;
+        }
+        return isWeakWiFiSignal;
+    }
+    else if (!isCurrentlyWeak && wasWeak)
+    {
+        // Signal improved: transition back to normal
+        isWeakWiFiSignal = false;
+        Serial.printf("DTUinterface:\t WiFi signal improved to %d dBm (threshold: %d)\n",
+                      currentRssi, userConfig.wifiSignalThreshold);
+        return false;
+    }
+    else
+    {
+        // Signal is good and was good
+        isWeakWiFiSignal = false;
+        return false;
+    }
+}
+
+/**
+ * Get dynamic TX/RX timeout based on WiFi signal quality
+ * Returns 30000 ms for normal signal, 35000 ms for weak signal
+ */
+unsigned long DTUInterface::getDynamicTxRxTimeout() const
+{
+    if (isWeakWiFiSignal)
+    {
+        return userConfig.dtuTimeoutWeak * 1000; // Weak signal timeout
+    }
+    return userConfig.dtuTimeoutNormal * 1000; // Normal timeout
 }

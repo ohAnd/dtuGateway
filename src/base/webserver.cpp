@@ -147,6 +147,20 @@ void DTUwebserver::start()
     asyncDtuWebServer.on("/api/dtuData.json", handleDtuInfoJson);
     asyncDtuWebServer.on("/api/dtuEvents.json", handleDtuEventsJson);
     asyncDtuWebServer.on("/api/dtuEventsClear", handleDtuEventsClear);
+    asyncDtuWebServer.on("/api/encryption-info.json", [](AsyncWebServerRequest *request)
+                         {
+        // Encryption diagnostic endpoint - shows encryption status and WiFi signal
+        String json = "{";
+        json += "\"encryption_enabled\":" + String(dtuInterface.dtuEncryptionEnabled ? 1 : 0) + ",";
+        json += "\"encryption_active\":" + String(dtuInterface.encryptionManager.isEncrypted() ? 1 : 0) + ",";
+        json += "\"wifi_signal_dbm\":" + String(WiFi.RSSI()) + ",";
+        json += "\"wifi_signal_percent\":" + String(max(2 * (WiFi.RSSI() + 100), 0)) + ",";
+        json += "\"wifi_weak_signal\":" + String(dtuInterface.isWeakWiFiSignal ? 1 : 0) + ",";
+        json += "\"dtu_timeout_ms\":" + String(dtuInterface.getDynamicTxRxTimeout()) + ",";
+        json += "\"weak_signal_threshold\":" + String(userConfig.wifiSignalThreshold) + ",";
+        json += "\"weak_wifi_auto_reconnect\":" + String(userConfig.weakWiFiAutoReconnect ? 1 : 0);
+        json += "}";
+        request->send(200, "application/json", json); });
 
     // OTA direct update
     asyncDtuWebServer.on("/updateOTASettings", handleUpdateOTASettings);
