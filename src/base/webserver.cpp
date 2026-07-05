@@ -452,7 +452,7 @@ void DTUwebserver::handleDataJson(AsyncWebServerRequest *request)
     JSON = JSON + "\"starttime\": " + String(platformData.dtuGWstarttime - userConfig.timezoneOffest) + ",";
 
     JSON = JSON + "\"inverter\": {";
-    JSON = JSON + "\"pLim\": " + ((dtuGlobalData.powerLimit == 254) ? ("\"--\"") : (String(dtuGlobalData.powerLimit))) + ",";
+    JSON = JSON + "\"pLim\": " + ((dtuGlobalData.powerLimit == 254) ? ("0") : (String(dtuGlobalData.powerLimit))) + ",";
     JSON = JSON + "\"pLimSet\": " + String(dtuGlobalData.powerLimitSet) + ",";
     JSON = JSON + "\"temp\": " + String(dtuGlobalData.inverterTemp.getValue()) + ",";
     JSON = JSON + "\"active\": " + String(dtuGlobalData.inverterControl.stateOn) + ",";
@@ -470,7 +470,7 @@ void DTUwebserver::handleDataJson(AsyncWebServerRequest *request)
     JSON = JSON + "\"grid\": {";
     JSON = JSON + "\"v\": " + String(dtuGlobalData.grid.voltage.getValue()) + ",";
     JSON = JSON + "\"c\": " + String(dtuGlobalData.grid.current.getValue()) + ",";
-    JSON = JSON + "\"p\": " + ((dtuGlobalData.grid.power.getValue() == 0) ? ("\"--\"") : (String(dtuGlobalData.grid.power.getValue()))) + ",";
+    JSON = JSON + "\"p\": " + ((dtuGlobalData.grid.power.getValue() == 0) ? ("0") : (String(dtuGlobalData.grid.power.getValue()))) + ",";
     JSON = JSON + "\"f\": " + String(dtuGlobalData.gridFreq.getValue()) + ",";
     JSON = JSON + "\"dE\": " + String(dtuGlobalData.grid.dailyEnergy, 3) + ",";
     JSON = JSON + "\"tE\": " + String(dtuGlobalData.grid.totalEnergy, 3);
@@ -479,7 +479,7 @@ void DTUwebserver::handleDataJson(AsyncWebServerRequest *request)
     JSON = JSON + "\"pv0\": {";
     JSON = JSON + "\"v\": " + String(dtuGlobalData.pv0.voltage.getValue()) + ",";
     JSON = JSON + "\"c\": " + String(dtuGlobalData.pv0.current.getValue()) + ",";
-    JSON = JSON + "\"p\": " + ((dtuGlobalData.pv0.power.getValue() == 0) ? ("\"--\"") : (String(dtuGlobalData.pv0.power.getValue()))) + ",";
+    JSON = JSON + "\"p\": " + ((dtuGlobalData.pv0.power.getValue() == 0) ? ("0") : (String(dtuGlobalData.pv0.power.getValue()))) + ",";
     JSON = JSON + "\"dE\": " + String(dtuGlobalData.pv0.dailyEnergy, 3) + ",";
     JSON = JSON + "\"tE\": " + String(dtuGlobalData.pv0.totalEnergy, 3);
     JSON = JSON + "},";
@@ -487,7 +487,7 @@ void DTUwebserver::handleDataJson(AsyncWebServerRequest *request)
     JSON = JSON + "\"pv1\": {";
     JSON = JSON + "\"v\": " + String(dtuGlobalData.pv1.voltage.getValue()) + ",";
     JSON = JSON + "\"c\": " + String(dtuGlobalData.pv1.current.getValue()) + ",";
-    JSON = JSON + "\"p\": " + ((dtuGlobalData.pv1.power.getValue() == 0) ? ("\"--\"") : (String(dtuGlobalData.pv1.power.getValue()))) + ",";
+    JSON = JSON + "\"p\": " + ((dtuGlobalData.pv1.power.getValue() == 0) ? ("0") : (String(dtuGlobalData.pv1.power.getValue()))) + ",";
     JSON = JSON + "\"dE\": " + String(dtuGlobalData.pv1.dailyEnergy, 3) + ",";
     JSON = JSON + "\"tE\": " + String(dtuGlobalData.pv1.totalEnergy, 3);
     JSON = JSON + "}";

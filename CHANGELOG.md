@@ -4,6 +4,15 @@ All notable changes to dtuGateway are documented here. This changelog focuses on
 
 ## [Unreleased] - Current Development
 
+### Fixed (2026-07-05)
+- **evcc Integration — API Power Values** — JSON API now returns numeric 0 instead of '--' for zero power states
+  - Fixes evcc meter parsing errors when PV panels stop delivering power at night
+  - Grid, PV0, and PV1 power values now return numeric 0 when generation is zero
+  - Power limit (pLim) returns numeric 0 instead of '--' when invalid/not set
+  - Enables seamless integration with evcc EV charging control system
+  - Eliminates parse errors in evcc logs during DTU disconnection or zero-generation periods
+  - Backward compatible: only affects numeric power values in `/api/data.json` endpoint
+
 ### Fixed (2026-05-19)
 - Firmware update completion now shows reboot overlay instead of forcing immediate reload — prevents missing device reconnection
   - Shows "Device is rebooting..." with spinner and elapsed time counter
