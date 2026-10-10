@@ -159,6 +159,21 @@ void DTUwebserver::start()
         json += "\"dtu_timeout_ms\":" + String(dtuInterface.getDynamicTxRxTimeout()) + ",";
         json += "\"weak_signal_threshold\":" + String(userConfig.wifiSignalThreshold) + ",";
         json += "\"weak_wifi_auto_reconnect\":" + String(userConfig.weakWiFiAutoReconnect ? 1 : 0);
+
+        // NEW: Encryption details
+        if (dtuInterface.encryptionManager.isEncrypted()) {
+            char encRandHex[33] = {0};
+            dtuInterface.encryptionManager.getEncRandHex(encRandHex, sizeof(encRandHex));
+            json += ",\"enc_rand\":\"" + String(encRandHex) + "\"";
+            json += ",\"timestamp_offset\":" + String(dtuInterface.encryptionManager.getDtuTimestampOffset());
+        }
+
+        // NEW: Connection statistics
+        json += ",\"total_connections\":" + String(dtuConnection.totalConnections);
+        json += ",\"short_connections\":" + String(dtuConnection.shortConnections);
+        json += ",\"longest_connection_ms\":" + String(dtuConnection.longestConnection);
+        json += ",\"average_connection_ms\":" + String(dtuConnection.averageConnectionTime);
+
         json += "}";
         request->send(200, "application/json", json); });
 

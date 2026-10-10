@@ -10,6 +10,7 @@ DTUEncryption::DTUEncryption()
 {
     mbedtls_gcm_init(&m_gcm_ctx);
     mbedtls_aes_init(&m_aes_ctx);
+    m_dtuTimestampOffset = 0;
 }
 
 DTUEncryption::~DTUEncryption()
@@ -129,6 +130,11 @@ boolean DTUEncryption::encryptCommand(
         return false;
     }
 
+    // Enhanced logging for troubleshooting
+    Serial.println("DTUEncryption: Encrypting command tag: 0x" + String(commandTag, HEX) + 
+                  ", seq: " + String(sequence) + 
+                  ", plaintextLen: " + String(plaintextLen));
+
     // Ciphertext length = plaintext length - 16 (auth tag is computed, not included in output)
     size_t expectedCiphertextLen = plaintextLen - 16;
 
@@ -177,6 +183,7 @@ boolean DTUEncryption::encryptCommand(
     }
 
     outCiphertextLen = expectedCiphertextLen + 16; // Include the tag
+    Serial.println("DTUEncryption: Encryption successful, ciphertextLen: " + String(outCiphertextLen));
 
     return true;
 }
@@ -201,6 +208,11 @@ boolean DTUEncryption::decryptResponse(
         Serial.println(F("DTUEncryption: Ciphertext too short (must include 16-byte tag)"));
         return false;
     }
+
+    // Enhanced logging for troubleshooting
+    Serial.println("DTUEncryption: Decrypting response tag: 0x" + String(commandTag, HEX) + 
+                  ", seq: " + String(sequence) + 
+                  ", ciphertextLen: " + String(ciphertextLen));
 
     // Plaintext length = ciphertext length (tag is verified but included in plaintext output)
     size_t expectedPlaintextLen = ciphertextLen;
@@ -246,13 +258,17 @@ boolean DTUEncryption::decryptResponse(
 
     if (result != 0)
     {
-        Serial.printf("DTUEncryption: AES-GCM decryption/authentication failed: %d\n", result);
+        Serial.printf("DTUEncryption: [ENCRYPTION ERROR] AES-GCM decryption/authentication failed: %d\n", result);
         return false;
     }
 
     // Copy tag to output plaintext (for protobuf parsing)
     memcpy(plaintextData + dataLen, authTag, 16);
     outPlaintextLen = expectedPlaintextLen;
+
+    Serial.println("DTUEncryption: [ENCRYPTION] Successfully decrypted response (tag: 0x" + 
+                  String(commandTag, HEX) + ", seq: " + String(sequence) + 
+                  ", len: " + String(outPlaintextLen) + " bytes)");
 
     return true;
 }
@@ -278,5 +294,19 @@ void DTUEncryption::reset()
 {
     m_isEncrypted = false;
     memset(m_encRand, 0, 16);
+    m_dtuTimestampOffset = 0;
     Serial.println(F("DTUEncryption: Reset"));
+}
+
+// NEW: Timestamp synchronization methods
+void DTUEncryption::setDtuTimestamp(uint32_t dtuTimestamp)
+{
+    time_t now = time(nullptr);
+    m_dtuTimestampOffset = static_cast<int32_t>(dtuTimestamp) - static_cast<int32_t>(now);
+    Serial.println("DTUEncryption: DTU clock offset: " + String(m_dtuTimestampOffset) + "s");
+}
+
+uint32_t DTUEncryption::getAdjustedTimestamp() const
+{
+    return static_cast<uint32_t>(time(nullptr)) + m_dtuTimestampOffset;
 }

@@ -4,6 +4,26 @@ All notable changes to dtuGateway are documented here. This changelog focuses on
 
 ## [Unreleased] - Current Development
 
+### Fixed (2026-10-10)
+- **HMS-800 Encryption Timestamp Synchronization** — Resolves DTU clock mismatch issues that caused connection failures
+  - Added DTU clock offset tracking and automatic timestamp adjustment
+  - All encrypted requests now use DTU-adjusted timestamps to prevent rejection
+  - Timestamp offset visible in /api/encryption-info.json for diagnostics
+  - Handles DTU internal clock drift (e.g., stuck in 2022) gracefully
+- **Automatic Encryption Enablement** — Encryption now activates automatically when dfs field detected
+  - Removed manual enable requirement - encryption activates on first APP_INFO response
+  - Uses dfs field value as initial enc_rand (SHA256-expanded from 4 bytes to 16 bytes)
+  - Maintains backward compatibility with non-encrypted devices
+- **Enhanced Encryption Diagnostics** — Improved logging and monitoring for troubleshooting
+  - Added [DIAG] logs for all incoming/outgoing encrypted messages
+  - Serial logs now show command tag, length, and encryption state
+  - Extended /api/encryption-info.json with enc_rand, timestamp_offset, and connection statistics
+  - Added plain-text fallback logging when decryption fails
+- **Extended Timeout for Encrypted Sessions** — Prevents premature timeout on encrypted DTU connections
+  - Increased timeout from 30s to 60s when encryption is active
+  - Logs timeout extension for visibility
+  - Handles slower response times due to encryption/decryption overhead
+
 ### Fixed (2026-06-03)
 - **HMS-800 (Non-W) + DTU Wlite S Support** — Full AES-128-GCM encryption implementation
   - Devices using encrypted communication (HMS-800 + DTU Wlite S) now work seamlessly

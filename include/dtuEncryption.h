@@ -19,6 +19,7 @@
  * - Transparent decryption of responses
  * - Separate handling of NOT_ENCRYPTED_COMMANDS (read-only operations)
  * - Dynamic enc_rand updates from DTU responses
+ * - DTU clock synchronization for timestamp offset handling
  */
 class DTUEncryption
 {
@@ -131,9 +132,28 @@ public:
      */
     void reset();
 
+    /**
+     * @brief Set DTU timestamp for clock synchronization
+     * @param dtuTimestamp DTU's current timestamp (from APP_INFO response)
+     */
+    void setDtuTimestamp(uint32_t dtuTimestamp);
+
+    /**
+     * @brief Get adjusted timestamp that accounts for DTU clock offset
+     * @return Adjusted timestamp to use in encrypted requests
+     */
+    uint32_t getAdjustedTimestamp() const;
+
+    /**
+     * @brief Get the DTU timestamp offset in seconds
+     * @return Offset in seconds (DTU_time = local_time + offset)
+     */
+    int32_t getDtuTimestampOffset() const { return m_dtuTimestampOffset; }
+
 private:
     boolean m_isEncrypted = false;
     uint8_t m_encRand[16] = {0};
+    int32_t m_dtuTimestampOffset = 0;  // Offset in seconds: DTU_time = local_time + offset
 
     // mbedtls contexts
     mbedtls_gcm_context m_gcm_ctx;

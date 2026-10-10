@@ -74,7 +74,7 @@ void DTUInterface::disconnect(uint8_t tgtState)
     // Serial.println(F("DTUinterface:\t disconnect request - try to disconnect from DTU ..."));
     if (client && client->connected())
     {
-        client->close(true);
+        client->close();
         dtuConnection.dtuConnectState = tgtState;
         // dtuGlobalData.dtuRssi = 0;
         Serial.println(F("DTUinterface:\t disconnect request - DTU connection closed"));
@@ -336,10 +336,13 @@ void DTUInterface::txrxStateObserver()
     }
     else if (millis() - dtuConnection.dtuTxRxStateLastChange > getDynamicTxRxTimeout() && dtuConnection.dtuTxRxState != DTU_TXRX_STATE_IDLE)
     {
-        // TX/RX timeout occurred
-        boolean weakSignal = checkWifiSignalQuality();
+        // Extended timeout for encrypted sessions
         unsigned long txrxTimeout = getDynamicTxRxTimeout();
-
+        if (dtuEncryptionEnabled && encryptionManager.isEncrypted()) {
+            txrxTimeout = 60000; // 60s for encrypted sessions
+            Serial.println("DTUinterface:\t [[stateObserver]] Using extended timeout for encrypted session: " + String(txrxTimeout) + "ms");
+        }
+        boolean weakSignal = checkWifiSignalQuality();
         // Check WiFi quality and attempt reconnect if weak
         if (weakSignal && userConfig.weakWiFiAutoReconnect &&
             millis() - lastWiFiReconnectTime > WIFI_RECONNECT_COOLDOWN)
@@ -440,7 +443,7 @@ void DTUInterface::flushConnection()
     // Disconnect if connected
     if (client && client->connected())
     {
-        client->close(true);
+        client->close();
         Serial.println(F("DTUinterface:\t Connection closed."));
     }
 
@@ -577,6 +580,10 @@ void DTUInterface::onDataReceived(void *arg, AsyncClient *client, void *data, si
 {
     DTUInterface *dtuInterface = static_cast<DTUInterface *>(arg);
     dtuInterface->txrxStateObserver();
+
+    // Log incoming data with encryption state
+    uint16_t cmdTag = (static_cast<uint8_t *>(data)[2] << 8) | static_cast<uint8_t *>(data)[3];
+    Serial.println("DTUinterface:\t [DIAG] Rx data, cmd: 0x" + String(cmdTag, HEX) + " len: " + String(len) + " encrypted: " + String(dtuInterface->dtuEncryptionEnabled && dtuInterface->encryptionManager.isEncrypted() ? "YES" : "NO"));
 
     // Handle decryption if DTU is using encrypted communication
     uint8_t *payloadData = static_cast<uint8_t *>(data) + 10;
@@ -967,7 +974,13 @@ void DTUInterface::writeReqRealDataNew()
 
     RealDataNewResDTO realdatanewresdto = RealDataNewResDTO_init_default;
     realdatanewresdto.offset = DTU_TIME_OFFSET;
-    realdatanewresdto.time = int32_t(dtuGlobalData.currentTimestamp);
+    // Use adjusted timestamp if encryption is active
+    if (dtuEncryptionEnabled && encryptionManager.isEncrypted()) {
+        realdatanewresdto.time = static_cast<int32_t>(encryptionManager.getAdjustedTimestamp());
+        Serial.println("DTUinterface:\t [ENCRYPTION] Using adjusted timestamp: " + String(realdatanewresdto.time));
+    } else {
+        realdatanewresdto.time = static_cast<int32_t>(dtuGlobalData.currentTimestamp);
+    }
     bool status = pb_encode(&stream, RealDataNewResDTO_fields, &realdatanewresdto);
 
     if (!status)
@@ -1227,6 +1240,41 @@ boolean DTUInterface::readRespAppInformation(pb_istream_t istream)
             boolean wasEncrypted = dtuEncryptionEnabled;
             dtuEncryptionEnabled = true;
 
+            // Extract DTU timestamp for clock synchronization
+            if (appInfoDataReqDTO.time > 0) {
+                encryptionManager.setDtuTimestamp(appInfoDataReqDTO.time);
+            }
+
+            // Enable encryption with enc_rand derived from dfs
+            if (!encryptionManager.isEncrypted()) {
+                // Expand 4-byte dfs field to 16-byte enc_rand using SHA256
+                uint8_t dfsBytes[4];
+                memcpy(dfsBytes, &dtuInfo.dfs, sizeof(dtuInfo.dfs));
+                uint8_t hash[32];
+                mbedtls_sha256_context sha_ctx;
+                mbedtls_sha256_init(&sha_ctx);
+                mbedtls_sha256_starts(&sha_ctx, 0);
+                mbedtls_sha256_update(&sha_ctx, dfsBytes, sizeof(dfsBytes));
+                mbedtls_sha256_finish(&sha_ctx, hash);
+                mbedtls_sha256_free(&sha_ctx);
+                
+                uint8_t encRandFromDfs[16];
+                memcpy(encRandFromDfs, hash, 16); // Use first 16 bytes of SHA256 hash
+                
+                // Log the dfs field and derived enc_rand for diagnostics
+                Serial.printf("DTUinterface:\t [ENCRYPTION DIAG] dfs field: 0x%08X, derived enc_rand: ", dtuInfo.dfs);
+                for (int i = 0; i < 16; i++) {
+                    Serial.printf("%02X", encRandFromDfs[i]);
+                }
+                Serial.println();
+                
+                if (encryptionManager.enableEncryption(encRandFromDfs, sizeof(encRandFromDfs))) {
+                    Serial.println("DTUinterface:\t [ENCRYPTION] Encryption enabled with dfs-based enc_rand (SHA256 expanded)");
+                } else {
+                    Serial.println("DTUinterface:\t [ENCRYPTION ERROR] Failed to enable encryption with derived enc_rand");
+                }
+            }
+
             // Log encryption state transition
             if (!wasEncrypted)
             {
@@ -1238,7 +1286,6 @@ boolean DTUInterface::readRespAppInformation(pb_istream_t istream)
             if (dtuGlobalData.inverterModel.indexOf("HMS-800") != -1 && dtuGlobalData.inverterModel.indexOf("HMS-800W") == -1)
             {
                 Serial.println(F("DTUinterface:\t [ENCRYPTION STATE] HMS-800 (non-W variant) detected - encryption required"));
-                encryptionManager.disableEncryption(); // Will be enabled once enc_rand is extracted
             }
         }
         else if (dtuEncryptionEnabled)
